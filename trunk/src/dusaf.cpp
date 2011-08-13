@@ -46,7 +46,7 @@ public:
       t_max_(100),
       th_a_(1.0/(1+99)),
       th_s_(1.0/(1+4)),
-      w_(4.0),
+      w_(1.0),
       eta0_(0.5),
       en_a_(NULL),
       en_s_(NULL),
@@ -778,8 +778,6 @@ solve(VU& x, VU& y, VU& z,
     {
       const uint i=cbp[u].first.first, j=cbp[u].first.second;
       const uint k=cbp[u].second.first, l=cbp[u].second.second;
-      s_x[i][j] += nu[u];
-      s_y[k][l] += nu[u];
       s_z[i][k] += nu[u];
       s_z[j][l] += nu[u];
     }
@@ -878,15 +876,14 @@ solve(VU& x, VU& y, VU& z,
       const int y_kl = y[k]==l ? 1 : 0;
       const int z_ik = z[i]==k ? 1 : 0;
       const int z_jl = z[j]==l ? 1 : 0;
-      const float s_w = lambda[i][j]+mu[k][l]-4*nu[u];
+      const float s_w = lambda[i][j]+mu[k][l]-2*nu[u];
       const int w_ijkl = s_w>0.0f ? 1 : 0;
       s += s_w * w_ijkl;
       t_x[i][j] += w_ijkl;
       t_y[k][l] += w_ijkl;
-      if (x_ij+y_kl+z_ik+z_jl-4*w_ijkl<0)
+      if (z_ik+z_jl-2*w_ijkl<0)
       {
         violated++;
-      }
 #ifdef VERBOSE
         std::cout << "(i,j,k,l)=" << i << "," << j << "," << k << "," << l << ", ";
         std::cout << "x_ij=" << x_ij << ", y_kl=" << y_kl << ", "
@@ -896,7 +893,8 @@ solve(VU& x, VU& y, VU& z,
                   << "nu_ijkl=" << nu[u] << ", "
                   << "s_w=" << s_w << std::endl;
 #endif
-      nu[u] = std::max(0.0f, nu[u]-eta*(x_ij+y_kl+z_ik+z_jl-4*w_ijkl));
+      }
+      nu[u] = std::max(0.0f, nu[u]-eta*(z_ik+z_jl-2*w_ijkl));
     }
     for (uint i=0; i!=L1-1; ++i)
       for (uint j=i+1; j!=L1; ++j)
@@ -939,7 +937,9 @@ solve(VU& x, VU& y, VU& z,
               << ", L: " << s << std::endl;
 #endif
     if (violated==0) {
+#ifdef VERBOSE
       std::cout << "satisfied\n";
+#endif
       break;     // all constraints were satisfied.
     }
 
@@ -950,7 +950,7 @@ solve(VU& x, VU& y, VU& z,
       std::cout << "eta=" << eta << std::endl;
 #endif
       c++;
-      eta = eta0_/(1+c);
+      eta = eta0_/(1+sqrt(c));
     }
     s_prev = s;
 
