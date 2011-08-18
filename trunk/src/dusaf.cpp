@@ -164,7 +164,7 @@ relax_matching_probability()
           {
             //const uint k=kk->first;
             const float p_ik=kk->second;
-            assert(k<L3);
+            //assert(k<L3);
             FOREACH (SparseVector::const_iterator, jj, (*m[z][y])[kk->first])
             {
               const uint j=jj->first;
@@ -178,7 +178,9 @@ relax_matching_probability()
 
       for (uint z=y+1; z<N; ++z)
       {
-        //const uint L3=fa_[z].size();
+#ifndef NDEBUG
+        const uint L3=fa_[z].size();
+#endif
         assert(L1==m[x][z]->size());
         for (uint i=0; i!=L1; ++i)
         {
@@ -739,6 +741,8 @@ solve(VU& x, VU& y, VU& z,
             for (uint l=k+1; l!=L2; ++l)
               if (p_y[k][l]>CUTOFF && p_z[j][l]>CUTOFF)
               {
+                assert(p_x[i][j]<=1.0);
+                assert(p_y[k][l]<=1.0);
                 float p=(p_x[i][j]+p_y[k][l])/2;
                 float q=(p_z[i][k]+p_z[j][l])/2;
                 if (p-th_s_>0.0 && w_*(p-th_s_)+(q-th_a_)>0.0)
@@ -872,8 +876,8 @@ solve(VU& x, VU& y, VU& z,
     {
       const uint i=cbp[u].first.first, j=cbp[u].first.second;
       const uint k=cbp[u].second.first, l=cbp[u].second.second;
-      const int x_ij = x[i]==j ? 1 : 0;
-      const int y_kl = y[k]==l ? 1 : 0;
+      //const int x_ij = x[i]==j ? 1 : 0;
+      //const int y_kl = y[k]==l ? 1 : 0;
       const int z_ik = z[i]==k ? 1 : 0;
       const int z_jl = z[j]==l ? 1 : 0;
       const float s_w = lambda[i][j]+mu[k][l]-2*nu[u];
@@ -1077,7 +1081,7 @@ parse_options(int& argc, char**& argv)
   int ch;
   const char* a_en = "CONTRAlign";
   const char* s_en = "Boltzmann";
-  while ((ch=getopt(argc, argv, "ha:s:p:q:r:t:u:w:e:m:lb"))!=-1)
+  while ((ch=getopt(argc, argv, "ha:s:p:q:r:t:g:u:w:e:m:lb"))!=-1)
   {
     switch (ch)
     {
@@ -1094,10 +1098,13 @@ parse_options(int& argc, char**& argv)
         n_pct_s_ = atoi(optarg);
         break;
       case 'r':
-        n_refinement_ = atoi(optarg);
+        n_refinement_ = static_cast<uint>(atoi(optarg));
         break;
       case 't':
         th_s_ = atof(optarg);
+        break;
+      case 'g':
+        th_s_ = 1.0/(atof(optarg)+1.0);
         break;
       case 'u':
         th_a_ = atof(optarg);

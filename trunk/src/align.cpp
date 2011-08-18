@@ -73,7 +73,7 @@ PartAlign::
 PartAlign(float th)
   : Align(th), PARTALIGN::PartAlign<LogValue<float> >()
 {
-  float ribosum85_60[10] = {
+  static const float ribosum85_60[10] = {
     2.22, -1.86, -1.46, -1.39,
     /*  */ 1.16, -2.48, -1.05,
     /*         */ 1.03, -1.74,

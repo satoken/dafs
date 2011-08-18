@@ -20,7 +20,7 @@ public:
   virtual float align(const std::string& seq1, const std::string& seq2,
                       const BP& bp1, const BP& bp2, MP& mp)
   {
-    throw "not implemented";
+    return align(seq1, seq2, mp);
   }
   float threshold() const { return th_; };
 
