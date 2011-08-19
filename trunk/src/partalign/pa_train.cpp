@@ -130,15 +130,22 @@ public:
   {
     std::vector<Fasta> fa;
     if (Fasta::load(fa, file)<2) return false;
-    assert(fa[0].size()==fa[1].size());
-    const uint L = fa[0].size();
+    return read_data(fa[0], fa[1], s, a);
+  }
+
+  bool read_data(const Fasta& fa0, const Fasta& fa1,
+                 std::pair<std::string,std::string>& s,
+                 std::pair<std::vector<bool>,std::vector<bool> >& a)
+  {
+    assert(fa0.size()==fa1.size());
+    const uint L = fa0.size();
     for (uint j=0; j!=L; ++j)
     {
-      if (fa[0].seq()[j]=='-' && fa[1].seq()[j]=='-') continue;
-      if (fa[0].seq()[j]!='-') s.first.push_back(fa[0].seq()[j]);
-      if (fa[1].seq()[j]!='-') s.second.push_back(fa[1].seq()[j]);
-      a.first.push_back(fa[0].seq()[j]!='-');
-      a.second.push_back(fa[1].seq()[j]!='-');
+      if (fa0.seq()[j]=='-' && fa1.seq()[j]=='-') continue;
+      if (fa0.seq()[j]!='-') s.first.push_back(fa0.seq()[j]);
+      if (fa1.seq()[j]!='-') s.second.push_back(fa1.seq()[j]);
+      a.first.push_back(fa0.seq()[j]!='-');
+      a.second.push_back(fa1.seq()[j]!='-');
     }
     return true;
   }
@@ -152,22 +159,34 @@ public:
       std::string l;
       while (std::cin >> l)
       {
-        std::pair<std::string,std::string> s;
-        std::pair<std::vector<bool>,std::vector<bool> > a;
-        if (!read_data(l.c_str(), s, a)) continue;
-        seq.push_back(s);
-        aln.push_back(a);
+        std::vector<Fasta> fa;
+        if (Fasta::load(fa, l.c_str())<2) continue;
+        for (uint j=0; j!=fa.size()-1; ++j)
+          for (uint k=j+1; k!=fa.size(); ++k)
+          {
+            std::pair<std::string,std::string> s;
+            std::pair<std::vector<bool>,std::vector<bool> > a;
+            if (!read_data(fa[j], fa[k], s, a)) continue;
+            seq.push_back(s);
+            aln.push_back(a);
+          }
       }
     }
     else
     {
       for (uint i=0; i!=n; ++i) 
       {
-        std::pair<std::string,std::string> s;
-        std::pair<std::vector<bool>,std::vector<bool> > a;
-        if (!read_data(files[i], s, a)) continue;
-        seq.push_back(s);
-        aln.push_back(a);
+        std::vector<Fasta> fa;
+        if (Fasta::load(fa, files[i])<2) continue;
+        for (uint j=0; j!=fa.size()-1; ++j)
+          for (uint k=j+1; k!=fa.size(); ++k)
+          {
+            std::pair<std::string,std::string> s;
+            std::pair<std::vector<bool>,std::vector<bool> > a;
+            if (!read_data(fa[j], fa[k], s, a)) continue;
+            seq.push_back(s);
+            aln.push_back(a);
+          }
       }
     }
 
