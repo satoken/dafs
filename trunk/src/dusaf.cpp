@@ -1081,7 +1081,8 @@ parse_options(int& argc, char**& argv)
   int ch;
   const char* a_en = "CONTRAlign";
   const char* s_en = "Boltzmann";
-  while ((ch=getopt(argc, argv, "ha:s:p:q:r:t:g:u:w:e:m:lb"))!=-1)
+  std::string arg_x;
+  while ((ch=getopt(argc, argv, "ha:s:p:q:r:t:g:u:w:e:m:lbx:"))!=-1)
   {
     switch (ch)
     {
@@ -1124,6 +1125,9 @@ parse_options(int& argc, char**& argv)
       case 'b':
         use_bpscore_ = true;
         break;
+      case 'x':
+        arg_x = optarg;
+        break;
       case 'h': case '?': default:
         //usage(argv[0]);
         exit(0);
@@ -1138,7 +1142,7 @@ parse_options(int& argc, char**& argv)
   else if (strcasecmp(a_en, "ProbCons")==0)
     en_a_ = new ProbCons(th_a_);
   else if (strcasecmp(a_en, "PartAlign")==0)
-    en_a_ = new PartAlign(th_a_);
+    en_a_ = new PartAlign(th_a_, arg_x);
 
   if (strcasecmp(s_en, "Boltzmann")==0)
     en_s_ = new RNAfold(true, NULL, CUTOFF);

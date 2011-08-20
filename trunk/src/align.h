@@ -47,7 +47,7 @@ public:
 class PartAlign : public Align, PARTALIGN::PartAlign<LogValue<float> >
 {
 public:
-  PartAlign(float th);
+  PartAlign(float th, const std::string& arg);
   ~PartAlign() { }
   float align(const std::string& seq1, const std::string& seq2, MP& mp);
   float align(const std::string& seq1, const std::string& seq2,

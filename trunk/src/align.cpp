@@ -2,6 +2,9 @@
 
 #include "config.h"
 #include "align.h"
+#include <iostream>
+#include <iterator>
+#include <cstdio>
 
 ProbCons::
 ProbCons(float th)
@@ -70,17 +73,34 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
 }
 
 PartAlign::
-PartAlign(float th)
+PartAlign(float th, const std::string& arg)
   : Align(th), PARTALIGN::PartAlign<LogValue<float> >()
 {
-  static const float ribosum85_60[10] = {
+  float sm[10] = {                // ribosum85_60
     2.22, -1.86, -1.46, -1.39,
     /*  */ 1.16, -2.48, -1.05,
     /*         */ 1.03, -1.74,
     /*                */ 1.65
   };
-  set_parameters(1.0, 1.0, -10.0, -5.0);
-  set_scoring_matrix(ribosum85_60);
+  float alpha=1.0, beta=1.0, gap=-10.0, ext=-5.0;
+  if (!arg.empty())
+  {
+    bool suc=true;
+    const char* p=arg.c_str();
+    suc &= sscanf(p, "%f", &alpha)==1; while (*p && *p!=',') ++p;
+    suc &= sscanf(++p, "%f", &beta)==1; while (*p && *p!=',') ++p;
+    suc &= sscanf(++p, "%f", &gap)==1; while (*p && *p!=',') ++p;
+    suc &= sscanf(++p, "%f", &ext)==1; while (*p && *p!=',') ++p;
+    for (uint i=0; i!=10; ++i)
+    {
+      suc &= sscanf(++p, "%f", &sm[i])==1; while (*p && *p!=',') ++p;
+    }
+    //std::cout << suc << std::endl;
+  }
+  set_parameters(alpha, beta, gap, ext);
+  set_scoring_matrix(sm);
+  //std::copy(sm, sm+10, std::ostream_iterator<float>(std::cout, " "));
+  //std::cout << std::endl;
 }
 
 float

@@ -92,7 +92,6 @@ sgd(const std::vector<std::pair<Seq,Seq> >& seq,
   std::cout << seq.size() << std::endl;
   for (uint t=0; t!=t_max_; ++t)
   {
-    std::cout << t << std::endl;
     float alpha_prev=alpha_, beta_prev=beta_, gap_prev=gap_, ext_prev=ext_;
     VVF sm_prev=sm_;
     float f_sum=0.0, f_diff=0.0;
@@ -113,10 +112,11 @@ sgd(const std::vector<std::pair<Seq,Seq> >& seq,
                                     g_alpha, g_beta, g_gap, g_ext, g_sm);
 
       if (std::isinf(f)) continue;
-#if 1
-      std::cout << " " << alpha_ << ", " << beta_ << ", "
+#if 0
+      std::cout << "\tf:" << f << " eta:" << eta << std::endl;
+      std::cout << "\t" << alpha_ << ", " << beta_ << ", "
                 << gap_ << ", " << ext_ << std::endl;
-      std::cout << " ";
+      std::cout << "\t";
       for (uint i=0; i<4; ++i)
       {
         std::cout << sm_[i][i] << ", ";
@@ -124,7 +124,16 @@ sgd(const std::vector<std::pair<Seq,Seq> >& seq,
           std::cout << sm_[i][j] << ", ";
       }
       std::cout << std::endl;
-      std::cout << " f:" << f << " eta:" << eta << std::endl;
+      std::cout << "\t" << g_alpha << ", " << g_beta << ", "
+                << g_gap << ", " << g_ext << std::endl;
+      std::cout << "\t";
+      for (uint i=0; i<4; ++i)
+      {
+        std::cout << g_sm[i][i] << ", ";
+        for (uint j=i+1; j<4; ++j)
+          std::cout << g_sm[i][j] << ", ";
+      }
+      std::cout << std::endl << std::endl;
 #endif
       // update parameters
       if (update_alpha_) alpha_ = std::min(std::max(0.0f, alpha_+eta*(g_alpha-alpha_/C)), alpha_+1.0f);
@@ -269,7 +278,7 @@ lbfgs(const std::vector<std::pair<Seq,Seq> >& seq,
     }
 
     std::cout << "t=" << t << " f=" << -f << std::endl;
-#if 0
+#if 1
     std::copy(x.begin(), x.end(), std::ostream_iterator<double>(std::cout, ", "));
     std::cout << std::endl;
     std::copy(g.begin(), g.end(), std::ostream_iterator<double>(std::cout, ", "));

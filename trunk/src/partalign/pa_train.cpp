@@ -20,7 +20,7 @@ class PATrain
 public:
   PATrain()
     : c_(1.0),
-      eta0_(0.1),
+      eta0_(0.5),
       t_max_(100),
       eps_(1e-5),
       alpha_(0.0),
@@ -152,6 +152,7 @@ public:
 
   int run(uint n, char** files)
   {
+    std::cout << "loading ..." << std::flush;
     std::vector< std::pair<std::string,std::string> > seq;
     std::vector<std::pair<std::vector<bool>,std::vector<bool> > > aln;
     if (use_stdin)
@@ -161,6 +162,8 @@ public:
       {
         std::vector<Fasta> fa;
         if (Fasta::load(fa, l.c_str())<2) continue;
+        for (std::vector<Fasta>::iterator x=fa.begin(); x!=fa.end(); ++x)
+          if (x->name()=="SS_cons") { fa.erase(x); break; }
         for (uint j=0; j!=fa.size()-1; ++j)
           for (uint k=j+1; k!=fa.size(); ++k)
           {
@@ -178,6 +181,8 @@ public:
       {
         std::vector<Fasta> fa;
         if (Fasta::load(fa, files[i])<2) continue;
+        for (std::vector<Fasta>::iterator x=fa.begin(); x!=fa.end(); ++x)
+          if (x->name()=="SS_cons") { fa.erase(x); break; }
         for (uint j=0; j!=fa.size()-1; ++j)
           for (uint k=j+1; k!=fa.size(); ++k)
           {
@@ -189,6 +194,7 @@ public:
           }
       }
     }
+    std::cout << " done. (" << seq.size() << " seqs)" << std::endl;
 
     PARTALIGN::Optimizer opt(use_alpha_, use_beta_, use_gap_, use_ext_, use_sm_,
                              c_, eta0_, t_max_, eps_);
@@ -198,6 +204,7 @@ public:
     {
       using PARTALIGN::BPSeq;
       std::vector< std::pair<BPSeq,BPSeq> > bpseq;
+      std::cout << "calculating BP ..." << std::flush;
       for (uint i=0; i!=seq.size(); ++i)
       {
         BP bp1, bp2;
@@ -206,6 +213,7 @@ public:
         bpseq.push_back(std::make_pair(std::make_pair(seq[i].first, bp1),
                                        std::make_pair(seq[i].second, bp2)));
       }
+      std::cout << " done." << std::endl;
       if (!use_lbfgs_)
         opt.sgd<LogValue<float>,BPSeq>(bpseq, aln);
       else
