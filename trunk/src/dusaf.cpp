@@ -23,7 +23,7 @@ extern "C" {
 };
 };
 
-//#define VERBOSE
+//#define OLD
 
 #define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
 #define CUTOFF 0.01
@@ -40,7 +40,7 @@ private:
   
 public:
   Dusaf()
-    : n_pct_a_(1),
+    : n_pct_a_(0),
       n_pct_s_(0),
       n_refinement_(0),
       t_max_(100),
@@ -51,7 +51,8 @@ public:
       en_a_(NULL),
       en_s_(NULL),
       use_alifold_(false),
-      use_bpscore_(false)
+      use_bpscore_(false),
+      verbose_(0)
   {
   }
 
@@ -80,10 +81,12 @@ private:
              const ALN& aln1, const ALN& aln2) const;
   void align(ALN& aln, int i) const;
   void refine(ALN& aln) const;
+  void output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN& aln2) const;
   void output(std::ostream& os, const ALN& aln, const VU& ss) const;
   void output(std::ostream& os, const ALN& aln) const;
   void output(std::ostream& os, ALN::const_iterator b, ALN::const_iterator e) const;
-  void print_basepairing_probability(const VVF& p) const;
+  void print_basepairing_probability(std::ostream& os, const VVF& p) const;
+  void print_matching_probability(std::ostream& os, const VVF& p) const;
 
 private:
   uint n_pct_a_;                // the number of PCT for alignment matching probabilities
@@ -103,6 +106,7 @@ private:
   std::vector<node_t> tree_;    // guide tree
   bool use_alifold_;
   bool use_bpscore_;
+  uint verbose_;
 };
 
 void
@@ -377,6 +381,18 @@ print_tree(std::ostream& os, int i) const
 }
 
 void
+print_mp(std::ostream& os, const MP& mp)
+{
+  for (uint i=0; i!=mp.size(); ++i)
+  {
+    os << i << ":";
+    FOREACH (SparseVector::const_iterator, v, mp[i])
+      os << " " << v->first << ":" << v->second;
+    os << std::endl;
+  }
+}
+
+void
 Dusaf::
 average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const
 {
@@ -384,14 +400,15 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
   std::vector<std::vector<const MP*> > mx(N, std::vector<const MP*>(N, NULL));
   for (uint i=0, k=0; i!=N-1; ++i)
     for (uint j=i+1; j!=N; ++j, ++k)
+    {
       mx[i][j] = mx[j][i] = &mp_[k];
+    }
 
   const uint L1 = aln1.front().second.size();
   const uint L2 = aln2.front().second.size();
   const uint N1 = aln1.size();
   const uint N2 = aln2.size();
   VVF p(L1, VF(L2, 0.0));
-  ALN::const_iterator it1, it2;
   FOREACH (ALN::const_iterator, it1, aln1)
   {
     assert(L1==it1->second.size());
@@ -523,41 +540,41 @@ decode_alignment(const VVF& sm, VU& al) const
   const uint L1 = sm.size();
   const uint L2 = sm[0].size();
   VVF dp(L1+1, VF(L2+1, 0.0));
-  VVC tr(L1+1, VC(L2+1, 0));
+  VVC tr(L1+1, VC(L2+1, ' '));
   for (uint i=1; i!=L1+1; ++i) tr[i][0] = 'X';
-  for (uint j=1; j!=L2+1; ++j) tr[0][j] = 'Y';
+  for (uint k=1; k!=L2+1; ++k) tr[0][k] = 'Y';
   for (uint i=1; i!=L1+1; ++i)
   {
-    for (uint j=1; j!=L2+1; ++j)
+    for (uint k=1; k!=L2+1; ++k)
     {
-      float v = dp[i-1][j];
-      char t = 'X';
-      if (v<dp[i][j-1])
+      float v = dp[i-1][k-1]+sm[i-1][k-1];
+      char t = 'M';
+      if (v<dp[i-1][k])
       {
-        v = dp[i][j-1];
+        v = dp[i-1][k];
+        t = 'X';
+      }
+      if (v<dp[i][k-1])
+      {
+        v = dp[i][k-1];
         t = 'Y';
       }
-      if (v<dp[i-1][j-1]+sm[i-1][j-1])
-      {
-        v = dp[i-1][j-1]+sm[i-1][j-1];
-        t = 'M';
-      }
-      dp[i][j] = v;
-      tr[i][j] = t;
+      dp[i][k] = v;
+      tr[i][k] = t;
     }
   }
 
   // traceback
   std::string rpath;
-  uint i = L1, j = L2;
-  while (i!=0 || j!=0)
+  int i = L1, k = L2;
+  while (i>0 || k>0)
   {
-    rpath.push_back(tr[i][j]);
-    switch (tr[i][j])
+    rpath.push_back(tr[i][k]);
+    switch (tr[i][k])
     {
-      case 'M': --i; --j; break;
+      case 'M': --i; --k; break;
       case 'X': --i; break;
-      case 'Y': --j; break;
+      case 'Y': --k; break;
       default: assert(!"unreachable"); break;
     }
   }
@@ -568,12 +585,21 @@ decode_alignment(const VVF& sm, VU& al) const
   al.resize(L1, -1u);
   for (uint i=0, k=0, p=0; p!=vpath.size(); ++p)
   {
-    assert(i<L1); assert(k<L2);
+    
     switch (vpath[p])
     {
-      case 'M': al[i++]=k++; break;
-      case 'X': al[i++]=-1u; break;
-      case 'Y': k++; break;
+      case 'M':
+        assert(i<L1); assert(k<L2);
+        al[i++]=k++;
+        break;
+      case 'X':
+        assert(i<L1); assert(k<=L2);
+        al[i++]=-1u;
+        break;
+      case 'Y':
+        assert(i<=L1); assert(k<L2);
+        k++;
+        break;
       default: break;
     }
   }
@@ -706,6 +732,85 @@ project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const
 
 void
 Dusaf::
+output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN& aln2) const
+{
+  const uint L1=x.size();
+  const uint L2=y.size();
+  ALN aln;
+  project_alignment(aln, aln1, aln2, z);
+
+  const uint L=aln[0].second.size();
+  VU idx1(L1, -1u), idx2(L2, -1u);
+  VU ridx1(L, -1u), ridx2(L, -1u);
+  uint r=0, k=0;
+  for (uint i=0; i!=z.size(); ++i)
+  {
+    if (z[i]!=-1u)
+    {
+      while (k<z[i])
+      {
+        ridx1[r] = -1u;
+        idx2[k] = r; ridx2[r] = k;
+        ++r; ++k;
+      }
+      idx1[i] = r; ridx1[r] = i;
+      idx2[k] = r; ridx2[r] = k;
+      ++r; ++k;
+    }
+    else
+    {
+      idx1[i] = r; ridx1[r] = i;
+      ridx2[r] = -1u;
+      ++r;
+    }
+  }
+  while (k<L2)
+  {
+    ridx1[r] = -1u;
+    idx2[k] = r; ridx2[r] = k;
+    ++r; ++k;
+  }
+
+  std::string xx(L, '.');
+  for (uint i=0; i!=L1; ++i)
+  {
+    if (x[i]!=-1u)
+    {
+      xx[idx1[i]]='(';
+      xx[idx1[x[i]]]=')';
+    }
+  }
+  output(std::cout, aln.begin(), aln.begin()+aln1.size());
+  std::cout << xx << std::endl;
+  for (uint i=0; i!=ridx1.size(); ++i)
+    if (ridx1[i]==-1u)
+      std::cout << '-';
+    else
+      std::cout << ridx1[i]%10;
+  std::cout << std::endl;
+
+  std::string yy(L, '.');
+  for (uint k=0; k!=L2; ++k)
+  {
+    if (y[k]!=-1u)
+    {
+      yy[idx2[k]]='(';
+      yy[idx2[y[k]]]=')';
+    }
+  }
+  output(std::cout, aln.begin()+aln1.size(), aln.end());
+  std::cout << yy << std::endl;
+  for (uint i=0; i!=ridx2.size(); ++i)
+    if (ridx2[i]==-1u)
+      std::cout << '-';
+    else
+      std::cout << ridx2[i]%10;
+
+  std::cout << std::endl;
+}
+
+void
+Dusaf::
 align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const
 {
   // calculate posteriors
@@ -748,26 +853,28 @@ solve(VU& x, VU& y, VU& z,
                 if (p-th_s_>0.0 && w_*(p-th_s_)+(q-th_a_)>0.0)
                   cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
               }
-#ifdef VERBOSE
-  std::cout << "The number of constraints: " << cbp.size() << std::endl << std::endl;
-#endif
 
   // scoring matrices
   VVF s_x(L1, VF(L1, 0.0));
   VVF s_y(L2, VF(L2, 0.0));
   VVF s_z(L1, VF(L2, 0.0));
   // multipliers
+#ifdef OLD
   VVF lambda(L1, VF(L1, 0.0));
   VVF mu(L2, VF(L2, 0.0));
   VF nu(cbp.size(), 0.0);
+#else
+  VVF lambda(L1, VF(L1, 0.0));
+  VVF mu(L2, VF(L2, 0.0));
+  VVF nu(L1, VF(L2, 0.0));
+#endif
 
   uint c=0;
   float eta=eta0_, s_prev=0.0;
-  for (uint t=0; t!=t_max_; ++t)
+  uint violated=0;
+  uint t;
+  for (t=0; t!=t_max_; ++t)
   {
-#ifdef VERBOSE
-    std::cout << "Step " << t << ":" << std::endl;
-#endif
     // calculate scoring matrices for the current step
     for (uint i=0; i!=L1-1; ++i)
       for (uint j=i+1; j!=L1; ++j)
@@ -775,6 +882,7 @@ solve(VU& x, VU& y, VU& z,
     for (uint k=0; k!=L2-1; ++k)
       for (uint l=k+1; l!=L2; ++l)
         s_y[k][l] = w_*(p_y[k][l]-th_s_)-mu[k][l];
+#ifdef OLD
     for (uint i=0; i!=L1; ++i)
       for (uint k=0; k!=L2; ++k)
         s_z[i][k] = p_z[i][k]-th_a_;
@@ -785,6 +893,11 @@ solve(VU& x, VU& y, VU& z,
       s_z[i][k] += nu[u];
       s_z[j][l] += nu[u];
     }
+#else
+    for (uint i=0; i!=L1; ++i)
+      for (uint k=0; k!=L2; ++k)
+        s_z[i][k] = p_z[i][k]-th_a_+nu[i][k];
+#endif
 
     // solve the subproblems
     float s = 0.0;
@@ -792,113 +905,43 @@ solve(VU& x, VU& y, VU& z,
     s += decode_secondary_structure(s_y, y);
     s += decode_alignment(s_z, z);
 
-#ifdef VERBOSE
-    {
-      ALN aln;
-      project_alignment(aln, aln1, aln2, z);
-
-      const uint L=aln[0].second.size();
-      VU idx1(L1, -1u), idx2(L2, -1u);
-      VU ridx1(L, -1u), ridx2(L, -1u);
-      uint r=0, k=0;
-      for (uint i=0; i!=z.size(); ++i)
-      {
-        if (z[i]!=-1u)
-        {
-          while (k<z[i])
-          {
-            ridx1[r] = -1u;
-            idx2[k] = r; ridx2[r] = k;
-            ++r; ++k;
-          }
-          idx1[i] = r; ridx1[r] = i;
-          idx2[k] = r; ridx2[r] = k;
-          ++r; ++k;
-        }
-        else
-        {
-          idx1[i] = r; ridx1[r] = i;
-          ridx2[r] = -1u;
-          ++r;
-        }
-      }
-      while (k<L2)
-      {
-        ridx1[r] = -1u;
-        idx2[k] = r; ridx2[r] = k;
-        ++r; ++k;
-      }
-
-      std::string xx(L, '.');
-      for (uint i=0; i!=L1; ++i)
-      {
-        if (x[i]!=-1u)
-        {
-          xx[idx1[i]]='(';
-          xx[idx1[x[i]]]=')';
-        }
-      }
-      output(std::cout, aln.begin(), aln.begin()+aln1.size());
-      std::cout << xx << std::endl;
-      for (uint i=0; i!=ridx1.size(); ++i)
-        if (ridx1[i]==-1u)
-          std::cout << '-';
-        else
-          std::cout << ridx1[i]%10;
-      std::cout << std::endl;
-
-      std::string yy(L, '.');
-      for (uint k=0; k!=L2; ++k)
-      {
-        if (y[k]!=-1u)
-        {
-          yy[idx2[k]]='(';
-          yy[idx2[y[k]]]=')';
-        }
-      }
-      output(std::cout, aln.begin()+aln1.size(), aln.end());
-      std::cout << yy << std::endl;
-      for (uint i=0; i!=ridx2.size(); ++i)
-        if (ridx2[i]==-1u)
-          std::cout << '-';
-        else
-          std::cout << ridx2[i]%10;
-
-      std::cout << std::endl << std::endl;
-    }
-#endif
+    if (verbose_>=2) output_verbose(x, y, z, aln1, aln2);
 
     // update the multipliers
-    uint violated=0;
+    violated=0;
     VVI t_x(L1, VI(L1, 0));
     VVI t_y(L2, VI(L2, 0));
+#ifndef OLD
+    VVI t_z(L1, VI(L2, 0.0));
+#endif
     for (uint u=0; u!=cbp.size(); ++u)
     {
       const uint i=cbp[u].first.first, j=cbp[u].first.second;
       const uint k=cbp[u].second.first, l=cbp[u].second.second;
       //const int x_ij = x[i]==j ? 1 : 0;
       //const int y_kl = y[k]==l ? 1 : 0;
+#ifdef OLD
       const int z_ik = z[i]==k ? 1 : 0;
       const int z_jl = z[j]==l ? 1 : 0;
       const float s_w = lambda[i][j]+mu[k][l]-2*nu[u];
+#else
+      const float s_w = lambda[i][j]+mu[k][l]-nu[i][k]-nu[j][l];
+#endif
       const int w_ijkl = s_w>0.0f ? 1 : 0;
       s += s_w * w_ijkl;
       t_x[i][j] += w_ijkl;
       t_y[k][l] += w_ijkl;
+#ifndef OLD
+      t_z[i][k] += w_ijkl;
+      t_z[j][l] += w_ijkl;
+#endif
+#ifdef OLD
       if (z_ik+z_jl-2*w_ijkl<0)
       {
         violated++;
-#ifdef VERBOSE
-        std::cout << "(i,j,k,l)=" << i << "," << j << "," << k << "," << l << ", ";
-        std::cout << "x_ij=" << x_ij << ", y_kl=" << y_kl << ", "
-                  << "z_ik=" << z_ik << ", z_jl=" << z_jl << ", w_ijkl=" << w_ijkl << ", ";
-        std::cout << "lambda_ij=" << lambda[i][j] << ", "
-                  << "mu_kl=" << mu[k][l] << ", "
-                  << "nu_ijkl=" << nu[u] << ", "
-                  << "s_w=" << s_w << std::endl;
-#endif
+        nu[u] = std::max(0.0f, nu[u]-eta*(z_ik+z_jl-2*w_ijkl));
       }
-      nu[u] = std::max(0.0f, nu[u]-eta*(z_ik+z_jl-2*w_ijkl));
+#endif
     }
     for (uint i=0; i!=L1-1; ++i)
       for (uint j=i+1; j!=L1; ++j)
@@ -907,14 +950,6 @@ solve(VU& x, VU& y, VU& z,
         if (t_x[i][j]-x_ij!=0)
         {
           violated++;
-#ifdef VERBOSE
-          std::cout << "(i,j)=" << i << "," << j << ", ";
-          std::cout << "sum_kl(w_ijkl)=" << t_x[i][j] << ", "
-                    << "x_ij=" << x_ij << ", "
-                    << "lambda_ij=" << lambda[i][j] << ", "
-                    << "s_x=" << s_x[i][j]
-                    << std::endl;
-#endif
           lambda[i][j] -= eta*(t_x[i][j]-x_ij);
         }
       }
@@ -925,43 +960,39 @@ solve(VU& x, VU& y, VU& z,
         if (t_y[k][l]-y_kl!=0)
         {
           violated++;
-#ifdef VERBOSE
-          std::cout << "(k,l)=" << k << "," << l << ", ";
-          std::cout << "sum_ij(w_ijkl)=" << t_y[k][l] << ", "
-                    << "y_kl=" << y_kl << ", "
-                    << "mu_kl=" << mu[k][l] << ", "
-                    << "s_y=" << s_y[k][l]
-                    << std::endl;
-#endif
           mu[k][l] -= eta*(t_y[k][l]-y_kl);
         }
       }
-#ifdef VERBOSE
-    std::cout << "Violated: " << violated
-              << ", L: " << s << std::endl;
+#ifndef OLD
+    for (uint i=0; i!=L1; ++i)
+      for (uint k=0; k!=L2; ++k)
+      {
+        const int z_ik = z[i]==k ? 1 : 0;
+        if (z_ik-t_z[i][k]<0)
+        {
+          violated++;
+          nu[i][k] = std::max(0.0f, nu[i][k]-eta*(z_ik-t_z[i][k]));
+        }
+      }
 #endif
-    if (violated==0) {
-#ifdef VERBOSE
-      std::cout << "satisfied\n";
-#endif
-      break;     // all constraints were satisfied.
-    }
+
+    if (verbose_>=2)
+      std::cout << "Step: " << t << std::endl
+                << "eta: " << eta << std::endl
+                << "L: " << s << std::endl
+                << "Violated: " << violated << std::endl << std::endl;
+
+    if (violated==0)  break;     // all constraints were satisfied.
 
     // update the step width
     if (s<s_prev || t==0)
     {
-#ifdef VERBOSE
-      std::cout << "eta=" << eta << std::endl;
-#endif
       c++;
       eta = eta0_/(1+sqrt(c));
     }
     s_prev = s;
-
-#ifdef VERBOSE
-    std::cout << std::endl;
-#endif
   }
+  if (verbose_==1) std::cout << "Step: " << t << ", Violated: " << violated << std::endl;
 }
 
 void
@@ -1016,16 +1047,6 @@ refine(ALN& aln) const
       }
     }
   }
-
-#if 0
-  std::cout << "refinement\n";
-  output(std::cout, aln);
-  std::cout << std::endl;  
-  output(std::cout, a[0]);
-  std::cout << std::endl;
-  output(std::cout, a[1]);
-  std::cout << std::endl;
-#endif
 
   ALN r;
   align_alignments(r, a[0], a[1]);
@@ -1082,7 +1103,7 @@ parse_options(int& argc, char**& argv)
   const char* a_en = "CONTRAlign";
   const char* s_en = "Boltzmann";
   std::string arg_x;
-  while ((ch=getopt(argc, argv, "ha:s:p:q:r:t:g:u:w:e:m:lbx:"))!=-1)
+  while ((ch=getopt(argc, argv, "hv:a:s:p:q:r:t:g:u:w:e:m:lbx:"))!=-1)
   {
     switch (ch)
     {
@@ -1128,6 +1149,9 @@ parse_options(int& argc, char**& argv)
       case 'x':
         arg_x = optarg;
         break;
+      case 'v':
+        verbose_ = atoi(optarg);
+        break;
       case 'h': case '?': default:
         //usage(argv[0]);
         exit(0);
@@ -1143,6 +1167,11 @@ parse_options(int& argc, char**& argv)
     en_a_ = new ProbCons(th_a_);
   else if (strcasecmp(a_en, "PartAlign")==0)
     en_a_ = new PartAlign(th_a_, arg_x);
+  else
+  {
+    //usage(argv[0]);
+    exit(0);
+  }
 
   if (strcasecmp(s_en, "Boltzmann")==0)
     en_s_ = new RNAfold(true, NULL, CUTOFF);
@@ -1150,21 +1179,40 @@ parse_options(int& argc, char**& argv)
     en_s_ = new RNAfold(false, NULL, CUTOFF);
   else if (strcasecmp(s_en, "CONTRAfold")==0)
     en_s_ = new CONTRAfold(CUTOFF);
+  else
+  {
+    //usage(argv[0]);
+    exit(0);
+  }
 
   return *this;
 }
 
 void
 Dusaf::
-print_basepairing_probability(const std::vector<std::vector<float> >& p) const
+print_matching_probability(std::ostream& os, const VVF& p) const
+{
+  for (uint i=0; i!=p.size(); ++i)
+  {
+    std::cout << i << ":";
+    for (uint k=0; k!=p[i].size(); ++k)
+      if (p[i][k]>CUTOFF)
+        os << " " << k << ":" << p[i][k];
+    os << std::endl;
+  }
+}
+
+void
+Dusaf::
+print_basepairing_probability(std::ostream& os, const VVF& p) const
 {
   for (uint i=0; i!=p.size(); ++i)
   {
     std::cout << i << ":";
     for (uint j=i+1; j!=p.size(); ++j)
       if (p[i][j]>CUTOFF)
-        std::cout << " " << j << ":" << p[i][j];
-    std::cout << std::endl;
+        os << " " << j << ":" << p[i][j];
+    os << std::endl;
   }
 }
 
@@ -1201,7 +1249,7 @@ run(const char* filename)
   // probabilistic consistency tranformation for matching probability matrix
   for (uint i=0; i!=n_pct_a_; ++i)
     relax_matching_probability();
-  
+
   // compute the guide tree
   build_tree();
   print_tree(std::cout, tree_.size()-1);
