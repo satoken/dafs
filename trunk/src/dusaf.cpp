@@ -261,6 +261,7 @@ relax_basepairing_probability()
               const uint j=jj->first;
               const float p_jl=jj->second;
               if (i<j) p[i][j] += p_kl*p_ik*p_jl/N;
+              assert(p[i][j]<=1.0);
             }
           }
         }
@@ -298,6 +299,7 @@ relax_basepairing_probability()
                 const float p_jl=l2->second;
                 if (k<l) p[i][j] += p_kl*p_ik*p_jl/N;
                 ++l1; ++l2;
+                assert(p[i][j]<=1.0);
               }
             }
           }
@@ -421,8 +423,8 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
         const MP& m = *mx[it1->first][it2->first];
         for (uint i=0, ii=0; i!=L1; ++i)
         {
-          assert(ii<m.size());
           if (!it1->second[i]) continue;
+          assert(ii<m.size());
           SparseVector::const_iterator x=m[ii].begin();
           for (uint j=0, jj=0; j!=L2 && x!=m[ii].end(); ++j)
           {
@@ -442,8 +444,8 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
         const MP& m = *mx[it2->first][it1->first];
         for (uint j=0, jj=0; j!=L2; ++j)
         {
-          assert(jj<m.size());
           if (!it2->second[j]) continue;
+          assert(jj<m.size());
           SparseVector::const_iterator x=m[jj].begin();
           for (uint i=0, ii=0; i!=L1 && x!=m[jj].end(); ++i)
           {
@@ -462,7 +464,10 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
   }
   for (uint i=0; i!=p.size(); ++i)
     for (uint j=0; j!=p[i].size(); ++j)
+    {
       if (p[i][j]<=CUTOFF) p[i][j]=0.0;
+      assert(p[i][j]<=1.0);
+    }
   std::swap(posterior, p);
 }
 
@@ -530,7 +535,10 @@ average_basepairing_probability(VVF& posterior, const ALN& aln) const
 
   for (uint i=0; i!=L-1; ++i)
     for (uint j=i+1; j!=L; ++j)
+    {
       if (p[i][j]<=CUTOFF) p[i][j]=0.0;
+      assert(p[i][j]<=1.0);
+    }
   std::swap(p, posterior);
 }
 
@@ -586,7 +594,6 @@ decode_alignment(const VVF& sm, VU& al) const
   al.resize(L1, -1u);
   for (uint i=0, k=0, p=0; p!=vpath.size(); ++p)
   {
-    
     switch (vpath[p])
     {
       case 'M':
@@ -1260,7 +1267,7 @@ run(const char* filename)
     refine(ss, aln);
 
 #if 0
-  if (do_refoldin_)
+  if (do_refolding_)
   {
     // compute the common secondary structures from the averaged base-pairing matrix
     const uint L=aln[0].second.size();
