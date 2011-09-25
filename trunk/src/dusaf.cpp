@@ -9,6 +9,7 @@
 #include "fa.h"
 #include "fold.h"
 #include "align.h"
+#include "ip.h"
 #include "typedefs.h"
 
 namespace Vienna {
@@ -849,7 +850,8 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   for (uint i=0; i!=ss.size(); ++i)
     if (xx[i]==yy[i]) ss[i]=xx[i];
 }
-
+#define IPSAF
+#ifndef IPSAF
 void
 Dusaf::
 solve(VU& x, VU& y, VU& z,
@@ -882,9 +884,9 @@ solve(VU& x, VU& y, VU& z,
   VVF s_y(L2, VF(L2, 0.0));
   VVF s_z(L1, VF(L2, 0.0));
   // multipliers
-  VVF lambda(L1, VF(L1, 0.0));
-  VVF mu(L2, VF(L2, 0.0));
-  VVF nu(L1, VF(L2, 0.0));
+  VVF q_x(L1, VF(L1, 0.0));
+  VVF q_y(L2, VF(L2, 0.0));
+  VVF q_z(L1, VF(L2, 0.0));
 
   uint c=0;
   float eta=eta0_, s_prev=0.0;
@@ -895,13 +897,13 @@ solve(VU& x, VU& y, VU& z,
     // calculate scoring matrices for the current step
     for (uint i=0; i!=L1-1; ++i)
       for (uint j=i+1; j!=L1; ++j)
-        s_x[i][j] = w_*(p_x[i][j]-th_s_)-lambda[i][j];
+        s_x[i][j] = w_*(p_x[i][j]-th_s_)-q_x[i][j];
     for (uint k=0; k!=L2-1; ++k)
       for (uint l=k+1; l!=L2; ++l)
-        s_y[k][l] = w_*(p_y[k][l]-th_s_)-mu[k][l];
+        s_y[k][l] = w_*(p_y[k][l]-th_s_)-q_y[k][l];
     for (uint i=0; i!=L1; ++i)
       for (uint k=0; k!=L2; ++k)
-        s_z[i][k] = p_z[i][k]-th_a_+nu[i][k];
+        s_z[i][k] = p_z[i][k]-th_a_+q_z[i][k];
 
     // solve the subproblems
     float s = 0.0;
@@ -920,7 +922,7 @@ solve(VU& x, VU& y, VU& z,
     {
       const uint i=cbp[u].first.first, j=cbp[u].first.second;
       const uint k=cbp[u].second.first, l=cbp[u].second.second;
-      const float s_w = lambda[i][j]+mu[k][l]-nu[i][k]-nu[j][l];
+      const float s_w = q_x[i][j]+q_y[k][l]-q_z[i][k]-q_z[j][l];
       const int w_ijkl = s_w>0.0f ? 1 : 0;
       if (w_ijkl)
       {
@@ -938,7 +940,7 @@ solve(VU& x, VU& y, VU& z,
         if (t_x[i][j]-x_ij!=0)
         {
           violated++;
-          lambda[i][j] -= eta*(t_x[i][j]-x_ij);
+          q_x[i][j] -= eta*(t_x[i][j]-x_ij);
         }
       }
     for (uint k=0; k!=L2-1; ++k)
@@ -948,7 +950,7 @@ solve(VU& x, VU& y, VU& z,
         if (t_y[k][l]-y_kl!=0)
         {
           violated++;
-          mu[k][l] -= eta*(t_y[k][l]-y_kl);
+          q_y[k][l] -= eta*(t_y[k][l]-y_kl);
         }
       }
     for (uint i=0; i!=L1; ++i)
@@ -958,7 +960,7 @@ solve(VU& x, VU& y, VU& z,
         if (z_ik-t_z[i][k]<0)
         {
           violated++;
-          nu[i][k] = std::max(0.0f, nu[i][k]-eta*(z_ik-t_z[i][k]));
+          q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(z_ik-t_z[i][k]));
         }
       }
 
@@ -980,6 +982,197 @@ solve(VU& x, VU& y, VU& z,
   }
   if (verbose_==1) std::cout << "Step: " << t << ", Violated: " << violated << std::endl;
 }
+#else
+void
+Dusaf::
+solve(VU& x, VU& y, VU& z,
+      const VVF& p_x, const VVF& p_y, const VVF& p_z,
+      const ALN& aln1, const ALN& aln2) const
+{
+  const uint L1=p_x.size();
+  const uint L2=p_y.size();
+
+  // integer programming
+  IP ip(IP::MAX, 1);
+
+  // variables
+  VVI v_x(L1, VI(L1, -1));
+  VVI v_y(L2, VI(L2, -1));
+  VVI v_z(L1, VI(L2, -1));
+  VI v_w;
+
+  // enumerate the candidates of aligned bases
+  for (uint i=0; i!=L1; ++i)
+    for (uint k=0; k!=L2; ++k)
+      if (p_z[i][k]>CUTOFF)
+        v_z[i][k] = ip.make_variable(p_z[i][k]-th_a_);
+  
+  // enumerate the candidates of consensus base-pairs
+  std::vector<CBP> cbp;
+  for (uint i=0; i!=L1-1; ++i)
+    for (uint j=i+1; j!=L1; ++j)
+      if (p_x[i][j]>CUTOFF)
+        for (uint k=0; k!=L2-1; ++k)
+          if (p_z[i][k]>CUTOFF)
+            for (uint l=k+1; l!=L2; ++l)
+              if (p_y[k][l]>CUTOFF && p_z[j][l]>CUTOFF)
+              {
+                assert(p_x[i][j]<=1.0);
+                assert(p_y[k][l]<=1.0);
+                float p=(p_x[i][j]+p_y[k][l])/2;
+                float q=(p_z[i][k]+p_z[j][l])/2;
+                if (p-th_s_>0.0 && w_*(p-th_s_)+(q-th_a_)>0.0)
+                {
+                  cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
+                  v_w.push_back(ip.make_variable(0.0));
+                  if (v_x[i][j]<0)
+                    v_x[i][j] = ip.make_variable(w_*(p_x[i][j]-th_s_));
+                  if (v_y[k][l]<0)
+                    v_y[k][l] = ip.make_variable(w_*(p_y[k][l]-th_s_));
+                }
+              }
+  ip.update();
+
+  // constraints: each base is paired with at most one base (in a)
+  for (uint i=0; i<L1-1; ++i)
+  {
+    int row = ip.make_constraint(IP::UP, 0, 1);
+    for (uint j=i+1; j<L1; ++j)
+      if (v_x[i][j]>=0)
+        ip.add_constraint(row, v_x[i][j], 1);
+  }
+  
+  // constraints: no pseudoknots are allowed (in a)
+  for (uint i=0; i<L1-1; ++i)
+    for (uint j=i+1; j<L1; ++j)
+      if (v_x[i][j]>=0)
+        for (uint k=i+1; k<j; ++k)
+          for (uint l=j+1; l<L1; ++l)
+            if (v_x[k][l]>=0)
+            {
+              int row = ip.make_constraint(IP::UP, 0, 1);
+              ip.add_constraint(row, v_x[i][j], 1);
+              ip.add_constraint(row, v_x[k][l], 1);
+            }
+
+  // constraints: each base is paired with at most one base (in b)
+  for (uint i=0; i<L2-1; ++i)
+  {
+    int row = ip.make_constraint(IP::UP, 0, 1);
+    for (uint j=i+1; j<L2; ++j)
+      if (v_y[i][j]>=0)
+        ip.add_constraint(row, v_y[i][j], 1);
+  }
+
+  // constraints: no pseudoknots are allowed (in b)
+  for (uint i=0; i<L2-1; ++i)
+    for (uint j=i+1; j<L2; ++j)
+      if (v_y[i][j]>=0)
+        for (uint k=i+1; k<j; ++k)
+          for (uint l=j+1; l<L2; ++l)
+            if (v_y[k][l]>=0)
+            {
+              int row = ip.make_constraint(IP::UP, 0, 1);
+              ip.add_constraint(row, v_y[i][j], 1);
+              ip.add_constraint(row, v_y[k][l], 1);
+            }
+
+  // constraints: each base is aligned with at most one base
+  for (uint i=0; i<L1; ++i)
+  {
+    int row = ip.make_constraint(IP::UP, 0, 1);
+    for (uint k=0; k<L2; ++k)
+      if (v_z[i][k]>=0)
+        ip.add_constraint(row, v_z[i][k], 1);
+  }
+  for (uint k=0; k<L2; ++k)
+  {
+    int row = ip.make_constraint(IP::UP, 0, 1);
+    for (uint i=0; i<L1; ++i)
+      if (v_z[i][k]>=0)
+        ip.add_constraint(row, v_z[i][k], 1);
+  }
+
+  // constraints: no crossing matches are allowed
+  for (uint i=0; i<L1; ++i)
+    for (uint k=0; k<L2; ++k)
+      if (v_z[i][k]>=0)
+        for (uint j=i+1; j<L1; ++j)
+          for (uint l=0; l<k; ++l)
+          {
+            int row = ip.make_constraint(IP::UP, 0, 1);
+            ip.add_constraint(row, v_z[i][k], 1);
+            ip.add_constraint(row, v_z[j][l], 1);
+          }
+
+  // constraints for consensus base pairs
+  VVI r_x(L1, VI(L1, -1));
+  for (uint i=0; i<L1-1; ++i)
+    for (uint j=i+1; j<L1; ++j)
+      if (v_x[i][j]>=0)
+      {
+        r_x[i][j] = ip.make_constraint(IP::FX, 0, 0);
+        ip.add_constraint(r_x[i][j], v_x[i][j], 1);
+      }
+
+  VVI r_y(L2, VI(L2, -1));
+  for (uint i=0; i<L2-1; ++i)
+    for (uint j=i+1; j<L2; ++j)
+      if (v_y[i][j]>=0)
+      {        
+        r_y[i][j] = ip.make_constraint(IP::FX, 0, 0);
+        ip.add_constraint(r_y[i][j], v_y[i][j], 1);
+      }
+
+  VVI r_z(L1, VI(L2, -1));
+  for (uint i=0; i<L1; ++i)
+    for (uint k=0; k<L2; ++k)
+      if (v_z[i][k]>=0)
+      {
+        r_z[i][k] = ip.make_constraint(IP::LO, 0, 0);
+        ip.add_constraint(r_z[i][k], v_z[i][k], 1);
+      }
+
+  for (uint u=0; u!=cbp.size(); ++u)
+  {
+    const uint i=cbp[u].first.first, j=cbp[u].first.second;
+    const uint k=cbp[u].second.first, l=cbp[u].second.second;
+    assert(r_x[i][j]>=0 && v_x[i][j]>=0);
+    ip.add_constraint(r_x[i][j], v_w[u], -1);
+    assert(r_y[k][l]>=0 && v_y[k][l]>=0);
+    ip.add_constraint(r_y[k][l], v_w[u], -1);
+    assert(r_z[i][k]>=0 && v_z[i][k]>=0);
+    ip.add_constraint(r_z[i][k], v_w[u], -1);
+    assert(r_z[j][l]>=0 && v_z[j][l]>=0);
+    ip.add_constraint(r_z[j][l], v_w[u], -1);
+  }
+
+  // execute optimization
+  ip.solve();
+  
+  // build the result
+  x.resize(L1);
+  std::fill(x.begin(), x.end(), -1u);
+  for (uint i=0; i<L1-1; ++i)
+    for (uint j=i+1; j<L1; ++j)
+      if (v_x[i][j]>=0 && ip.get_value(v_x[i][j])>0.5)
+        x[i]=j;
+
+  y.resize(L2);
+  std::fill(y.begin(), y.end(), -1u);
+  for (uint i=0; i<L2-1; ++i)
+    for (uint j=i+1; j<L2; ++j)
+      if (v_y[i][j]>=0 && ip.get_value(v_y[i][j])>0.5)
+        y[i]=j;
+
+  z.resize(L1);
+  std::fill(z.begin(), z.end(), -1u);
+  for (uint i=0; i<L1; ++i)
+    for (uint k=0; k<L2; ++k)
+      if (v_z[i][k]>=0 && ip.get_value(v_z[i][k])>0.5)
+        z[i]=k;
+}
+#endif
 
 void
 Dusaf::
