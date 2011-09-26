@@ -22,6 +22,7 @@
 #include "config.h"
 #include "ip.h"
 #include <vector>
+#include <cassert>
 #ifdef WITH_GLPK
 #include <glpk.h>
 #endif
@@ -77,7 +78,9 @@ public:
 
   void add_constraint(int row, int col, double val)
   {
+    assert(row>=0);
     ia_.push_back(row);
+    assert(col>=0);
     ja_.push_back(col);
     ar_.push_back(val);
   }

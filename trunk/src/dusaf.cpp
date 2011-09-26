@@ -1034,9 +1034,12 @@ solve(VU& x, VU& y, VU& z,
   ip.update();
 
   // constraints: each base is paired with at most one base (in a)
-  for (uint i=0; i<L1-1; ++i)
+  for (uint i=0; i<L1; ++i)
   {
     int row = ip.make_constraint(IP::UP, 0, 1);
+    for (uint j=0; j<i; ++j)
+      if (v_x[j][i]>=0)
+        ip.add_constraint(row, v_x[j][i], 1);
     for (uint j=i+1; j<L1; ++j)
       if (v_x[i][j]>=0)
         ip.add_constraint(row, v_x[i][j], 1);
@@ -1056,9 +1059,12 @@ solve(VU& x, VU& y, VU& z,
             }
 
   // constraints: each base is paired with at most one base (in b)
-  for (uint i=0; i<L2-1; ++i)
+  for (uint i=0; i<L2; ++i)
   {
     int row = ip.make_constraint(IP::UP, 0, 1);
+    for (uint j=0; j<i; ++j)
+      if (v_y[j][i]>=0)
+        ip.add_constraint(row, v_y[j][i], 1);
     for (uint j=i+1; j<L2; ++j)
       if (v_y[i][j]>=0)
         ip.add_constraint(row, v_y[i][j], 1);
@@ -1099,11 +1105,12 @@ solve(VU& x, VU& y, VU& z,
       if (v_z[i][k]>=0)
         for (uint j=i+1; j<L1; ++j)
           for (uint l=0; l<k; ++l)
-          {
-            int row = ip.make_constraint(IP::UP, 0, 1);
-            ip.add_constraint(row, v_z[i][k], 1);
-            ip.add_constraint(row, v_z[j][l], 1);
-          }
+            if (v_z[j][l]>=0)
+            {
+              int row = ip.make_constraint(IP::UP, 0, 1);
+              ip.add_constraint(row, v_z[i][k], 1);
+              ip.add_constraint(row, v_z[j][l], 1);
+            }
 
   // constraints for consensus base pairs
   VVI r_x(L1, VI(L1, -1));
