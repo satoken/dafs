@@ -111,7 +111,7 @@ sgd(const std::vector<std::pair<Seq,Seq> >& seq,
       float f = a.compute_gradients(aln[idx[s]].first, aln[idx[s]].second,
                                     g_alpha, g_beta, g_gap, g_ext, g_sm);
 
-      if (std::isinf(f)) continue;
+      if (isinf(f)) continue;
 #if 0
       std::cout << "\tf:" << f << " eta:" << eta << std::endl;
       std::cout << "\t" << alpha_ << ", " << beta_ << ", "
@@ -255,7 +255,7 @@ lbfgs(const std::vector<std::pair<Seq,Seq> >& seq,
       VVF g_sm(4, VF(4, 0.0));
       a.load_sequences(seq[s].first, seq[s].second);
       double ff = a.compute_gradients(aln[s].first, aln[s].second, g_alpha, g_beta, g_gap, g_ext, g_sm);
-      if (std::isinf(ff)) continue;
+      if (isinf(ff)) continue;
       f -= ff;
       k=0;
       g[k++] -= g_alpha;

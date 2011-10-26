@@ -79,7 +79,16 @@ private:
   void align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const;
   void align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const;
   void solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
-             const ALN& aln1, const ALN& aln2) const;
+             const ALN& aln1, const ALN& aln2) const
+  {
+    t_max_!=0 ?
+      solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : 
+      solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2) ;
+  }
+  void solve_by_dd(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                   const ALN& aln1, const ALN& aln2) const;
+  void solve_by_ip(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                   const ALN& aln1, const ALN& aln2) const;
   void align(ALN& aln, int ch) const;
   void align(VU& ss, ALN& aln, int ch) const;
   void refine(VU& ss, ALN& aln) const;
@@ -850,13 +859,12 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   for (uint i=0; i!=ss.size(); ++i)
     if (xx[i]==yy[i]) ss[i]=xx[i];
 }
-#define IPSAF
-#ifndef IPSAF
+
 void
 Dusaf::
-solve(VU& x, VU& y, VU& z,
-      const VVF& p_x, const VVF& p_y, const VVF& p_z,
-      const ALN& aln1, const ALN& aln2) const
+solve_by_dd(VU& x, VU& y, VU& z,
+            const VVF& p_x, const VVF& p_y, const VVF& p_z,
+            const ALN& aln1, const ALN& aln2) const
 {
   const uint L1=p_x.size();
   const uint L2=p_y.size();
@@ -982,12 +990,12 @@ solve(VU& x, VU& y, VU& z,
   }
   if (verbose_==1) std::cout << "Step: " << t << ", Violated: " << violated << std::endl;
 }
-#else
+
 void
 Dusaf::
-solve(VU& x, VU& y, VU& z,
-      const VVF& p_x, const VVF& p_y, const VVF& p_z,
-      const ALN& aln1, const ALN& aln2) const
+solve_by_ip(VU& x, VU& y, VU& z,
+            const VVF& p_x, const VVF& p_y, const VVF& p_z,
+            const ALN& aln1, const ALN& aln2) const
 {
   const uint L1=p_x.size();
   const uint L2=p_y.size();
@@ -1179,7 +1187,6 @@ solve(VU& x, VU& y, VU& z,
       if (v_z[i][k]>=0 && ip.get_value(v_z[i][k])>0.5)
         z[i]=k;
 }
-#endif
 
 void
 Dusaf::

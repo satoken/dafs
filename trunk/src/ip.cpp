@@ -260,6 +260,8 @@ public:
     m_.clear();
 
     cplex_ = new IloCplex(model_);
+    cplex_->setParam(IloCplex::Threads, n_th_);
+    cplex_->setParam(IloCplex::MIPDisplay, 0);
     cplex_->solve();
   }
 
