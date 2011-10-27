@@ -341,4 +341,63 @@ get_value(int col) const
   return impl_->get_value(col);
 }
 
+#else
+
+IP::
+IP(DirType dir, int n_th)
+{
+  throw "no IP solver is linked.";
+}
+
+IP::
+~IP()
+{
+  throw "no IP solver is linked.";
+}
+
+int
+IP::
+make_variable(double coef)
+{
+  throw "no IP solver is linked.";
+  return 0;
+}
+
+int
+IP::
+make_constraint(BoundType bnd, double l, double u)
+{
+  throw "no IP solver is linked.";
+  return 0;
+}
+
+void
+IP::
+add_constraint(int row, int col, double val)
+{
+  throw "no IP solver is linked.";
+}
+
+void
+IP::
+update()
+{
+  throw "no IP solver is linked.";
+}
+
+void
+IP::
+solve()
+{
+  throw "no IP solver is linked.";
+}
+
+double
+IP::
+get_value(int col) const
+{
+  throw "no IP solver is linked.";
+  return 0;
+}
+
 #endif

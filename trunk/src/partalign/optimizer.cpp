@@ -12,6 +12,7 @@
 #include "lbfgsb.h"
 
 using namespace PARTALIGN;
+using std::isinf;
 
 Optimizer::
 Optimizer(bool alpha, bool beta, bool gap, bool ext, bool sm,

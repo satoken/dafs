@@ -81,9 +81,13 @@ private:
   void solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
              const ALN& aln1, const ALN& aln2) const
   {
+#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
     t_max_!=0 ?
       solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : 
       solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2) ;
+#else
+    solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2);
+#endif
   }
   void solve_by_dd(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
                    const ALN& aln1, const ALN& aln2) const;

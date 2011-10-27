@@ -51,44 +51,50 @@ AC_CHECK_LIB([pthread], [pthread_create])
 
 # glpk
 AC_ARG_WITH([glpk], AS_HELP_STRING([--with-glpk], [support GNU linear programming kit]),
-  if test "$with_glpk" != "no"; then
-    CPPFLAGS="-DWITH_GLPK $CPPFLAGS"
-  fi		  
+  [
+    if test "$with_glpk" != "no"; then
+      CPPFLAGS="-DWITH_GLPK $CPPFLAGS"
+      AC_CHECK_HEADERS([glpk.h])
+      AC_CHECK_LIB([z], [main])
+      AC_CHECK_LIB([gmp], [main])
+      AC_CHECK_LIB([dl], [main])
+      AC_CHECK_LIB([ltdl], [main])
+      AC_CHECK_LIB([glpk], [glp_create_prob])
+    fi
+  ]
 )
-AC_CHECK_HEADERS([glpk.h])
-AC_CHECK_LIB([z], [main])
-AC_CHECK_LIB([gmp], [main])
-AC_CHECK_LIB([dl], [main])
-AC_CHECK_LIB([ltdl], [main])
-AC_CHECK_LIB([glpk], [glp_create_prob])
 
 # ILOG CPLEX
 AC_ARG_WITH([cplex], AS_HELP_STRING([--with-cplex], [support CPLEX optimizer]),
-  if test "$with_cplex" != "no"; then
-    CPPFLAGS="-DWITH_CPLEX -DIL_STD $CPPFLAGS"
-  fi		  
+  [
+    if test "$with_cplex" != "no"; then
+      CPPFLAGS="-DWITH_CPLEX -DIL_STD $CPPFLAGS"
+      AC_CHECK_HEADERS([ilconcert/ilomodel.h])
+      AC_CHECK_LIB([concert], [main])
+      AC_CHECK_HEADERS([ilcplex/ilocplex.h])
+      AC_CHECK_LIB([cplex], [main])
+      AC_CHECK_LIB([ilocplex], [main])
+    fi
+  ]
 )
-AC_CHECK_HEADERS([ilconcert/ilomodel.h])
-AC_CHECK_LIB([concert], [main])
-AC_CHECK_HEADERS([ilcplex/ilocplex.h])
-AC_CHECK_LIB([cplex], [main])
-AC_CHECK_LIB([ilocplex], [main])
 
 # gurobi optimizer
 AC_ARG_WITH([gurobi], AS_HELP_STRING([--with-gurobi], [support Gurobi optimizer]),
-  if test "$with_gurobi" != "no"; then
-    CPPFLAGS="-DWITH_GUROBI $CPPFLAGS"
-    if test "$with_gurobi" != "yes"; then
-      CPPFLAGS="-I${with_gurobi}/include $CPPFLAGS"
-      LDFLAGS="-L${with_gurobi}/lib $LDFLAGS"
+  [
+    if test "$with_gurobi" != "no"; then
+      CPPFLAGS="-DWITH_GUROBI $CPPFLAGS"
+      if test "$with_gurobi" != "yes"; then
+        CPPFLAGS="-I${with_gurobi}/include $CPPFLAGS"
+      	LDFLAGS="-L${with_gurobi}/lib $LDFLAGS"
+      fi
+      AC_CHECK_HEADERS([gurobi_c++.h])
+      AC_CHECK_LIB([gurobi], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi $LIBS")
+      AC_CHECK_LIB([gurobi20], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi20 $LIBS")
+      AC_CHECK_LIB([gurobi30], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi30 $LIBS")
+      AC_CHECK_LIB([gurobi40], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi40 $LIBS")
     fi
-  fi
+  ]
 )
-AC_CHECK_HEADERS([gurobi_c++.h])
-AC_CHECK_LIB([gurobi], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi $LIBS")
-AC_CHECK_LIB([gurobi20], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi20 $LIBS")
-AC_CHECK_LIB([gurobi30], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi30 $LIBS")
-AC_CHECK_LIB([gurobi40], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi40 $LIBS")
 
 # Vienna RNA package
 AC_ARG_WITH([vienna-rna], AS_HELP_STRING([--with-vienna-rna], [support Vienna RNA package]),
@@ -111,5 +117,12 @@ AC_C_INLINE
 # Checks for library functions.
 AC_HEADER_STDC
 
-AC_CONFIG_FILES([Makefile src/Makefile src/contrafold/Makefile src/probconsRNA/Makefile src/contralign/Makefile src/partalign/Makefile])
+AC_CONFIG_FILES([
+  Makefile
+  src/Makefile
+  src/contrafold/Makefile
+  src/probconsRNA/Makefile
+  src/contralign/Makefile
+  src/partalign/Makefile
+])
 AC_OUTPUT
