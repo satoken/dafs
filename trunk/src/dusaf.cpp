@@ -115,7 +115,7 @@ private:
   Align* en_a_;                 // alignment engine
   Fold* en_s_;                  // folding engine
   std::vector<Fasta> fa_;       // input sequences
-  std::vector<MP> mp_;          // alignment matching probability matrices
+  std::vector<std::vector<MP> > mp_; // alignment matching probability matrices
   std::vector<BP> bp_;          // base-pairing probability matrices
   std::vector<float> dist_;     // distance matrix of input sequences
   std::vector<node_t> tree_;    // guide tree
@@ -129,40 +129,28 @@ Dusaf::
 relax_matching_probability()
 {
   const uint N=fa_.size();
-  std::vector< std::vector<const MP*> > m(N, std::vector<const MP*>(N, NULL));
-  for (uint x=0, w=0; x!=N-1; ++x)
-    for (uint y=x+1; y!=N; ++y, ++w)
-      m[x][y] = m[y][x] = &mp_[w];
-
-  std::vector<MP> mp(mp_.size());
-  for (uint x=0, w=0; x!=N-1; ++x)
+  std::vector<std::vector<MP> > mp(N, std::vector<MP>(N));
+  assert(mp_.size()==N);
+  assert(mp_[0].size()==N);
+  for (uint x=0; x!=N; ++x)
   {
     const uint L1=fa_[x].size();
-    for (uint y=x+1; y!=N; ++y, ++w)
+    for (uint y=0; y!=N; ++y)
     {
       const uint L2=fa_[y].size();
       VVF posterior(L1, VF(L2, 0.0));
-      assert(L1==m[x][y]->size());
-      for (uint i=0; i!=L1; ++i)
-      {
-        FOREACH (SparseVector::const_iterator, jj, (*m[x][y])[i])
-        {
-          const uint j=jj->first;
-          const float p_ij=jj->second;
-          assert(j<L2);
-          posterior[i][j] = p_ij*2;
-        }
-      }
-      
-      for (uint z=0; z<x; ++z)
+      assert(L1==mp_[x][y].size());
+
+      for (uint z=0; z!=N; ++z)
       {
         const uint L3=fa_[z].size();
-        assert(L3==m[z][x]->size());
+        assert(L3==mp_[z][x].size());
+        assert(L3==mp_[z][y].size());
         for (uint k=0; k!=L3; ++k)
         {
-          FOREACH (SparseVector::const_iterator, ii, (*m[z][x])[k])
+          FOREACH (SparseVector::const_iterator, ii, mp_[z][x][k])
           {
-            FOREACH (SparseVector::const_iterator, jj, (*m[z][y])[k])
+            FOREACH (SparseVector::const_iterator, jj, mp_[z][y][k])
             {
               const uint i=ii->first, j=jj->first;
               const float p_ik=ii->second, p_jk=jj->second;
@@ -172,68 +160,15 @@ relax_matching_probability()
           }
         }
       }
-
-      for (uint z=x+1; z<y; ++z)
-      {
-        //const uint L3=fa_[z].size();
-        assert(L1==m[x][z]->size());
-        for (uint i=0; i!=L1; ++i)
-        {
-          FOREACH (SparseVector::const_iterator, kk, (*m[x][z])[i])
-          {
-            //const uint k=kk->first;
-            const float p_ik=kk->second;
-            //assert(k<L3);
-            FOREACH (SparseVector::const_iterator, jj, (*m[z][y])[kk->first])
-            {
-              const uint j=jj->first;
-              const float p_jk=jj->second;
-              assert(j<L2);
-              posterior[i][j] += p_ik * p_jk;
-            }
-          }
-        }
-      }
-
-      for (uint z=y+1; z<N; ++z)
-      {
-#ifndef NDEBUG
-        const uint L3=fa_[z].size();
-#endif
-        assert(L1==m[x][z]->size());
-        for (uint i=0; i!=L1; ++i)
-        {
-          assert(L2==m[y][z]->size());
-          for (uint j=0; j!=L2; ++j)
-          {
-            SparseVector::const_iterator k1 = (*m[x][z])[i].begin();
-            SparseVector::const_iterator k2 = (*m[y][z])[j].begin();
-            while (k1!=(*m[x][z])[i].end() && k2!=(*m[y][z])[j].end())
-            {
-              assert(k1->first<L3);
-              assert(k2->first<L3);
-              if (k1->first < k2->first) ++k1;
-              else if (k1->first > k2->first) ++k2;
-              else /*if (k1->first == k2->first)*/
-              {
-                const float p_ik=k1->second;
-                const float p_jk=k2->second;
-                posterior[i][j] += p_ik * p_jk;
-                ++k1; ++k2;
-              }
-            }
-          }
-        }
-      }
     
-      mp[w].resize(L1);
+      mp[x][y].resize(L1);
       for (uint i=0; i!=L1; ++i)
       {
         for (uint j=0; j!=L2; ++j)
         {
           float v=posterior[i][j]/N;
           if (v>CUTOFF)
-            mp[w][i].push_back(std::make_pair(j, v));
+            mp[x][y][i].push_back(std::make_pair(j, v));
         }
       }
     }
@@ -246,81 +181,37 @@ Dusaf::
 relax_basepairing_probability()
 {
   const uint N=bp_.size();
-  std::vector< std::vector<const MP*> > m(N, std::vector<const MP*>(N, NULL));
-  for (uint x=0, w=0; x!=N-1; ++x)
-    for (uint y=x+1; y!=N; ++y, ++w)
-      m[x][y] = m[y][x] = &mp_[w];
-
   std::vector<BP> bp(N);
   for (uint x=0; x!=N; ++x)
   {
     const uint L1=bp_[x].size();
     VVF p(L1, VF(L1, 0.0));
 
-    for (uint y=0; y<x; ++y)
+    for (uint y=0; y!=N; ++y)
     {
       const uint L2=bp_[y].size();
+      assert(L2==mp_[y][x].size());
       for (uint k=0; k!=L2; ++k)
       {
         FOREACH(SparseVector::const_iterator, ll, bp_[y][k])
         {
           const uint l=ll->first;
           const float p_kl=ll->second;
-          FOREACH(SparseVector::const_iterator, ii, (*m[y][x])[k])
+          FOREACH(SparseVector::const_iterator, ii, mp_[y][x][k])
           {
             const uint i=ii->first;
             const float p_ik=ii->second;
-            FOREACH(SparseVector::const_iterator, jj, (*m[y][x])[l])
+            FOREACH(SparseVector::const_iterator, jj, mp_[y][x][l])
             {
               const uint j=jj->first;
               const float p_jl=jj->second;
               if (i<j) p[i][j] += p_kl*p_ik*p_jl/N;
-              assert(p[i][j]<=1.0);
             }
           }
         }
       }
     }
-
-    for (uint i=0; i!=L1-1; ++i)
-    {
-      FOREACH(SparseVector::const_iterator, jj, bp_[x][i])
-      {
-        p[i][jj->first] += jj->second/N;
-      }
-    }
-
-    for (uint y=x+1; y<N; ++y)
-    {
-      for (uint i=0; i!=L1-1; ++i)
-      {
-        FOREACH(SparseVector::const_iterator, kk, (*m[x][y])[i])
-        {
-          const uint k=kk->first;
-          const float p_ik=kk->second;
-          for (uint j=i+1; j!=L1; ++j)
-          {
-            SparseVector::const_iterator l1=bp_[y][k].begin();
-            SparseVector::const_iterator l2=(*m[x][y])[j].begin();
-            while (l1!=bp_[y][k].end() && l2!=(*m[x][y])[j].end())
-            {
-              if (l1->first < l2->first) ++l1;
-              else if (l1->first > l2->first) ++l2;
-              else /*if (l1->first == l2->first)*/
-              {
-                const uint l=l1->first;
-                const float p_kl=l1->second;
-                const float p_jl=l2->second;
-                if (k<l) p[i][j] += p_kl*p_ik*p_jl/N;
-                ++l1; ++l2;
-                assert(p[i][j]<=1.0);
-              }
-            }
-          }
-        }
-      }
-    }
-
+    
     bp[x].resize(L1);
     for (uint i=0; i!=L1-1; ++i)
       for (uint j=i+1; j!=L1; ++j)
@@ -397,6 +288,24 @@ print_tree(std::ostream& os, int i) const
   }
 }
 
+static
+void
+transpose_mp(const MP& mp, MP& mp_trans, uint x, uint y)
+{
+  assert(mp.size()==x);
+  mp_trans.resize(y);
+  for (uint i=0; i!=mp.size(); ++i)
+    FOREACH(SparseVector::const_iterator, jj, mp[i])
+    {
+      const uint j=jj->first;
+      const float p=jj->second;
+      mp_trans[j].push_back(std::make_pair(i, p));
+    }
+  for (uint j=0; j!=mp_trans.size(); ++j)
+    sort(mp_trans[j].begin(), mp_trans[j].end());
+}
+
+static
 void
 print_mp(std::ostream& os, const MP& mp)
 {
@@ -409,18 +318,23 @@ print_mp(std::ostream& os, const MP& mp)
   }
 }
 
+static
+void
+print_bp(std::ostream& os, const BP& bp)
+{
+  for (uint i=0; i!=bp.size(); ++i)
+  {
+    os << i << ":";
+    FOREACH (SparseVector::const_iterator, v, bp[i])
+      os << " " << v->first << ":" << v->second;
+    os << std::endl;
+  }
+}
+
 void
 Dusaf::
 average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const
 {
-  const uint N=fa_.size();
-  std::vector<std::vector<const MP*> > mx(N, std::vector<const MP*>(N, NULL));
-  for (uint i=0, k=0; i!=N-1; ++i)
-    for (uint j=i+1; j!=N; ++j, ++k)
-    {
-      mx[i][j] = mx[j][i] = &mp_[k];
-    }
-
   const uint L1 = aln1.front().second.size();
   const uint L2 = aln2.front().second.size();
   const uint N1 = aln1.size();
@@ -432,47 +346,23 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
     FOREACH (ALN::const_iterator, it2, aln2)
     {
       assert(L2==it2->second.size());
-      if (it1->first < it2->first)
+      const MP& m = mp_[it1->first][it2->first];
+      for (uint i=0, ii=0; i!=L1; ++i)
       {
-        const MP& m = *mx[it1->first][it2->first];
-        for (uint i=0, ii=0; i!=L1; ++i)
-        {
-          if (!it1->second[i]) continue;
-          assert(ii<m.size());
-          SparseVector::const_iterator x=m[ii].begin();
-          for (uint j=0, jj=0; j!=L2 && x!=m[ii].end(); ++j)
-          {
-            if (!it2->second[j]) continue;
-            if (jj==x->first)
-            {
-              p[i][j] += x->second/(N1*N2);
-              ++x;
-            }
-            ++jj;
-          }
-          ++ii;
-        }
-      }
-      else
-      {
-        const MP& m = *mx[it2->first][it1->first];
-        for (uint j=0, jj=0; j!=L2; ++j)
+        if (!it1->second[i]) continue;
+        assert(ii<m.size());
+        SparseVector::const_iterator x=m[ii].begin();
+        for (uint j=0, jj=0; j!=L2 && x!=m[ii].end(); ++j)
         {
           if (!it2->second[j]) continue;
-          assert(jj<m.size());
-          SparseVector::const_iterator x=m[jj].begin();
-          for (uint i=0, ii=0; i!=L1 && x!=m[jj].end(); ++i)
+          if (jj==x->first)
           {
-            if (!it1->second[i]) continue;
-            if (ii==x->first)
-            {
-              p[i][j] += x->second/(N1*N2);
-              ++x;
-            }
-            ++ii;
+            p[i][j] += x->second/(N1*N2);
+            ++x;
           }
           ++jj;
         }
+        ++ii;
       }
     }
   }
@@ -1442,27 +1332,34 @@ run(const char* filename)
     en_s_->fold(fa_[i].seq(), bp_[i]);
 
   // calculate matching probabilities
-  mp_.resize(N*(N-1)/2);
+  mp_.resize(N, std::vector<MP>(N));
   dist_.resize(N*(N-1)/2);
   for (uint i=0, k=0; i!=N-1; ++i)
   {
     for (uint j=i+1; j!=N; ++j, ++k)
     {
       float d = use_bpscore_ ?
-        en_a_->align(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[k]) :
-        en_a_->align(fa_[i].seq(), fa_[j].seq(), mp_[k]);
+        en_a_->align(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[i][j]) :
+        en_a_->align(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
+      transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
       dist_[k] = d/(std::min(fa_[i].size(), fa_[j].size()));
     }
   }
+  for (uint i=0; i!=N; ++i)
+  {
+    mp_[i][i].resize(fa_[i].size());
+    for (uint x=0; x!=fa_[i].size(); ++x)
+      mp_[i][i][x].push_back(std::make_pair(x, 1.0f));
+  }
+
+  // probabilistic consistency tranformation for matching probability matrix
+  for (uint i=0; i!=n_pct_a_; ++i)
+    relax_matching_probability();
 
   // probabilistic consistency tranformation for base-pairing probabilitiy matrix
   for (uint i=0; i!=n_pct_s_; ++i)
     relax_basepairing_probability();
   
-  // probabilistic consistency tranformation for matching probability matrix
-  for (uint i=0; i!=n_pct_a_; ++i)
-    relax_matching_probability();
-
   // compute the guide tree
   build_tree();
   print_tree(std::cout, tree_.size()-1);
