@@ -790,7 +790,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
   VVF q_y(L2, VF(L2, 0.0));
   VVF q_z(L1, VF(L2, 0.0));
 
-  uint c=0;
+  //uint c=0;
+  float c=0.0;
   float eta=eta0_, s_prev=0.0;
   uint violated=0;
   uint t;
@@ -877,8 +878,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
     // update the step width
     if (s<s_prev || t==0)
     {
-      c++;
-      eta = eta0_/(1+sqrt(c));
+      c += fabs(4.0*cbp.size()-violated)/(4.0*cbp.size());
+      eta = eta0_/(1.0+sqrt(c));
     }
     s_prev = s;
   }
@@ -1125,8 +1126,8 @@ align(VU& ss, ALN& aln, int ch) const
 void
 Dusaf::
 refine(VU& ss, ALN& aln) const
-{
-  VU group[2];
+{ 
+ VU group[2];
   do {
     group[0].clear();
     group[1].clear();
@@ -1210,7 +1211,7 @@ parse_options(int& argc, char**& argv)
   const char* a_en = "CONTRAlign";
   const char* s_en = "Boltzmann";
   std::string arg_x;
-  while ((ch=getopt(argc, argv, "hv:a:s:p:q:r:t:g:u:w:e:m:lbx:"))!=-1)
+  while ((ch=getopt(argc, argv, "hv:a:s:p:q:r:t:g:u:w:e:f:m:lbx:"))!=-1)
   {
     switch (ch)
     {
