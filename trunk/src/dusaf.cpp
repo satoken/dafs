@@ -878,7 +878,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
     // update the step width
     if (s<s_prev || t==0)
     {
-      c += fabs(4.0*cbp.size()-violated)/(4.0*cbp.size());
+      c += std::max(0.0f, 4.0f*cbp.size()-violated)/(4.0*cbp.size());
       eta = eta0_/(1.0+sqrt(c));
     }
     s_prev = s;
