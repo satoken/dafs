@@ -70,7 +70,8 @@ private:
   void relax_basepairing_probability();
   void build_tree();
   void print_tree(std::ostream& os, int i) const;
-  float decode_alignment(const VVF& p, const VVF& q, VU& al) const;
+  float decode_alignment(const VVF& p, const VVF& q,
+                         const std::vector< std::pair<uint,uint> >& r, VU& al) const;
   float decode_secondary_structure(const VVF& p, const VVF& q, VU& ss) const;
   void project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const;
   void project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& z) const;
@@ -448,7 +449,8 @@ average_basepairing_probability(VVF& posterior, const ALN& aln) const
 
 float
 Dusaf::
-decode_alignment(const VVF& p, const VVF& q, VU& al) const
+decode_alignment(const VVF& p, const VVF& q,
+                 const std::vector< std::pair<uint,uint> >& r, VU& al) const
 {
   const uint L1 = p.size();
   const uint L2 = p[0].size();
@@ -903,6 +905,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
 
   // precalculate the range for alignment
   std::vector< std::pair<uint,uint> > r(L1, std::make_pair(0, L2-1));
+#if 0
   for (uint i=0; i!=L1; ++i)
   {
     for (uint k=0; k!=L2; ++k)
@@ -921,12 +924,13 @@ solve_by_dd(VU& x, VU& y, VU& z,
         break;
       }
     }
-    if (!c_z[i].empty())
-    {
-      r[i].first = std::min(r[i].first, c_z[i][0]);
-      r[i].second = std::max(r[i].second, c_z[i][c_z[i].size()-1]);
-    }
+    // if (!c_z[i].empty())
+    // {
+    //   r[i].first = std::min(r[i].first, c_z[i][0]);
+    //   r[i].second = std::max(r[i].second, c_z[i][c_z[i].size()-1]);
+    // }
   }
+#endif
 
   // multipliers
   VVF q_x(L1, VF(L1, 0.0));
@@ -944,7 +948,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
     float s = 0.0;
     s += decode_secondary_structure(p_x, q_x, x);
     s += decode_secondary_structure(p_y, q_y, y);
-    s += decode_alignment(p_z, q_z, z);
+    s += decode_alignment(p_z, q_z, r, z);
 
     if (verbose_>=2) output_verbose(x, y, z, aln1, aln2);
 
