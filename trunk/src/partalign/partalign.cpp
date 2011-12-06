@@ -215,7 +215,7 @@ void
 calc_bp(VF& pl, VF& pr, VF& q, const BP& px)
 {
   for (uint i=0; i!=px.size(); ++i)
-    FOREACH(SparseVector::const_iterator, it, px[i])
+    FOREACH(SV::const_iterator, it, px[i])
     {
       pl[i] += it->second;
       q[i] -= it->second;

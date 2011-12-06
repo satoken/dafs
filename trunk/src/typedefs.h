@@ -19,8 +19,8 @@ typedef std::vector<VU> VVU;
 typedef std::vector<char> VC;
 typedef std::vector<VC> VVC;
   
-typedef std::vector<std::pair<uint,float> > SparseVector;
-typedef std::vector<SparseVector> MP;
-typedef std::vector<SparseVector> BP;
+typedef std::vector<std::pair<uint,float> > SV; // sparse vectors
+typedef std::vector<SV> MP;
+typedef std::vector<SV> BP;
 
 #endif

@@ -70,8 +70,8 @@ private:
   void relax_basepairing_probability();
   void build_tree();
   void print_tree(std::ostream& os, int i) const;
-  float decode_alignment(const VVF& sm, VU& al) const;
-  float decode_secondary_structure(const VVF& sm, VU& ss) const;
+  float decode_alignment(const VVF& p, const VVF& q, VU& al) const;
+  float decode_secondary_structure(const VVF& p, const VVF& q, VU& ss) const;
   void project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const;
   void project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& z) const;
   void average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const;
@@ -148,9 +148,9 @@ relax_matching_probability()
         assert(L3==mp_[z][y].size());
         for (uint k=0; k!=L3; ++k)
         {
-          FOREACH (SparseVector::const_iterator, ii, mp_[z][x][k])
+          FOREACH (SV::const_iterator, ii, mp_[z][x][k])
           {
-            FOREACH (SparseVector::const_iterator, jj, mp_[z][y][k])
+            FOREACH (SV::const_iterator, jj, mp_[z][y][k])
             {
               const uint i=ii->first, j=jj->first;
               const float p_ik=ii->second, p_jk=jj->second;
@@ -193,15 +193,15 @@ relax_basepairing_probability()
       assert(L2==mp_[y][x].size());
       for (uint k=0; k!=L2; ++k)
       {
-        FOREACH(SparseVector::const_iterator, ll, bp_[y][k])
+        FOREACH(SV::const_iterator, ll, bp_[y][k])
         {
           const uint l=ll->first;
           const float p_kl=ll->second;
-          FOREACH(SparseVector::const_iterator, ii, mp_[y][x][k])
+          FOREACH(SV::const_iterator, ii, mp_[y][x][k])
           {
             const uint i=ii->first;
             const float p_ik=ii->second;
-            FOREACH(SparseVector::const_iterator, jj, mp_[y][x][l])
+            FOREACH(SV::const_iterator, jj, mp_[y][x][l])
             {
               const uint j=jj->first;
               const float p_jl=jj->second;
@@ -295,7 +295,7 @@ transpose_mp(const MP& mp, MP& mp_trans, uint x, uint y)
   assert(mp.size()==x);
   mp_trans.resize(y);
   for (uint i=0; i!=mp.size(); ++i)
-    FOREACH(SparseVector::const_iterator, jj, mp[i])
+    FOREACH(SV::const_iterator, jj, mp[i])
     {
       const uint j=jj->first;
       const float p=jj->second;
@@ -312,7 +312,7 @@ print_mp(std::ostream& os, const MP& mp)
   for (uint i=0; i!=mp.size(); ++i)
   {
     os << i << ":";
-    FOREACH (SparseVector::const_iterator, v, mp[i])
+    FOREACH (SV::const_iterator, v, mp[i])
       os << " " << v->first << ":" << v->second;
     os << std::endl;
   }
@@ -325,7 +325,7 @@ print_bp(std::ostream& os, const BP& bp)
   for (uint i=0; i!=bp.size(); ++i)
   {
     os << i << ":";
-    FOREACH (SparseVector::const_iterator, v, bp[i])
+    FOREACH (SV::const_iterator, v, bp[i])
       os << " " << v->first << ":" << v->second;
     os << std::endl;
   }
@@ -351,7 +351,7 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
       {
         if (!it1->second[i]) continue;
         assert(ii<m.size());
-        SparseVector::const_iterator x=m[ii].begin();
+        SV::const_iterator x=m[ii].begin();
         for (uint j=0, jj=0; j!=L2 && x!=m[ii].end(); ++j)
         {
           if (!it2->second[j]) continue;
@@ -448,10 +448,11 @@ average_basepairing_probability(VVF& posterior, const ALN& aln) const
 
 float
 Dusaf::
-decode_alignment(const VVF& sm, VU& al) const
+decode_alignment(const VVF& p, const VVF& q, VU& al) const
 {
-  const uint L1 = sm.size();
-  const uint L2 = sm[0].size();
+  const uint L1 = p.size();
+  const uint L2 = p[0].size();
+
   VVF dp(L1+1, VF(L2+1, 0.0));
   VVC tr(L1+1, VC(L2+1, ' '));
   for (uint i=1; i!=L1+1; ++i) tr[i][0] = 'X';
@@ -460,7 +461,7 @@ decode_alignment(const VVF& sm, VU& al) const
   {
     for (uint k=1; k!=L2+1; ++k)
     {
-      float v = dp[i-1][k-1]+sm[i-1][k-1];
+      float v = dp[i-1][k-1]+p[i-1][k-1]-th_a_+q[i-1][k-1];
       char t = 'M';
       if (v<dp[i-1][k])
       {
@@ -521,10 +522,104 @@ decode_alignment(const VVF& sm, VU& al) const
 
 float
 Dusaf::
-decode_secondary_structure(const VVF& sm, VU& ss) const
+decode_secondary_structure(const VVF& p, const VVF& q, VU& ss) const
 {
-  uint L=sm.size();
-  assert(sm[0].size()==L);
+  uint L=p.size();
+  assert(p[0].size()==L);
+
+#if 1
+  VVF dp(L, VF(L, 0.0));
+  BP bp(L);
+  VVU tr(L, VU(L, 0));
+  for (uint l=1; l<L; ++l)
+  {
+    for (uint i=0; i+l<L; ++i)
+    {
+      uint j=i+l;
+      float v=0.0;
+      int t=0;
+      if (i+1<j)
+      {
+        v=dp[i+1][j];
+        t=1;
+      }
+      if (i<j-1 && v<dp[i][j-1])
+      {
+        v=dp[i][j-1];
+        t=2;
+      }
+      if (i+1<j-1)
+      {
+        float s=w_*(p[i][j]-th_s_)-q[i][j];
+        if (s>0.0)
+        {
+          bp[j].push_back(std::make_pair(i,dp[i+1][j-1]+s));
+          if (v<dp[i+1][j-1]+s)
+          {
+            v=dp[i+1][j-1]+s;
+            t=3;
+          }
+        }
+      }
+      for (SV::const_iterator x=bp[j].begin(); x!=bp[j].end(); ++x)
+      {
+        const uint k=x->first;
+        const float s=x->second;
+        if (i<k)
+        {
+          if (v<dp[i][k-1]+s)
+          {
+            v=dp[i][k-1]+s;
+            t=k-i+3;
+          }
+        }
+      }
+      dp[i][j]=v;
+      tr[i][j]=t;
+    }
+  }
+
+  // trace back
+  ss.resize(L);
+  std::fill(ss.begin(), ss.end(), -1u);
+  std::stack<std::pair<uint,uint> > st;
+  st.push(std::make_pair(0, L-1));
+  while (!st.empty())
+  {
+    const std::pair<uint,uint> p=st.top(); st.pop();
+    const int i=p.first, j=p.second;
+    switch (tr[i][j])
+    {
+      case 0:
+        break;
+      case 1:
+        st.push(std::make_pair(i+1, j));
+        break;
+      case 2:
+        st.push(std::make_pair(i, j-1));
+        break;
+      case 3:
+        ss[i]=j;
+        st.push(std::make_pair(i+1, j-1));
+        break;
+      default:
+        const int k=i+tr[i][j]-3;
+        st.push(std::make_pair(i, k-1));
+        ss[k]=j;
+        st.push(std::make_pair(k+1, j-1));
+        break;
+    }
+  }
+
+  return dp[0][L-1];
+
+#else
+  // calculate scoring matrices for the current step
+  VVF sm(L, VF(L, 0.0));
+  for (uint i=0; i!=L-1; ++i)
+    for (uint j=i+1; j!=L; ++j)
+      sm[i][j] = w_*(p[i][j]-th_s_)-q[i][j];
+
   VVF dp(L, VF(L, 0.0));
   VVU tr(L, VU(L, 0));
   for (uint l=1; l<L; ++l)
@@ -554,7 +649,7 @@ decode_secondary_structure(const VVF& sm, VU& ss) const
         if (v<dp[i][k]+dp[k+1][j])
         {
           v=dp[i][k]+dp[k+1][j];
-          t=k+4;
+          t=k-i+3;
         }        
       }
       dp[i][j]=v;
@@ -569,28 +664,31 @@ decode_secondary_structure(const VVF& sm, VU& ss) const
   st.push(std::make_pair(0, L-1));
   while (!st.empty())
   {
-    std::pair<uint,uint> p=st.top(); st.pop();
-    switch (tr[p.first][p.second])
+    const std::pair<uint,uint> p=st.top(); st.pop();
+    const int i=p.first, j=p.second;
+    switch (tr[i][j])
     {
       case 0:
         break;
       case 1:
-        st.push(std::make_pair(p.first+1, p.second));
+        st.push(std::make_pair(i+1, j));
         break;
       case 2:
-        st.push(std::make_pair(p.first, p.second-1));
+        st.push(std::make_pair(i, j-1));
         break;
       case 3:
-        ss[p.first]=p.second;
-        st.push(std::make_pair(p.first+1, p.second-1));
+        ss[i]=j;
+        st.push(std::make_pair(i+1, j-1));
         break;
       default:
-        st.push(std::make_pair(p.first, tr[p.first][p.second]-4));
-        st.push(std::make_pair(tr[p.first][p.second]-4, p.second));
+        const int k=i+tr[i][j]-3;
+        st.push(std::make_pair(i, k));
+        st.push(std::make_pair(k+1, j));
         break;
     }
   }
   return dp[0][L-1];
+#endif
 }
 
 void
@@ -764,7 +862,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
   const uint L2=p_y.size();
 
   // enumerate the candidates of consensus base-pairs
-  std::vector<CBP> cbp;
+  std::vector<CBP> cbp;         // consensus base-pairs
+  VVU c_x(L1), c_y(L2), c_z(L1); // project consensus base-pairs into each structure and alignment
   for (uint i=0; i!=L1-1; ++i)
     for (uint j=i+1; j!=L1; ++j)
       if (p_x[i][j]>CUTOFF)
@@ -778,13 +877,57 @@ solve_by_dd(VU& x, VU& y, VU& z,
                 float p=(p_x[i][j]+p_y[k][l])/2;
                 float q=(p_z[i][k]+p_z[j][l])/2;
                 if (p-th_s_>0.0 && w_*(p-th_s_)+(q-th_a_)>0.0)
+                {
                   cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
+                  c_x[i].push_back(j);
+                  c_y[k].push_back(l);
+                  c_z[i].push_back(k);
+                  c_z[j].push_back(l);
+                }
               }
+  for (uint i=0; i!=c_x.size(); ++i)
+  {
+    std::sort(c_x[i].begin(), c_x[i].end());
+    c_x[i].erase(std::unique(c_x[i].begin(), c_x[i].end()), c_x[i].end());
+  }
+  for (uint k=0; k!=c_y.size(); ++k)
+  {
+    std::sort(c_y[k].begin(), c_y[k].end());
+    c_y[k].erase(std::unique(c_y[k].begin(), c_y[k].end()), c_y[k].end());
+  }
+  for (uint i=0; i!=c_z.size(); ++i)
+  {
+    std::sort(c_z[i].begin(), c_z[i].end());
+    c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
+  }
 
-  // scoring matrices
-  VVF s_x(L1, VF(L1, 0.0));
-  VVF s_y(L2, VF(L2, 0.0));
-  VVF s_z(L1, VF(L2, 0.0));
+  // precalculate the range for alignment
+  std::vector< std::pair<uint,uint> > r(L1, std::make_pair(0, L2-1));
+  for (uint i=0; i!=L1; ++i)
+  {
+    for (uint k=0; k!=L2; ++k)
+    {
+      if (p_z[i][k]-th_a_>=0.0)
+      {
+        r[i].first=k;
+        break;
+      }
+    }
+    for (uint k=L2-1; k!=-1u; --k)
+    {
+      if (p_z[i][k]-th_a_>=0.0)
+      {
+        r[i].second=k;
+        break;
+      }
+    }
+    if (!c_z[i].empty())
+    {
+      r[i].first = std::min(r[i].first, c_z[i][0]);
+      r[i].second = std::max(r[i].second, c_z[i][c_z[i].size()-1]);
+    }
+  }
+
   // multipliers
   VVF q_x(L1, VF(L1, 0.0));
   VVF q_y(L2, VF(L2, 0.0));
@@ -797,22 +940,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
   uint t;
   for (t=0; t!=t_max_; ++t)
   {
-    // calculate scoring matrices for the current step
-    for (uint i=0; i!=L1-1; ++i)
-      for (uint j=i+1; j!=L1; ++j)
-        s_x[i][j] = w_*(p_x[i][j]-th_s_)-q_x[i][j];
-    for (uint k=0; k!=L2-1; ++k)
-      for (uint l=k+1; l!=L2; ++l)
-        s_y[k][l] = w_*(p_y[k][l]-th_s_)-q_y[k][l];
-    for (uint i=0; i!=L1; ++i)
-      for (uint k=0; k!=L2; ++k)
-        s_z[i][k] = p_z[i][k]-th_a_+q_z[i][k];
-
     // solve the subproblems
     float s = 0.0;
-    s += decode_secondary_structure(s_x, x);
-    s += decode_secondary_structure(s_y, y);
-    s += decode_alignment(s_z, z);
+    s += decode_secondary_structure(p_x, q_x, x);
+    s += decode_secondary_structure(p_y, q_y, y);
+    s += decode_alignment(p_z, q_z, z);
 
     if (verbose_>=2) output_verbose(x, y, z, aln1, aln2);
 
@@ -836,6 +968,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
         t_z[j][l] += w_ijkl;
       }
     }
+
+#if 0
     for (uint i=0; i!=L1-1; ++i)
       for (uint j=i+1; j!=L1; ++j)
       {
@@ -866,6 +1000,65 @@ solve_by_dd(VU& x, VU& y, VU& z,
           q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(z_ik-t_z[i][k]));
         }
       }
+#else
+
+    for (uint i=0; i!=L1; ++i)
+    {
+      const uint j = x[i];
+      if (j!=-1u && t_x[i][j]!=1)
+      {
+        violated++;
+        q_x[i][j] -= eta*(t_x[i][j]-1);
+      }
+      for (uint jj=0; jj!=c_x[i].size(); ++jj)
+      {
+        const uint j=c_x[i][jj];
+        if (x[i]!=j && t_x[i][j]!=0)
+        {
+          violated++;
+          q_x[i][j] -= eta*t_x[i][j];
+        }
+      }
+    }
+
+    for (uint k=0; k!=L2; ++k)
+    {
+      const uint l = y[k];
+      if (l!=-1u && t_y[k][l]!=1)
+      {
+        violated++;
+        q_y[k][l] -= eta*(t_y[k][l]-1);
+      }
+      for (uint ll=0; ll!=c_y[k].size(); ++ll)
+      {
+        const uint l=c_y[k][ll];
+        if (y[k]!=l && t_y[k][l]!=0)
+        {
+          violated++;
+          q_y[k][l] -= eta*t_y[k][l];
+        }
+      }
+    }
+
+    for (uint i=0; i!=L1; ++i)
+    {
+      const uint k = z[i];
+      if (k!=-1u && t_z[i][k]>1)
+      {
+        violated++;
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(1-t_z[i][k]));
+      }
+      for (uint kk=0; kk!=c_z[i].size(); ++kk)
+      {
+        const uint k=c_z[i][kk];
+        if (z[i]!=k && t_z[i][k]>0)
+        {
+          violated++;
+          q_z[i][k] = std::max(0.0f, q_z[i][k]+eta*t_z[i][k]);
+        }
+      }
+    }
+#endif
 
     if (verbose_>=2)
       std::cout << "Step: " << t << std::endl
