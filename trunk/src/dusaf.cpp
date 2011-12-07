@@ -522,6 +522,62 @@ decode_alignment(const VVF& p, const VVF& q,
   return dp[L1][L2];
 }
 
+void
+alignment_envelope(const VVF& p, float th, std::vector< std::pair<uint,uint> >& r)
+{
+  const uint L1 = p.size();
+  const uint L2 = p[0].size();
+  r.resize(L1+1);
+  std::fill(r.begin(), r.end(), std::make_pair(0, 0));
+
+  for (uint i=1; i!=L1+1; ++i)
+  {
+    // find the first alignable point
+    for (uint k=1; k!=L2+1; ++k)
+    {
+      if (p[i-1][k-1]-th>=0.0)
+      {
+        r[i-1].first = std::min(r[i-1].first, k-1);
+        r[i].first = k;
+        break;
+      }
+    }
+    // no alignable point
+    if (r[i].first==0)          
+    {
+      r[i].first = r[i-1].first;
+      r[i].second = r[i-1].second;
+      continue;
+    }
+
+    // find the last alignable point
+    for (uint k=L2; k!=0; --k)
+    {
+      if (p[i-1][k-1]-th>=0.0)
+      {
+        r[i-1].second = std::max(r[i-1].second, k-1);
+        r[i].second = k;
+        break;
+      }
+    }
+  }
+  assert(r[0].first==0);
+  r[L1].second=L2;
+
+  // force the envelope to be monotonic
+  for (uint i=L1, v=L2; i!=0; --i)
+    r[i].first = v = std::min(v, r[i].first);
+  for (uint i=0, v=0; i!=L1+1; ++i)
+    r[i].second = v = std::max(v, r[i].second);
+
+  // ensure the conectivity
+  for (uint i=1; i!=L1+1; ++i)
+  {
+    if (r[i-1].second<r[i].first)
+      r[i].first = r[i-1].second;
+  }
+}
+
 float
 Dusaf::
 decode_secondary_structure(const VVF& p, const VVF& q, VU& ss) const
@@ -904,33 +960,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
   }
 
   // precalculate the range for alignment
-  std::vector< std::pair<uint,uint> > r(L1, std::make_pair(0, L2-1));
-#if 0
-  for (uint i=0; i!=L1; ++i)
-  {
-    for (uint k=0; k!=L2; ++k)
-    {
-      if (p_z[i][k]-th_a_>=0.0)
-      {
-        r[i].first=k;
-        break;
-      }
-    }
-    for (uint k=L2-1; k!=-1u; --k)
-    {
-      if (p_z[i][k]-th_a_>=0.0)
-      {
-        r[i].second=k;
-        break;
-      }
-    }
-    // if (!c_z[i].empty())
-    // {
-    //   r[i].first = std::min(r[i].first, c_z[i][0]);
-    //   r[i].second = std::max(r[i].second, c_z[i][c_z[i].size()-1]);
-    // }
-  }
-#endif
+  std::vector< std::pair<uint,uint> > r;
+  alignment_envelope(p_z, th_a_, r);
 
   // multipliers
   VVF q_x(L1, VF(L1, 0.0));
