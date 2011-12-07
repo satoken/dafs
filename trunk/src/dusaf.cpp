@@ -27,6 +27,10 @@ extern "C" {
 #define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
 #define CUTOFF 0.01
 
+#define SPARSE_ALIGNMENT
+#define SPARSE_FOLDING
+#define SPARSE_UPDATE
+
 class Dusaf
 {
 private:
@@ -459,6 +463,29 @@ decode_alignment(const VVF& p, const VVF& q,
   VVC tr(L1+1, VC(L2+1, ' '));
   for (uint i=1; i!=L1+1; ++i) tr[i][0] = 'X';
   for (uint k=1; k!=L2+1; ++k) tr[0][k] = 'Y';
+#ifdef SPARSE_ALIGNMENT // efficient implementation using sparsity
+  for (uint i=1; i!=L1+1; ++i)
+  {
+    for (uint k=r[i].first; k<=r[i].second; ++k)
+    {
+      if (k==0) continue;
+      float v = dp[i-1][k-1]+p[i-1][k-1]-th_a_+q[i-1][k-1];
+      char t = 'M';
+      if (v<dp[i-1][k])
+      {
+        v = dp[i-1][k];
+        t = 'X';
+      }
+      if (v<dp[i][k-1])
+      {
+        v = dp[i][k-1];
+        t = 'Y';
+      }
+      dp[i][k] = v;
+      tr[i][k] = t;
+    }
+  }
+#else // naive implementation
   for (uint i=1; i!=L1+1; ++i)
   {
     for (uint k=1; k!=L2+1; ++k)
@@ -479,6 +506,7 @@ decode_alignment(const VVF& p, const VVF& q,
       tr[i][k] = t;
     }
   }
+#endif
 
   // traceback
   std::string rpath;
@@ -525,6 +553,7 @@ decode_alignment(const VVF& p, const VVF& q,
 void
 alignment_envelope(const VVF& p, float th, std::vector< std::pair<uint,uint> >& r)
 {
+#ifdef SPARSE_ALIGNMENT
   const uint L1 = p.size();
   const uint L2 = p[0].size();
   r.resize(L1+1);
@@ -576,6 +605,7 @@ alignment_envelope(const VVF& p, float th, std::vector< std::pair<uint,uint> >& 
     if (r[i-1].second<r[i].first)
       r[i].first = r[i-1].second;
   }
+#endif
 }
 
 float
@@ -585,7 +615,7 @@ decode_secondary_structure(const VVF& p, const VVF& q, VU& ss) const
   uint L=p.size();
   assert(p[0].size()==L);
 
-#if 1
+#ifdef SPARSE_FOLDING // efficient implementation using sparsity
   VVF dp(L, VF(L, 0.0));
   BP bp(L);
   VVU tr(L, VU(L, 0));
@@ -671,7 +701,7 @@ decode_secondary_structure(const VVF& p, const VVF& q, VU& ss) const
 
   return dp[0][L-1];
 
-#else
+#else // naive implementation
   // calculate scoring matrices for the current step
   VVF sm(L, VF(L, 0.0));
   for (uint i=0; i!=L-1; ++i)
@@ -921,7 +951,9 @@ solve_by_dd(VU& x, VU& y, VU& z,
 
   // enumerate the candidates of consensus base-pairs
   std::vector<CBP> cbp;         // consensus base-pairs
+#ifdef SPARSE_UPDATE
   VVU c_x(L1), c_y(L2), c_z(L1); // project consensus base-pairs into each structure and alignment
+#endif
   for (uint i=0; i!=L1-1; ++i)
     for (uint j=i+1; j!=L1; ++j)
       if (p_x[i][j]>CUTOFF)
@@ -937,12 +969,15 @@ solve_by_dd(VU& x, VU& y, VU& z,
                 if (p-th_s_>0.0 && w_*(p-th_s_)+(q-th_a_)>0.0)
                 {
                   cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
+#ifdef SPARSE_UPDATE
                   c_x[i].push_back(j);
                   c_y[k].push_back(l);
                   c_z[i].push_back(k);
                   c_z[j].push_back(l);
+#endif
                 }
               }
+#ifdef SPARSE_UPDATE
   for (uint i=0; i!=c_x.size(); ++i)
   {
     std::sort(c_x[i].begin(), c_x[i].end());
@@ -958,6 +993,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
     std::sort(c_z[i].begin(), c_z[i].end());
     c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
   }
+#endif
 
   // precalculate the range for alignment
   std::vector< std::pair<uint,uint> > r;
@@ -1004,39 +1040,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
       }
     }
 
-#if 0
-    for (uint i=0; i!=L1-1; ++i)
-      for (uint j=i+1; j!=L1; ++j)
-      {
-        const int x_ij = x[i]==j ? 1 : 0;
-        if (t_x[i][j]-x_ij!=0)
-        {
-          violated++;
-          q_x[i][j] -= eta*(t_x[i][j]-x_ij);
-        }
-      }
-    for (uint k=0; k!=L2-1; ++k)
-      for (uint l=k+1; l!=L2; ++l)
-      {
-        const int y_kl = y[k]==l ? 1 : 0;
-        if (t_y[k][l]-y_kl!=0)
-        {
-          violated++;
-          q_y[k][l] -= eta*(t_y[k][l]-y_kl);
-        }
-      }
-    for (uint i=0; i!=L1; ++i)
-      for (uint k=0; k!=L2; ++k)
-      {
-        const int z_ik = z[i]==k ? 1 : 0;
-        if (z_ik-t_z[i][k]<0)
-        {
-          violated++;
-          q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(z_ik-t_z[i][k]));
-        }
-      }
-#else
-
+#ifdef SPARSE_UPDATE // efficient implementation using sparsity
     for (uint i=0; i!=L1; ++i)
     {
       const uint j = x[i];
@@ -1093,6 +1097,37 @@ solve_by_dd(VU& x, VU& y, VU& z,
         }
       }
     }
+#else // naive implementation
+    for (uint i=0; i!=L1-1; ++i)
+      for (uint j=i+1; j!=L1; ++j)
+      {
+        const int x_ij = x[i]==j ? 1 : 0;
+        if (t_x[i][j]-x_ij!=0)
+        {
+          violated++;
+          q_x[i][j] -= eta*(t_x[i][j]-x_ij);
+        }
+      }
+    for (uint k=0; k!=L2-1; ++k)
+      for (uint l=k+1; l!=L2; ++l)
+      {
+        const int y_kl = y[k]==l ? 1 : 0;
+        if (t_y[k][l]-y_kl!=0)
+        {
+          violated++;
+          q_y[k][l] -= eta*(t_y[k][l]-y_kl);
+        }
+      }
+    for (uint i=0; i!=L1; ++i)
+      for (uint k=0; k!=L2; ++k)
+      {
+        const int z_ik = z[i]==k ? 1 : 0;
+        if (z_ik-t_z[i][k]<0)
+        {
+          violated++;
+          q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(z_ik-t_z[i][k]));
+        }
+      }
 #endif
 
     if (verbose_>=2)
