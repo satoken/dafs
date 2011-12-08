@@ -72,6 +72,7 @@ public:
 private:
   void relax_matching_probability();
   void relax_basepairing_probability();
+  void relax_fourway_consistency();
   void build_tree();
   void print_tree(std::ostream& os, int i) const;
   float decode_alignment(const VVF& p, const VVF& q,
@@ -129,6 +130,49 @@ private:
   uint verbose_;
 };
 
+static
+void
+transpose_mp(const MP& mp, MP& mp_trans, uint x, uint y)
+{
+  assert(mp.size()==x);
+  mp_trans.resize(y);
+  for (uint i=0; i!=mp.size(); ++i)
+    FOREACH(SV::const_iterator, jj, mp[i])
+    {
+      const uint j=jj->first;
+      const float p=jj->second;
+      mp_trans[j].push_back(std::make_pair(i, p));
+    }
+  for (uint j=0; j!=mp_trans.size(); ++j)
+    sort(mp_trans[j].begin(), mp_trans[j].end());
+}
+
+static
+void
+print_mp(std::ostream& os, const MP& mp)
+{
+  for (uint i=0; i!=mp.size(); ++i)
+  {
+    os << i << ":";
+    FOREACH (SV::const_iterator, v, mp[i])
+      os << " " << v->first << ":" << v->second;
+    os << std::endl;
+  }
+}
+
+static
+void
+print_bp(std::ostream& os, const BP& bp)
+{
+  for (uint i=0; i!=bp.size(); ++i)
+  {
+    os << i << ":";
+    FOREACH (SV::const_iterator, v, bp[i])
+      os << " " << v->first << ":" << v->second;
+    os << std::endl;
+  }
+}
+
 void
 Dusaf::
 relax_matching_probability()
@@ -137,10 +181,10 @@ relax_matching_probability()
   std::vector<std::vector<MP> > mp(N, std::vector<MP>(N));
   assert(mp_.size()==N);
   assert(mp_[0].size()==N);
-  for (uint x=0; x!=N; ++x)
+  for (uint x=0; x!=N-1; ++x)
   {
     const uint L1=fa_[x].size();
-    for (uint y=0; y!=N; ++y)
+    for (uint y=x+1; y!=N; ++y)
     {
       const uint L2=fa_[y].size();
       VVF posterior(L1, VF(L2, 0.0));
@@ -176,7 +220,15 @@ relax_matching_probability()
             mp[x][y][i].push_back(std::make_pair(j, v));
         }
       }
+      transpose_mp(mp[x][y], mp[y][x], L1, L2);
     }
+  }
+
+  for (uint x=0; x!=N; ++x)
+  {
+    mp_[x][x].resize(fa_[x].size());
+    for (uint i=0; i!=fa_[x].size(); ++i)
+      mp_[x][x][i].push_back(std::make_pair(i, 1.0f));
   }
   std::swap(mp_, mp);
 }
@@ -224,6 +276,77 @@ relax_basepairing_probability()
           bp[x][i].push_back(std::make_pair(j, p[i][j]));
   }
   std::swap(bp_, bp);
+}
+
+void
+Dusaf::
+relax_fourway_consistency()
+{
+  const uint N=fa_.size();
+  std::vector<std::vector<MP> > mp(N, std::vector<MP>(N));
+  assert(mp_.size()==N);
+  assert(mp_[0].size()==N);
+  for (uint x=0; x!=N-1; ++x)
+  {
+    const uint L1=fa_[x].size();
+    for (uint y=x+1; y!=N; ++y)
+    {
+      const uint L2=fa_[y].size();
+      VVF posterior(L1, VF(L2, 0.0));
+      assert(L1==mp_[x][y].size());
+
+      for (uint i=0; i!=L1; ++i)
+      {
+        FOREACH (SV::const_iterator, kk, mp_[x][y][i])
+        {
+          const uint k=kk->first;
+          const float p_ik=kk->second;
+          posterior[i][k] += p_ik;
+          FOREACH (SV::const_iterator, jj, bp_[x][i])
+          {
+            const uint j=jj->first;
+            const float p_ij=jj->second;
+            SV::const_iterator ll1=mp_[x][y][j].begin();
+            SV::const_iterator ll2=bp_[y][k].begin();
+            while (ll1!=mp_[x][y][j].end() && ll2!=bp_[y][k].end())
+            {
+              if (ll1->first<ll2->first) ++ll1;
+              else if (ll1->first>ll2->first) ++ll2;
+              else /* if (ll1->first==ll2->first) */
+              {
+                const uint l=ll1->first;
+                const float p_jl=ll1->second;
+                const float p_kl=ll2->second;
+                posterior[i][k] += p_ij * p_kl * p_jl;
+                posterior[j][l] += p_ij * p_kl * p_ik;
+                ++ll1; ++ll2;
+              }
+            }
+          }
+        }
+      }
+      
+      mp[x][y].resize(L1);
+      for (uint i=0; i!=L1; ++i)
+      {
+        for (uint j=0; j!=L2; ++j)
+        {
+          float v=posterior[i][j];
+          if (v>CUTOFF)
+            mp[x][y][i].push_back(std::make_pair(j, v));
+        }
+      }
+      transpose_mp(mp[x][y], mp[y][x], L1, L2);
+    }
+  }
+
+  for (uint x=0; x!=N; ++x)
+  {
+    mp_[x][x].resize(fa_[x].size());
+    for (uint i=0; i!=fa_[x].size(); ++i)
+      mp_[x][x][i].push_back(std::make_pair(i, 1.0f));
+  }
+  std::swap(mp_, mp);
 }
 
 void
@@ -290,49 +413,6 @@ print_tree(std::ostream& os, int i) const
     os << " ";
     print_tree(os, tree_[i].second.second);
     os << " ]";
-  }
-}
-
-static
-void
-transpose_mp(const MP& mp, MP& mp_trans, uint x, uint y)
-{
-  assert(mp.size()==x);
-  mp_trans.resize(y);
-  for (uint i=0; i!=mp.size(); ++i)
-    FOREACH(SV::const_iterator, jj, mp[i])
-    {
-      const uint j=jj->first;
-      const float p=jj->second;
-      mp_trans[j].push_back(std::make_pair(i, p));
-    }
-  for (uint j=0; j!=mp_trans.size(); ++j)
-    sort(mp_trans[j].begin(), mp_trans[j].end());
-}
-
-static
-void
-print_mp(std::ostream& os, const MP& mp)
-{
-  for (uint i=0; i!=mp.size(); ++i)
-  {
-    os << i << ":";
-    FOREACH (SV::const_iterator, v, mp[i])
-      os << " " << v->first << ":" << v->second;
-    os << std::endl;
-  }
-}
-
-static
-void
-print_bp(std::ostream& os, const BP& bp)
-{
-  for (uint i=0; i!=bp.size(); ++i)
-  {
-    os << i << ":";
-    FOREACH (SV::const_iterator, v, bp[i])
-      os << " " << v->first << ":" << v->second;
-    os << std::endl;
   }
 }
 
