@@ -106,8 +106,6 @@ private:
   void output(std::ostream& os, const ALN& aln, const VU& ss) const;
   void output(std::ostream& os, const ALN& aln) const;
   void output(std::ostream& os, ALN::const_iterator b, ALN::const_iterator e) const;
-  void print_basepairing_probability(std::ostream& os, const VVF& p) const;
-  void print_matching_probability(std::ostream& os, const VVF& p) const;
 
 private:
   uint n_pct_a_;                // the number of PCT for alignment matching probabilities
@@ -147,6 +145,7 @@ transpose_mp(const MP& mp, MP& mp_trans, uint x, uint y)
     sort(mp_trans[j].begin(), mp_trans[j].end());
 }
 
+#if 0
 static
 void
 print_mp(std::ostream& os, const MP& mp)
@@ -172,6 +171,35 @@ print_bp(std::ostream& os, const BP& bp)
     os << std::endl;
   }
 }
+
+static
+void
+print_matching_probability(std::ostream& os, const VVF& p)
+{
+  for (uint i=0; i!=p.size(); ++i)
+  {
+    std::cout << i << ":";
+    for (uint k=0; k!=p[i].size(); ++k)
+      if (p[i][k]>CUTOFF)
+        os << " " << k << ":" << p[i][k];
+    os << std::endl;
+  }
+}
+
+static
+void
+print_basepairing_probability(std::ostream& os, const VVF& p)
+{
+  for (uint i=0; i!=p.size(); ++i)
+  {
+    std::cout << i << ":";
+    for (uint j=i+1; j!=p.size(); ++j)
+      if (p[i][j]>CUTOFF)
+        os << " " << j << ":" << p[i][j];
+    os << std::endl;
+  }
+}
+#endif
 
 void
 Dusaf::
@@ -1633,34 +1661,6 @@ parse_options(int& argc, char**& argv)
   }
 
   return *this;
-}
-
-void
-Dusaf::
-print_matching_probability(std::ostream& os, const VVF& p) const
-{
-  for (uint i=0; i!=p.size(); ++i)
-  {
-    std::cout << i << ":";
-    for (uint k=0; k!=p[i].size(); ++k)
-      if (p[i][k]>CUTOFF)
-        os << " " << k << ":" << p[i][k];
-    os << std::endl;
-  }
-}
-
-void
-Dusaf::
-print_basepairing_probability(std::ostream& os, const VVF& p) const
-{
-  for (uint i=0; i!=p.size(); ++i)
-  {
-    std::cout << i << ":";
-    for (uint j=i+1; j!=p.size(); ++j)
-      if (p[i][j]>CUTOFF)
-        os << " " << j << ":" << p[i][j];
-    os << std::endl;
-  }
 }
 
 int
