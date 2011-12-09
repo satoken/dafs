@@ -121,7 +121,7 @@ private:
   std::vector<Fasta> fa_;       // input sequences
   std::vector<std::vector<MP> > mp_; // alignment matching probability matrices
   std::vector<BP> bp_;          // base-pairing probability matrices
-  std::vector<float> dist_;     // distance matrix of input sequences
+  VVF hscore_;                  // matrix of homology scores between input sequences
   std::vector<node_t> tree_;    // guide tree
   bool use_alifold_;
   bool use_bpscore_;
@@ -390,12 +390,12 @@ build_tree()
   for (uint i=0; i!=n; ++i) idx[i]=i;
 
   std::priority_queue<node_t> pq;
-  for (uint i=0, k=0; i!=n-1; ++i)
+  for (uint i=0; i!=n-1; ++i)
   {
-    for (uint j=i+1; j!=n; ++j, ++k)
+    for (uint j=i+1; j!=n; ++j)
     {
-      d[i][j] = d[j][i] = dist_[k];
-      pq.push(std::make_pair(dist_[k], std::make_pair(i,j)));
+      d[i][j] = d[j][i] = hscore_[i][j];
+      pq.push(std::make_pair(hscore_[i][j], std::make_pair(i,j)));
     }
   }
 
@@ -405,8 +405,8 @@ build_tree()
     if (idx[t.second.first]!=-1u && idx[t.second.second]!=-1u)
     {
       assert(n<tree_.size());
-      uint l = idx[t.second.first];
-      uint r = idx[t.second.second];
+      const uint l = idx[t.second.first];
+      const uint r = idx[t.second.second];
       idx[t.second.first] = idx[t.second.second] = -1u;
       for (uint i=0; i!=n; ++i)
       {
@@ -559,6 +559,60 @@ average_basepairing_probability(VVF& posterior, const ALN& aln) const
   std::swap(p, posterior);
 }
 
+static
+float
+calculate_homology_score(const MP& mp, uint L1, uint L2)
+{
+  assert(mp.size()==L1);
+
+  VVF dp(L1+1, VF(L2+1, 0.0));
+  VVI tr(L1+1, VI(L2+1, 0));
+  for (uint i=1; i!=L1+1; ++i)
+  {
+    uint j=1;
+    FOREACH (SV::const_iterator, jj, mp[i-1])
+    {
+      for (; j-1<jj->first; ++j)
+      {
+        dp[i][j] = dp[i][j-1];
+        tr[i][j] = tr[i][j-1]+1;
+        if (dp[i][j]<dp[i-1][j])
+        {
+          dp[i][j] = dp[i-1][j];
+          tr[i][j] = tr[i-1][j]+1;
+        }
+      }
+
+      dp[i][j] = dp[i-1][j-1]+jj->second;
+      tr[i][j] = tr[i-1][j-1]+1;
+      if (dp[i][j]<dp[i][j-1])
+      {
+        dp[i][j] = dp[i][j-1];
+        tr[i][j] = tr[i][j-1]+1;
+      }
+      if (dp[i][j]<dp[i-1][j])
+      {
+        dp[i][j] = dp[i-1][j];
+        tr[i][j] = tr[i-1][j]+1;
+      }
+      ++j;
+    }
+
+    for (; j<L2+1; ++j)
+    {
+      dp[i][j] = dp[i][j-1];
+      tr[i][j] = tr[i][j-1]+1;
+      if (dp[i][j]<dp[i-1][j])
+      {
+        dp[i][j] = dp[i-1][j];
+        tr[i][j] = tr[i-1][j]+1;
+      }
+    }
+  }
+  //return dp[L1][L2]/(std::min(L1, L2)); // simple version
+  return dp[L1][L2]/tr[L1][L2];
+}
+
 float
 Dusaf::
 decode_alignment(const VVF& p, const VVF& q,
@@ -707,7 +761,7 @@ alignment_envelope(const VVF& p, float th, std::vector< std::pair<uint,uint> >& 
   for (uint i=0, v=0; i!=L1+1; ++i)
     r[i].second = v = std::max(v, r[i].second);
 
-  // ensure the conectivity
+  // ensure the connectivity
   for (uint i=1; i!=L1+1; ++i)
   {
     if (r[i-1].second<r[i].first)
@@ -1677,23 +1731,28 @@ run(const char* filename)
 
   // calculate matching probabilities
   mp_.resize(N, std::vector<MP>(N));
-  dist_.resize(N*(N-1)/2);
-  for (uint i=0, k=0; i!=N-1; ++i)
-  {
-    for (uint j=i+1; j!=N; ++j, ++k)
-    {
-      float d = use_bpscore_ ?
-        en_a_->align(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[i][j]) :
-        en_a_->align(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
-      transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
-      dist_[k] = d/(std::min(fa_[i].size(), fa_[j].size()));
-    }
-  }
   for (uint i=0; i!=N; ++i)
   {
     mp_[i][i].resize(fa_[i].size());
     for (uint x=0; x!=fa_[i].size(); ++x)
       mp_[i][i][x].push_back(std::make_pair(x, 1.0f));
+    for (uint j=i+1; j!=N; ++j)
+    {
+      if (use_bpscore_)
+        en_a_->align(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[i][j]);
+      else
+        en_a_->align(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
+      transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
+    }
+  }
+
+  // calculate probabilistic homology scores
+  hscore_.resize(N, VF(N));
+  for (uint i=0; i!=N; ++i)
+  {
+    hscore_[i][i] = 1.0;
+    for (uint j=i+1; j!=N; ++j)
+      hscore_[i][j] = hscore_[j][i] = calculate_homology_score(mp_[i][j], fa_[i].size(), fa_[j].size());
   }
 
   // probabilistic consistency tranformation for matching probability matrix

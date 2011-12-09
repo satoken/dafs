@@ -16,9 +16,9 @@ class Align
 {
 public:
   Align(float th) : th_(th) { }
-  virtual float align(const std::string& seq1, const std::string& seq2, MP& mp) = 0;
-  virtual float align(const std::string& seq1, const std::string& seq2,
-                      const BP& bp1, const BP& bp2, MP& mp)
+  virtual void align(const std::string& seq1, const std::string& seq2, MP& mp) = 0;
+  virtual void align(const std::string& seq1, const std::string& seq2,
+                     const BP& bp1, const BP& bp2, MP& mp)
   {
     return align(seq1, seq2, mp);
   }
@@ -33,7 +33,7 @@ class ProbCons : public Align, PROBCONS::Probcons
 public:
   ProbCons(float th);
   ~ProbCons() { }
-  float align(const std::string& seq1, const std::string& seq2, MP& mp);
+  void align(const std::string& seq1, const std::string& seq2, MP& mp);
 };
 
 class CONTRAlign : public Align, CONTRALIGN::CONTRAlign<float>
@@ -41,7 +41,7 @@ class CONTRAlign : public Align, CONTRALIGN::CONTRAlign<float>
 public:
   CONTRAlign(float th);
   ~CONTRAlign() { }
-  float align(const std::string& seq1, const std::string& seq2, MP& mp);
+  void align(const std::string& seq1, const std::string& seq2, MP& mp);
 };
 
 class PartAlign : public Align, PARTALIGN::PartAlign<LogValue<float> >
@@ -49,9 +49,9 @@ class PartAlign : public Align, PARTALIGN::PartAlign<LogValue<float> >
 public:
   PartAlign(float th, const std::string& arg);
   ~PartAlign() { }
-  float align(const std::string& seq1, const std::string& seq2, MP& mp);
-  float align(const std::string& seq1, const std::string& seq2,
-              const BP& bp1, const BP& bp2, MP& mp);
+  void align(const std::string& seq1, const std::string& seq2, MP& mp);
+  void align(const std::string& seq1, const std::string& seq2,
+             const BP& bp1, const BP& bp2, MP& mp);
 };
 
 #endif  //  __INC_ALIGN_H__

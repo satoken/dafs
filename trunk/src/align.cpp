@@ -12,7 +12,7 @@ ProbCons(float th)
 {
 }
 
-float
+void
 ProbCons::
 align(const std::string& seq1, const std::string& seq2, MP& mp)
 {
@@ -21,7 +21,6 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
   const uint L1 = seq1.size();
   const uint L2 = seq2.size();
 
-  std::vector<float> dp((L1+1)*(L2+1), 0.0);
   mp.resize(L1);
   for (uint i=0; i!=L1; ++i)
   {
@@ -30,13 +29,8 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
       const float& p=posterior[(L2+1)*(i+1)+(j+1)];
       if (p>threshold())
         mp[i].push_back(std::make_pair(j,p));
-      float v = dp[(L2+1)*i+j] + p;
-      v = std::max(v, dp[(L2+1)*(i+1)+j]);
-      v = std::max(v, dp[(L2+1)*i+(j+1)]);
-      dp[(L2+1)*(i+1)+(j+1)] = v;
     }
   }
-  return dp.back();
 }
 
 CONTRAlign::
@@ -45,7 +39,7 @@ CONTRAlign(float th)
 {
 }
 
-float
+void
 CONTRAlign::
 align(const std::string& seq1, const std::string& seq2, MP& mp)
 {
@@ -54,7 +48,6 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
   const uint L1 = seq1.size();
   const uint L2 = seq2.size();
 
-  std::vector<float> dp((L1+1)*(L2+1), 0.0);
   mp.resize(L1);
   for (uint i=0; i!=L1; ++i)
   {
@@ -63,13 +56,8 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
       const float& p=posterior[(L2+1)*(i+1)+(j+1)];
       if (p>threshold())
         mp[i].push_back(std::make_pair(j,p));
-      float v = dp[(L2+1)*i+j] + p;
-      v = std::max(v, dp[(L2+1)*(i+1)+j]);
-      v = std::max(v, dp[(L2+1)*i+(j+1)]);
-      dp[(L2+1)*(i+1)+(j+1)] = v;
     }
   }
-  return dp.back();
 }
 
 PartAlign::
@@ -103,7 +91,7 @@ PartAlign(float th, const std::string& arg)
   //std::cout << std::endl;
 }
 
-float
+void
 PartAlign::
 align(const std::string& seq1, const std::string& seq2, MP& mp)
 {
@@ -115,7 +103,6 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
   compute_backward();
   compute_posterior(posterior);
 
-  VF dp((L1+1)*(L2+1), 0.0);
   mp.resize(L1);
   for (uint i=0; i!=L1; ++i)
   {
@@ -124,16 +111,11 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
       const float& p=posterior[i][j];
       if (p>threshold())
         mp[i].push_back(std::make_pair(j,p));
-      float v = dp[(L2+1)*i+j] + p;
-      v = std::max(v, dp[(L2+1)*(i+1)+j]);
-      v = std::max(v, dp[(L2+1)*i+(j+1)]);
-      dp[(L2+1)*(i+1)+(j+1)] = v;
     }
   }
-  return dp.back();
 }
 
-float
+void
 PartAlign::
 align(const std::string& seq1, const std::string& seq2,
       const BP& bp1, const BP& bp2, MP& mp)
@@ -146,7 +128,6 @@ align(const std::string& seq1, const std::string& seq2,
   compute_backward();
   compute_posterior(posterior);
 
-  VF dp((L1+1)*(L2+1), 0.0);
   mp.resize(L1);
   for (uint i=0; i!=L1; ++i)
   {
@@ -155,11 +136,6 @@ align(const std::string& seq1, const std::string& seq2,
       const float& p=posterior[i][j];
       if (p>threshold())
         mp[i].push_back(std::make_pair(j,p));
-      float v = dp[(L2+1)*i+j] + p;
-      v = std::max(v, dp[(L2+1)*(i+1)+j]);
-      v = std::max(v, dp[(L2+1)*i+(j+1)]);
-      dp[(L2+1)*(i+1)+(j+1)] = v;
     }
   }
-  return dp.back();
 }
