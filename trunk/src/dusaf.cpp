@@ -44,8 +44,9 @@ private:
   
 public:
   Dusaf()
-    : n_pct_a_(0),
-      n_pct_s_(0),
+    : n_pct_a_(0), w_pct_a_(-1.0),
+      n_pct_s_(0), w_pct_s_(-1.0),
+      n_pct_f_(0), w_pct_f_(0.5),
       n_refinement_(0),
       t_max_(100),
       th_a_(1.0/(1+99)),
@@ -109,7 +110,11 @@ private:
 
 private:
   uint n_pct_a_;                // the number of PCT for alignment matching probabilities
+  float w_pct_a_;               // the weight of PCT for alignment matching probabilities
   uint n_pct_s_;                // the number of PCT for base-pairing probabilities
+  float w_pct_s_;               // the weight of PCT for base-pairing probabilities
+  uint n_pct_f_;                // the number of four-way PCT
+  float w_pct_f_;               // the weight of four-way PCT
   uint n_refinement_;           // the number of the iterative refinement
   uint t_max_;                  // the maximum number of the iteration of the subgradient update
   float th_a_;                  // the threshold for base-pairing probabilities
@@ -218,11 +223,20 @@ relax_matching_probability()
       VVF posterior(L1, VF(L2, 0.0));
       assert(L1==mp_[x][y].size());
 
+      float sum_w=0.0;
       for (uint z=0; z!=N; ++z)
       {
         const uint L3=fa_[z].size();
         assert(L3==mp_[z][x].size());
         assert(L3==mp_[z][y].size());
+        float w = sim_[z][x] * sim_[z][y];;
+        if (w_pct_a_<0.0)
+          w *= 1.0/N;
+        else if (z==x || z==y)
+          w *= w_pct_a_/2;
+        else
+          w *= (1.0-w_pct_a_)/(N-2);
+        sum_w += w;
         for (uint k=0; k!=L3; ++k)
         {
           FOREACH (SV::const_iterator, ii, mp_[z][x][k])
@@ -232,7 +246,7 @@ relax_matching_probability()
               const uint i=ii->first, j=jj->first;
               const float p_ik=ii->second, p_jk=jj->second;
               assert(i<L1); assert(j<L2);
-              posterior[i][j] += p_ik * p_jk;
+              posterior[i][j] += p_ik * p_jk * w;
             }
           }
         }
@@ -243,7 +257,7 @@ relax_matching_probability()
       {
         for (uint j=0; j!=L2; ++j)
         {
-          float v=posterior[i][j]/N;
+          float v=posterior[i][j]/sum_w;
           if (v>CUTOFF)
             mp[x][y][i].push_back(std::make_pair(j, v));
         }
@@ -272,10 +286,19 @@ relax_basepairing_probability()
     const uint L1=bp_[x].size();
     VVF p(L1, VF(L1, 0.0));
 
+    float sum_w = 0.0;
     for (uint y=0; y!=N; ++y)
     {
       const uint L2=bp_[y].size();
       assert(L2==mp_[y][x].size());
+      float w = sim_[y][x];
+      if (w_pct_s_<0.0)
+        w *= 1.0/N;
+      else if (y==x)
+        w *= w_pct_s_;
+      else
+        w *= w_pct_s_/(N-1);
+      sum_w += w;
       for (uint k=0; k!=L2; ++k)
       {
         FOREACH(SV::const_iterator, ll, bp_[y][k])
@@ -290,7 +313,7 @@ relax_basepairing_probability()
             {
               const uint j=jj->first;
               const float p_jl=jj->second;
-              if (i<j) p[i][j] += p_kl*p_ik*p_jl/N;
+              if (i<j) p[i][j] += p_kl*p_ik*p_jl*w;
             }
           }
         }
@@ -300,8 +323,11 @@ relax_basepairing_probability()
     bp[x].resize(L1);
     for (uint i=0; i!=L1-1; ++i)
       for (uint j=i+1; j!=L1; ++j)
-        if (p[i][j]>CUTOFF)
-          bp[x][i].push_back(std::make_pair(j, p[i][j]));
+      {
+        float v = p[i][j]/sum_w;
+        if (v>CUTOFF)
+          bp[x][i].push_back(std::make_pair(j, v));
+      }
   }
   std::swap(bp_, bp);
 }
@@ -329,7 +355,7 @@ relax_fourway_consistency()
         {
           const uint k=kk->first;
           const float p_ik=kk->second;
-          posterior[i][k] += p_ik;
+          posterior[i][k] += p_ik * w_pct_f_;
           FOREACH (SV::const_iterator, jj, bp_[x][i])
           {
             const uint j=jj->first;
@@ -345,8 +371,8 @@ relax_fourway_consistency()
                 const uint l=ll1->first;
                 const float p_jl=ll1->second;
                 const float p_kl=ll2->second;
-                posterior[i][k] += p_ij * p_kl * p_jl;
-                posterior[j][l] += p_ij * p_kl * p_ik;
+                posterior[i][k] += p_ij * p_kl * p_jl * (1.0-w_pct_f_);
+                posterior[j][l] += p_ij * p_kl * p_ik * (1.0-w_pct_f_);
                 ++ll1; ++ll2;
               }
             }
@@ -1640,11 +1666,14 @@ parse_options(int& argc, char**& argv)
   w_ = args_info.weight_arg;
   eta0_ = args_info.eta_arg;
   t_max_ = args_info.max_iter_arg;
+  n_pct_f_ = args_info.fourway_pct_given;
+  w_pct_f_ = args_info.fourway_pct_arg;
   verbose_ = args_info.verbose_arg;
 
   // options for alignments
   th_a_ = args_info.align_th_arg;
-  n_pct_a_ = args_info.align_pct_arg;
+  n_pct_a_ = args_info.align_pct_given;
+  w_pct_a_ = args_info.align_pct_arg;
   use_bpscore_ = args_info.use_bpscore_flag!=0;
   std::string arg_x;
   if (args_info.extra_given) arg_x = std::string(args_info.extra_arg);
@@ -1657,7 +1686,8 @@ parse_options(int& argc, char**& argv)
   assert(en_a_!=NULL);
 
   // options for folding
-  n_pct_s_ = args_info.fold_pct_arg;
+  n_pct_s_ = args_info.fold_pct_given;
+  w_pct_s_ = args_info.fold_pct_arg;
   th_s_ = args_info.fold_th_arg;
   if (args_info.gamma_given) th_s_ = 1.0/(1.0+args_info.gamma_arg);
   use_alifold_ = args_info.use_alifold_flag!=0;
