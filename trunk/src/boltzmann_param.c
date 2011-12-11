@@ -1,5 +1,5 @@
 /*
-  $Id: new_param.c 104 2010-12-30 09:25:54Z sato-kengo $
+  $Id:$
   Set the new parameters estimated by Andronescu et al (RNA 2010).
   http://www.cs.ubc.ca/labs/beta/Projects/RNA-Params/data/parameters_BLstar_Vienna.txt
  */
@@ -5991,7 +5991,7 @@ static void copy_Tetra_loop(const struct tetra_loops tl[])
   }
 }
 
-void copy_new_parameters()
+void copy_boltzmann_parameters()
 {
   copy_stacks(stack37, stack37a);
   copy_mismatch(mismatchH37, mismatchH37a);

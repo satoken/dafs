@@ -105,6 +105,9 @@ AC_ARG_WITH([vienna-rna], AS_HELP_STRING([--with-vienna-rna], [support Vienna RN
 )
 AC_CHECK_LIB(RNA, init_pf_fold)
 
+# getopt_long
+AX_FUNC_GETOPT_LONG
+
 # Checks for header files.
 AC_CHECK_HEADER([ViennaRNA/ribo.h],
 		[AC_DEFINE([HAVE_VIENNA18], [], [have the Vienna RNA package version 1.8 or above])])

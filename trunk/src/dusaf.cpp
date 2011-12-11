@@ -6,6 +6,7 @@
 #include <vector>
 #include <queue>
 #include <stack>
+#include "cmdline.h"
 #include "fa.h"
 #include "fold.h"
 #include "align.h"
@@ -66,8 +67,7 @@ public:
   }
 
   Dusaf& parse_options(int& argc, char**& argv);
-  void usage(const char* progname) const { };
-  int run(const char* filename);
+  int run();
 
 private:
   void relax_matching_probability();
@@ -121,7 +121,7 @@ private:
   std::vector<Fasta> fa_;       // input sequences
   std::vector<std::vector<MP> > mp_; // alignment matching probability matrices
   std::vector<BP> bp_;          // base-pairing probability matrices
-  VVF hscore_;                  // matrix of homology scores between input sequences
+  VVF sim_;                     // simalarity matrix between input sequences
   std::vector<node_t> tree_;    // guide tree
   bool use_alifold_;
   bool use_bpscore_;
@@ -394,8 +394,8 @@ build_tree()
   {
     for (uint j=i+1; j!=n; ++j)
     {
-      d[i][j] = d[j][i] = hscore_[i][j];
-      pq.push(std::make_pair(hscore_[i][j], std::make_pair(i,j)));
+      d[i][j] = d[j][i] = sim_[i][j];
+      pq.push(std::make_pair(sim_[i][j], std::make_pair(i,j)));
     }
   }
 
@@ -1632,98 +1632,63 @@ Dusaf&
 Dusaf::
 parse_options(int& argc, char**& argv)
 {
-  int ch;
-  const char* a_en = "CONTRAlign";
-  const char* s_en = "Boltzmann";
+  gengetopt_args_info args_info;
+  if (cmdline_parser(argc, argv, &args_info)!=0) exit(1);
+
+  // general options
+  n_refinement_ = args_info.refinement_arg;
+  w_ = args_info.weight_arg;
+  eta0_ = args_info.eta_arg;
+  t_max_ = args_info.max_iter_arg;
+  verbose_ = args_info.verbose_arg;
+
+  // options for alignments
+  th_a_ = args_info.align_th_arg;
+  n_pct_a_ = args_info.align_pct_arg;
+  use_bpscore_ = args_info.use_bpscore_flag!=0;
   std::string arg_x;
-  while ((ch=getopt(argc, argv, "hv:a:s:p:q:r:t:g:u:w:e:f:m:lbx:"))!=-1)
-  {
-    switch (ch)
-    {
-      case 'a':
-        a_en = optarg;
-        break;
-      case 's':
-        s_en = optarg;
-        break;
-      case 'p':
-        n_pct_a_ = atoi(optarg);
-        break;
-      case 'q':
-        n_pct_s_ = atoi(optarg);
-        break;
-      case 'r':
-        n_refinement_ = static_cast<uint>(atoi(optarg));
-        break;
-      case 't':
-        th_s_ = atof(optarg);
-        break;
-      case 'g':
-        th_s_ = 1.0/(atof(optarg)+1.0);
-        break;
-      case 'u':
-        th_a_ = atof(optarg);
-        break;
-      case 'w':
-        w_ = atof(optarg);
-        break;
-      case 'e':
-        eta0_ = atof(optarg);
-        break;
-      case 'm':
-        t_max_ = atoi(optarg);
-        break;
-      case 'l':
-        use_alifold_ = true;
-        break;
-      case 'b':
-        use_bpscore_ = true;
-        break;
-      case 'x':
-        arg_x = optarg;
-        break;
-      case 'v':
-        verbose_ = atoi(optarg);
-        break;
-      case 'h': case '?': default:
-        usage(argv[0]);
-        exit(0);
-        break;
-    }
-  }
-  argc -= optind;
-  argv += optind;
-
-  if (strcasecmp(a_en, "CONTRAlign")==0)
+  if (args_info.extra_given) arg_x = std::string(args_info.extra_arg);
+  if (strcasecmp(args_info.align_model_arg, "CONTRAlign")==0)
     en_a_ = new CONTRAlign(th_a_);
-  else if (strcasecmp(a_en, "ProbCons")==0)
+  else if (strcasecmp(args_info.align_model_arg, "ProbCons")==0)
     en_a_ = new ProbCons(th_a_);
-  else if (strcasecmp(a_en, "PartAlign")==0)
+  else if (strcasecmp(args_info.align_model_arg, "PartAlign")==0)
     en_a_ = new PartAlign(th_a_, arg_x);
+  assert(en_a_!=NULL);
 
-  if (strcasecmp(s_en, "Boltzmann")==0)
+  // options for folding
+  n_pct_s_ = args_info.fold_pct_arg;
+  th_s_ = args_info.fold_th_arg;
+  if (args_info.gamma_given) th_s_ = 1.0/(1.0+args_info.gamma_arg);
+  use_alifold_ = args_info.use_alifold_flag!=0;
+  if (strcasecmp(args_info.fold_model_arg, "Boltzmann")==0)
     en_s_ = new RNAfold(true, NULL, CUTOFF);
-  else if (strcasecmp(s_en, "Vienna")==0)
+  else if (strcasecmp(args_info.fold_model_arg, "Vienna")==0)
     en_s_ = new RNAfold(false, NULL, CUTOFF);
-  else if (strcasecmp(s_en, "CONTRAfold")==0)
+  else if (strcasecmp(args_info.fold_model_arg, "CONTRAfold")==0)
     en_s_ = new CONTRAfold(CUTOFF);
+  assert(en_s_!=NULL);
 
-  if (!en_a_ || !en_s_)
+  if (args_info.inputs_num==0)
   {
-    usage(argv[0]);
-    exit(0);
+    cmdline_parser_print_help();
+    cmdline_parser_free(&args_info);
+    exit(1);
   }
 
+  // read sequences
+  Fasta::load(fa_, args_info.inputs[0]);
+
+  cmdline_parser_free(&args_info);
   return *this;
 }
 
 int
 Dusaf::
-run(const char* filename)
+run()
 {
-  // read sequences
-  uint N=Fasta::load(fa_, filename);
-
+  const uint N=fa_.size();
+  
   // calculate base-pairing probabilities
   bp_.resize(N);
   for (uint i=0; i!=N; ++i)
@@ -1747,12 +1712,12 @@ run(const char* filename)
   }
 
   // calculate probabilistic homology scores
-  hscore_.resize(N, VF(N));
+  sim_.resize(N, VF(N));
   for (uint i=0; i!=N; ++i)
   {
-    hscore_[i][i] = 1.0;
+    sim_[i][i] = 1.0;
     for (uint j=i+1; j!=N; ++j)
-      hscore_[i][j] = hscore_[j][i] = calculate_homology_score(mp_[i][j], fa_[i].size(), fa_[j].size());
+      sim_[i][j] = sim_[j][i] = calculate_homology_score(mp_[i][j], fa_[i].size(), fa_[j].size());
   }
 
   // probabilistic consistency tranformation for matching probability matrix
@@ -1802,6 +1767,5 @@ int
 main(int argc, char* argv[])
 {
   Dusaf dusaf;
-  dusaf.parse_options(argc, argv);
-  return dusaf.run(argv[0]);
+  return dusaf.parse_options(argc, argv).run();
 }

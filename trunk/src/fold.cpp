@@ -16,14 +16,14 @@ extern "C" {
 };
 
 extern "C" {
-#include "new_param.h"
+#include "boltzmann_param.h"
 };
 
 RNAfold::
 RNAfold(bool bl, const char* param, float th)
   : Fold(th)
 {
-  if (bl) copy_new_parameters();
+  if (bl) copy_boltzmann_parameters();
   if (param) Vienna::read_parameter_file(param);
 }
 
