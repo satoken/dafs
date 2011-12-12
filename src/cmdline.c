@@ -32,27 +32,27 @@ const char *gengetopt_args_info_usage = "Usage: " CMDLINE_PARSER_PACKAGE " [OPTI
 const char *gengetopt_args_info_description = "";
 
 const char *gengetopt_args_info_full_help[] = {
-  "  -h, --help                 Print help and exit",
-  "      --full-help            Print help, including hidden options, and exit",
-  "  -V, --version              Print version and exit",
-  "  -r, --refinement=INT       The number of iterative refinment  (default=`0')",
-  "  -w, --weight=FLOAT         Weights of the score for secondary structures  \n                               (default=`1.0')",
-  "      --eta=FLOAT            Initial value of the step side for the subgradient \n                               optimization  (default=`0.5')",
-  "  -m, --max-iter=INT         The maximam number of iteration of the subgradient \n                               optimization  (default=`100')",
-  "  -f, --fourway-pct[=FLOAT]  Weight of four-way PCT  (default=`0.5')",
-  "  -v, --verbose=INT          The level of verbose outputs  (default=`0')",
+  "  -h, --help                Print help and exit",
+  "      --full-help           Print help, including hidden options, and exit",
+  "  -V, --version             Print version and exit",
+  "  -r, --refinement=INT      The number of iteration of the iterative refinment  \n                              (default=`0')",
+  "  -w, --weight=FLOAT        Weight of the expected accuracy score for secondary \n                              structures  (default=`1.0')",
+  "      --eta=FLOAT           Initial step width for the subgradient optimization \n                               (default=`0.5')",
+  "  -m, --max-iter=INT        The maximum number of iteration of the subgradient \n                              optimization  (default=`100')",
+  "  -f, --fourway-pct=FLOAT   Weight of four-way PCT  (default=`0.0')",
+  "  -v, --verbose=INT         The level of verbose outputs  (default=`0')",
   "\nOptions for alignments:",
-  "  -a, --align-model=STRING   The alignment model for calcualating matching \n                               probablities  (possible values=\"CONTRAlign\", \n                               \"ProbCons\", \"PartAlign\" \n                               default=`CONTRAlign')",
-  "  -p, --align-pct[=FLOAT]    Weight of PCT for matching probabilities  \n                               (default=`-1')",
-  "  -u, --align-th=FLOAT       Threshold for matching probabilities  \n                               (default=`0.01')",
-  "      --use-bpscore          Use BP score  (default=on)",
-  "      --extra=STRING         Extra options for PartAlign",
+  "  -a, --align-model=STRING  Alignment model for calcualating matching \n                              probablities  (possible values=\"CONTRAlign\", \n                              \"ProbCons\", \"PartAlign\" default=`CONTRAlign')",
+  "  -p, --align-pct=FLOAT     Weight of PCT for matching probabilities  \n                              (default=`0.0')",
+  "  -u, --align-th=FLOAT      Threshold for matching probabilities  \n                              (default=`0.01')",
+  "      --use-bpscore         Use BP score  (default=on)",
+  "      --extra=STRING        Extra options for PartAlign",
   "\nOptions for folding:",
-  "  -s, --fold-model=STRING    The folding model for calculating base-pairing \n                               probablities  (possible values=\"Boltzmann\", \n                               \"Vienna\", \"CONTRAfold\" default=`Boltzmann')",
-  "  -q, --fold-pct[=FLOAT]     Weight of PCT for base-pairing probabilities  \n                               (default=`-1')",
-  "  -t, --fold-th=FLOAT        Threshold for base-pairing probabilities  \n                               (default=`0.2')",
-  "  -g, --gamma=FLOAT          Specify the threshold for base-pairing \n                               probabilities by 1/(gamma+1))",
-  "  -l, --use-alifold          Use RNAalifold for calculating base-pairing \n                               probabilities  (default=off)",
+  "  -s, --fold-model=STRING   Folding model for calculating base-pairing \n                              probablities  (possible values=\"Boltzmann\", \n                              \"Vienna\", \"CONTRAfold\" default=`Boltzmann')",
+  "  -q, --fold-pct=FLOAT      Weight of PCT for base-pairing probabilities  \n                              (default=`0.0')",
+  "  -t, --fold-th=FLOAT       Threshold for base-pairing probabilities  \n                              (default=`0.2')",
+  "  -g, --gamma=FLOAT         Specify the threshold for base-pairing \n                              probabilities by 1/(gamma+1))",
+  "  -l, --use-alifold         Use RNAalifold for calculating base-pairing \n                              probabilities  (default=off)",
     0
 };
 
@@ -142,13 +142,13 @@ void clear_args (struct gengetopt_args_info *args_info)
   args_info->eta_orig = NULL;
   args_info->max_iter_arg = 100;
   args_info->max_iter_orig = NULL;
-  args_info->fourway_pct_arg = 0.5;
+  args_info->fourway_pct_arg = 0.0;
   args_info->fourway_pct_orig = NULL;
   args_info->verbose_arg = 0;
   args_info->verbose_orig = NULL;
   args_info->align_model_arg = gengetopt_strdup ("CONTRAlign");
   args_info->align_model_orig = NULL;
-  args_info->align_pct_arg = -1;
+  args_info->align_pct_arg = 0.0;
   args_info->align_pct_orig = NULL;
   args_info->align_th_arg = 0.01;
   args_info->align_th_orig = NULL;
@@ -157,7 +157,7 @@ void clear_args (struct gengetopt_args_info *args_info)
   args_info->extra_orig = NULL;
   args_info->fold_model_arg = gengetopt_strdup ("Boltzmann");
   args_info->fold_model_orig = NULL;
-  args_info->fold_pct_arg = -1;
+  args_info->fold_pct_arg = 0.0;
   args_info->fold_pct_orig = NULL;
   args_info->fold_th_arg = 0.2;
   args_info->fold_th_orig = NULL;
@@ -689,22 +689,22 @@ cmdline_parser_internal (
         { "weight",	1, NULL, 'w' },
         { "eta",	1, NULL, 0 },
         { "max-iter",	1, NULL, 'm' },
-        { "fourway-pct",	2, NULL, 'f' },
+        { "fourway-pct",	1, NULL, 'f' },
         { "verbose",	1, NULL, 'v' },
         { "align-model",	1, NULL, 'a' },
-        { "align-pct",	2, NULL, 'p' },
+        { "align-pct",	1, NULL, 'p' },
         { "align-th",	1, NULL, 'u' },
         { "use-bpscore",	0, NULL, 0 },
         { "extra",	1, NULL, 0 },
         { "fold-model",	1, NULL, 's' },
-        { "fold-pct",	2, NULL, 'q' },
+        { "fold-pct",	1, NULL, 'q' },
         { "fold-th",	1, NULL, 't' },
         { "gamma",	1, NULL, 'g' },
         { "use-alifold",	0, NULL, 'l' },
         { 0,  0, 0, 0 }
       };
 
-      c = getopt_long (argc, argv, "hVr:w:m:f::v:a:p::u:s:q::t:g:l", long_options, &option_index);
+      c = getopt_long (argc, argv, "hVr:w:m:f:v:a:p:u:s:q:t:g:l", long_options, &option_index);
 
       if (c == -1) break;	/* Exit from `while (1)' loop.  */
 
@@ -720,7 +720,7 @@ cmdline_parser_internal (
           cmdline_parser_free (&local_args_info);
           exit (EXIT_SUCCESS);
 
-        case 'r':	/* The number of iterative refinment.  */
+        case 'r':	/* The number of iteration of the iterative refinment.  */
         
         
           if (update_arg( (void *)&(args_info->refinement_arg), 
@@ -732,7 +732,7 @@ cmdline_parser_internal (
             goto failure;
         
           break;
-        case 'w':	/* Weights of the score for secondary structures.  */
+        case 'w':	/* Weight of the expected accuracy score for secondary structures.  */
         
         
           if (update_arg( (void *)&(args_info->weight_arg), 
@@ -744,7 +744,7 @@ cmdline_parser_internal (
             goto failure;
         
           break;
-        case 'm':	/* The maximam number of iteration of the subgradient optimization.  */
+        case 'm':	/* The maximum number of iteration of the subgradient optimization.  */
         
         
           if (update_arg( (void *)&(args_info->max_iter_arg), 
@@ -761,7 +761,7 @@ cmdline_parser_internal (
         
           if (update_arg( (void *)&(args_info->fourway_pct_arg), 
                &(args_info->fourway_pct_orig), &(args_info->fourway_pct_given),
-              &(local_args_info.fourway_pct_given), optarg, 0, "0.5", ARG_FLOAT,
+              &(local_args_info.fourway_pct_given), optarg, 0, "0.0", ARG_FLOAT,
               check_ambiguity, override, 0, 0,
               "fourway-pct", 'f',
               additional_error))
@@ -780,7 +780,7 @@ cmdline_parser_internal (
             goto failure;
         
           break;
-        case 'a':	/* The alignment model for calcualating matching probablities.  */
+        case 'a':	/* Alignment model for calcualating matching probablities.  */
         
         
           if (update_arg( (void *)&(args_info->align_model_arg), 
@@ -797,7 +797,7 @@ cmdline_parser_internal (
         
           if (update_arg( (void *)&(args_info->align_pct_arg), 
                &(args_info->align_pct_orig), &(args_info->align_pct_given),
-              &(local_args_info.align_pct_given), optarg, 0, "-1", ARG_FLOAT,
+              &(local_args_info.align_pct_given), optarg, 0, "0.0", ARG_FLOAT,
               check_ambiguity, override, 0, 0,
               "align-pct", 'p',
               additional_error))
@@ -816,7 +816,7 @@ cmdline_parser_internal (
             goto failure;
         
           break;
-        case 's':	/* The folding model for calculating base-pairing probablities.  */
+        case 's':	/* Folding model for calculating base-pairing probablities.  */
         
         
           if (update_arg( (void *)&(args_info->fold_model_arg), 
@@ -833,7 +833,7 @@ cmdline_parser_internal (
         
           if (update_arg( (void *)&(args_info->fold_pct_arg), 
                &(args_info->fold_pct_orig), &(args_info->fold_pct_given),
-              &(local_args_info.fold_pct_given), optarg, 0, "-1", ARG_FLOAT,
+              &(local_args_info.fold_pct_given), optarg, 0, "0.0", ARG_FLOAT,
               check_ambiguity, override, 0, 0,
               "fold-pct", 'q',
               additional_error))
@@ -882,7 +882,7 @@ cmdline_parser_internal (
             exit (EXIT_SUCCESS);
           }
 
-          /* Initial value of the step side for the subgradient optimization.  */
+          /* Initial step width for the subgradient optimization.  */
           if (strcmp (long_options[option_index].name, "eta") == 0)
           {
           

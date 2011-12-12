@@ -44,28 +44,28 @@ struct gengetopt_args_info
   const char *help_help; /**< @brief Print help and exit help description.  */
   const char *full_help_help; /**< @brief Print help, including hidden options, and exit help description.  */
   const char *version_help; /**< @brief Print version and exit help description.  */
-  int refinement_arg;	/**< @brief The number of iterative refinment (default='0').  */
-  char * refinement_orig;	/**< @brief The number of iterative refinment original value given at command line.  */
-  const char *refinement_help; /**< @brief The number of iterative refinment help description.  */
-  float weight_arg;	/**< @brief Weights of the score for secondary structures (default='1.0').  */
-  char * weight_orig;	/**< @brief Weights of the score for secondary structures original value given at command line.  */
-  const char *weight_help; /**< @brief Weights of the score for secondary structures help description.  */
-  float eta_arg;	/**< @brief Initial value of the step side for the subgradient optimization (default='0.5').  */
-  char * eta_orig;	/**< @brief Initial value of the step side for the subgradient optimization original value given at command line.  */
-  const char *eta_help; /**< @brief Initial value of the step side for the subgradient optimization help description.  */
-  int max_iter_arg;	/**< @brief The maximam number of iteration of the subgradient optimization (default='100').  */
-  char * max_iter_orig;	/**< @brief The maximam number of iteration of the subgradient optimization original value given at command line.  */
-  const char *max_iter_help; /**< @brief The maximam number of iteration of the subgradient optimization help description.  */
-  float fourway_pct_arg;	/**< @brief Weight of four-way PCT (default='0.5').  */
+  int refinement_arg;	/**< @brief The number of iteration of the iterative refinment (default='0').  */
+  char * refinement_orig;	/**< @brief The number of iteration of the iterative refinment original value given at command line.  */
+  const char *refinement_help; /**< @brief The number of iteration of the iterative refinment help description.  */
+  float weight_arg;	/**< @brief Weight of the expected accuracy score for secondary structures (default='1.0').  */
+  char * weight_orig;	/**< @brief Weight of the expected accuracy score for secondary structures original value given at command line.  */
+  const char *weight_help; /**< @brief Weight of the expected accuracy score for secondary structures help description.  */
+  float eta_arg;	/**< @brief Initial step width for the subgradient optimization (default='0.5').  */
+  char * eta_orig;	/**< @brief Initial step width for the subgradient optimization original value given at command line.  */
+  const char *eta_help; /**< @brief Initial step width for the subgradient optimization help description.  */
+  int max_iter_arg;	/**< @brief The maximum number of iteration of the subgradient optimization (default='100').  */
+  char * max_iter_orig;	/**< @brief The maximum number of iteration of the subgradient optimization original value given at command line.  */
+  const char *max_iter_help; /**< @brief The maximum number of iteration of the subgradient optimization help description.  */
+  float fourway_pct_arg;	/**< @brief Weight of four-way PCT (default='0.0').  */
   char * fourway_pct_orig;	/**< @brief Weight of four-way PCT original value given at command line.  */
   const char *fourway_pct_help; /**< @brief Weight of four-way PCT help description.  */
   int verbose_arg;	/**< @brief The level of verbose outputs (default='0').  */
   char * verbose_orig;	/**< @brief The level of verbose outputs original value given at command line.  */
   const char *verbose_help; /**< @brief The level of verbose outputs help description.  */
-  char * align_model_arg;	/**< @brief The alignment model for calcualating matching probablities (default='CONTRAlign').  */
-  char * align_model_orig;	/**< @brief The alignment model for calcualating matching probablities original value given at command line.  */
-  const char *align_model_help; /**< @brief The alignment model for calcualating matching probablities help description.  */
-  float align_pct_arg;	/**< @brief Weight of PCT for matching probabilities (default='-1').  */
+  char * align_model_arg;	/**< @brief Alignment model for calcualating matching probablities (default='CONTRAlign').  */
+  char * align_model_orig;	/**< @brief Alignment model for calcualating matching probablities original value given at command line.  */
+  const char *align_model_help; /**< @brief Alignment model for calcualating matching probablities help description.  */
+  float align_pct_arg;	/**< @brief Weight of PCT for matching probabilities (default='0.0').  */
   char * align_pct_orig;	/**< @brief Weight of PCT for matching probabilities original value given at command line.  */
   const char *align_pct_help; /**< @brief Weight of PCT for matching probabilities help description.  */
   float align_th_arg;	/**< @brief Threshold for matching probabilities (default='0.01').  */
@@ -76,10 +76,10 @@ struct gengetopt_args_info
   char * extra_arg;	/**< @brief Extra options for PartAlign.  */
   char * extra_orig;	/**< @brief Extra options for PartAlign original value given at command line.  */
   const char *extra_help; /**< @brief Extra options for PartAlign help description.  */
-  char * fold_model_arg;	/**< @brief The folding model for calculating base-pairing probablities (default='Boltzmann').  */
-  char * fold_model_orig;	/**< @brief The folding model for calculating base-pairing probablities original value given at command line.  */
-  const char *fold_model_help; /**< @brief The folding model for calculating base-pairing probablities help description.  */
-  float fold_pct_arg;	/**< @brief Weight of PCT for base-pairing probabilities (default='-1').  */
+  char * fold_model_arg;	/**< @brief Folding model for calculating base-pairing probablities (default='Boltzmann').  */
+  char * fold_model_orig;	/**< @brief Folding model for calculating base-pairing probablities original value given at command line.  */
+  const char *fold_model_help; /**< @brief Folding model for calculating base-pairing probablities help description.  */
+  float fold_pct_arg;	/**< @brief Weight of PCT for base-pairing probabilities (default='0.0').  */
   char * fold_pct_orig;	/**< @brief Weight of PCT for base-pairing probabilities original value given at command line.  */
   const char *fold_pct_help; /**< @brief Weight of PCT for base-pairing probabilities help description.  */
   float fold_th_arg;	/**< @brief Threshold for base-pairing probabilities (default='0.2').  */
