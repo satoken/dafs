@@ -84,7 +84,7 @@ private:
   void average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const;
   void average_basepairing_probability(VVF& posterior, const ALN& aln) const;
   void align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const;
-  void align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const;
+  float align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const;
   void solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
              const ALN& aln1, const ALN& aln2) const
   {
@@ -101,8 +101,8 @@ private:
   void solve_by_ip(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
                    const ALN& aln1, const ALN& aln2) const;
   void align(ALN& aln, int ch) const;
-  void align(VU& ss, ALN& aln, int ch) const;
-  void refine(VU& ss, ALN& aln) const;
+  float align(VU& ss, ALN& aln, int ch) const;
+  float refine(VU& ss, ALN& aln) const;
   void output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN& aln2) const;
   void output(std::ostream& os, const ALN& aln, const VU& ss) const;
   void output(std::ostream& os, const ALN& aln) const;
@@ -1100,7 +1100,7 @@ align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const
   project_alignment(aln, aln1, aln2, z);
 }
 
-void
+float
 Dusaf::
 align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 {
@@ -1123,6 +1123,31 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   std::fill(ss.begin(), ss.end(), -1u);
   for (uint i=0; i!=ss.size(); ++i)
     if (xx[i]==yy[i]) ss[i]=xx[i];
+
+  // calculate alignment score
+  float a_score=0.0;
+  for (uint i=0; i!=z.size(); ++i)
+    if (z[i]!=-1u) a_score += p_z[i][z[i]]-th_a_;
+
+  // calculate folding score
+  assert(x.size()==z.size());
+  float s_score=0.0;
+  for (uint i=0; i!=x.size(); ++i)
+  {
+    if (x[i]!=-1u && z[i]!=-1u)
+    {
+      const uint j=x[i];
+      const uint k=z[i];
+      if (z[j]!=-1u && z[j]==y[k])
+      {
+        const uint l=y[k];
+        s_score += p_x[i][j]-th_s_;
+        s_score += p_y[k][l]-th_s_;
+      }
+    }
+  }
+
+  return w_*s_score + a_score;
 }
 
 void
@@ -1551,10 +1576,11 @@ align(ALN& aln, int ch) const
   }
 }
 
-void
+float
 Dusaf::
 align(VU& ss, ALN& aln, int ch) const
 {
+  float s=0.0;
   if (tree_[ch].second.first==-1u)
   {
     assert(tree_[ch].second.second==-1u);
@@ -1567,11 +1593,12 @@ align(VU& ss, ALN& aln, int ch) const
     ALN aln1, aln2;
     align(aln1, tree_[ch].second.first);
     align(aln2, tree_[ch].second.second);
-    align_alignments(ss, aln, aln1, aln2);
+    s=align_alignments(ss, aln, aln1, aln2);
   }
+  return s;
 }
 
-void
+float
 Dusaf::
 refine(VU& ss, ALN& aln) const
 { 
@@ -1605,8 +1632,9 @@ refine(VU& ss, ALN& aln) const
   }
 
   ALN r;
-  align_alignments(ss, r, a[0], a[1]);
+  float s=align_alignments(ss, r, a[0], a[1]);
   std::swap(r, aln);
+  return s;
 }
 
 void
@@ -1764,11 +1792,25 @@ run()
   // compute progressive alignments along with the guide tree
   VU ss;
   ALN aln;
-  align(ss, aln, tree_.size()-1);
+  float s;
+  s=align(ss, aln, tree_.size()-1);
   
   // iterative refinement
   for (uint i=0; i!=n_refinement_; ++i)
-    refine(ss, aln);
+  {
+    VU ss_temp=ss;
+    ALN aln_temp=aln;
+    float s_temp;
+
+    s_temp=refine(ss_temp, aln_temp);
+    //std::cout << s << " " << s_temp << std::endl;
+    if (s_temp>s)
+    {
+      s=s_temp;
+      std::swap(ss, ss_temp);
+      std::swap(aln, aln_temp);
+    }
+  }
 
 #if 0
   if (do_refolding_)
