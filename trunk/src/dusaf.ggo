@@ -13,7 +13,7 @@ section "Options for alignments"
 
 option "align-model"	a "The alignment model for calcualating matching probablities"
        			  values="CONTRAlign","ProbCons","PartAlign" default="CONTRAlign" optional
-option "align-pct"	p "Weight of PCT for matching probabilities" int default="-1" optional argoptional
+option "align-pct"	p "Weight of PCT for matching probabilities" float default="-1" optional argoptional
 option "align-th"	u "Threshold for matching probabilities" float default="0.01" optional
 option "use-bpscore"	- "Use BP score" flag on hidden 
 option "extra"		- "Extra options for PartAlign" string hidden optional
@@ -22,9 +22,7 @@ section "Options for folding"
 
 option "fold-model"	s "The folding model for calculating base-pairing probablities"
        			  values="Boltzmann","Vienna","CONTRAfold" default="Boltzmann" optional
-option "fold-pct"	q "Weight of PCT for base-pairing probabilities" int default="-1" optional  argoptional
+option "fold-pct"	q "Weight of PCT for base-pairing probabilities" float default="-1" optional  argoptional
 option "fold-th"	t "Threshold for base-pairing probabilities" float default="0.2" optional
 option "gamma"		g "Specify the threshold for base-pairing probabilities by 1/(gamma+1))" float optional hidden
 option "use-alifold"	l "Use RNAalifold for calculating base-pairing probabilities" flag off 
-
-

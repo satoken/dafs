@@ -268,9 +268,9 @@ relax_matching_probability()
 
   for (uint x=0; x!=N; ++x)
   {
-    mp_[x][x].resize(fa_[x].size());
+    mp[x][x].resize(fa_[x].size());
     for (uint i=0; i!=fa_[x].size(); ++i)
-      mp_[x][x][i].push_back(std::make_pair(i, 1.0f));
+      mp[x][x][i].push_back(std::make_pair(i, 1.0f));
   }
   std::swap(mp_, mp);
 }
@@ -1757,6 +1757,10 @@ run()
   // probabilistic consistency tranformation for base-pairing probabilitiy matrix
   for (uint i=0; i!=n_pct_s_; ++i)
     relax_basepairing_probability();
+
+  // four-way probabilistic consistency tranformation
+  for (uint i=0; i!=n_pct_f_; ++i)
+    relax_fourway_consistency();
   
   // compute the guide tree
   build_tree();
