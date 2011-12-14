@@ -393,9 +393,9 @@ relax_fourway_consistency()
 
   for (uint x=0; x!=N; ++x)
   {
-    mp_[x][x].resize(fa_[x].size());
+    mp[x][x].resize(fa_[x].size());
     for (uint i=0; i!=fa_[x].size(); ++i)
-      mp_[x][x][i].push_back(std::make_pair(i, 1.0f));
+      mp[x][x][i].push_back(std::make_pair(i, 1.0f));
   }
   std::swap(mp_, mp);
 }
@@ -584,7 +584,7 @@ average_basepairing_probability(VVF& posterior, const ALN& aln) const
 
 static
 float
-calculate_homology_score(const MP& mp, uint L1, uint L2)
+calculate_similarity_score(const MP& mp, uint L1, uint L2)
 {
   assert(mp.size()==L1);
 
@@ -1763,26 +1763,27 @@ run()
     }
   }
 
-  // calculate probabilistic homology scores
+  // four-way probabilistic consistency tranformation
+  if (w_pct_f_!=0.0)
+    relax_fourway_consistency();
+
+  // calculate probabilistic similarity scores
+  // which are used for building guide trees and PCTs
   sim_.resize(N, VF(N));
   for (uint i=0; i!=N; ++i)
   {
     sim_[i][i] = 1.0;
     for (uint j=i+1; j!=N; ++j)
-      sim_[i][j] = sim_[j][i] = calculate_homology_score(mp_[i][j], fa_[i].size(), fa_[j].size());
+      sim_[i][j] = sim_[j][i] = calculate_similarity_score(mp_[i][j], fa_[i].size(), fa_[j].size());
   }
-
-  // probabilistic consistency tranformation for matching probability matrix
-  if (w_pct_a_!=0.0)
-    relax_matching_probability();
 
   // probabilistic consistency tranformation for base-pairing probabilitiy matrix
   if (w_pct_s_!=0.0)
     relax_basepairing_probability();
 
-  // four-way probabilistic consistency tranformation
-  if (w_pct_f_!=0.0)
-    relax_fourway_consistency();
+  // probabilistic consistency tranformation for matching probability matrix
+  if (w_pct_a_!=0.0)
+    relax_matching_probability();
   
   // compute the guide tree
   build_tree();
