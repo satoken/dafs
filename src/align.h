@@ -36,10 +36,11 @@ namespace Align
   class Decoder
   {
   public:
-    Decoder();
+    Decoder() { }
     virtual ~Decoder() { }
-    virtual float decode(const VVF& p, const VVF& q, VU& al) const;
-    virtual float decode(const VVF& p, VU& al) const;
+    virtual void initialize(const VVF& p) { }
+    virtual float decode(const VVF& p, const VVF& q, VU& al) const = 0;
+    virtual float decode(const VVF& p, VU& al) const = 0;
   };
 }
 

@@ -2,7 +2,7 @@ SUBDIRS = contrafold probconsRNA contralign
 bin_PROGRAMS = dusaf
 
 dusaf_SOURCES = dusaf.cpp typedefs.h fa.cpp fa.h \
-	align.h align.cpp \
+	align.h align.cpp needleman_wunsch.h needleman_wunsch.cpp \
 	fold.h fold.cpp nussinov.h nussinov.cpp \
 	boltzmann_param.c boltzmann_param.h \
 	ip.cpp ip.h cmdline.c cmdline.h

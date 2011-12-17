@@ -13,6 +13,7 @@
 #include "fold.h"
 #include "nussinov.h"
 #include "align.h"
+#include "needleman_wunsch.h"
 #include "ip.h"
 #include "typedefs.h"
 
@@ -83,8 +84,6 @@ private:
   void relax_fourway_consistency();
   void build_tree();
   void print_tree(std::ostream& os, int i) const;
-  float decode_alignment(const VVF& p, const VVF& q,
-                         const std::vector< std::pair<uint,uint> >& r, VU& al) const;
   void project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const;
   void project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& z) const;
   void average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const;
@@ -644,163 +643,6 @@ calculate_similarity_score(const MP& mp, uint L1, uint L2)
   return dp[L1][L2]/tr[L1][L2];
 }
 
-float
-Dusaf::
-decode_alignment(const VVF& p, const VVF& q,
-                 const std::vector< std::pair<uint,uint> >& r, VU& al) const
-{
-  const uint L1 = p.size();
-  const uint L2 = p[0].size();
-
-  VVF dp(L1+1, VF(L2+1, 0.0));
-  VVC tr(L1+1, VC(L2+1, ' '));
-  for (uint i=1; i!=L1+1; ++i) tr[i][0] = 'X';
-  for (uint k=1; k!=L2+1; ++k) tr[0][k] = 'Y';
-#ifdef SPARSE_ALIGNMENT // efficient implementation using sparsity
-  for (uint i=1; i!=L1+1; ++i)
-  {
-    for (uint k=r[i].first; k<=r[i].second; ++k)
-    {
-      if (k==0) continue;
-      float v = dp[i-1][k-1]+p[i-1][k-1]-th_a_+q[i-1][k-1];
-      char t = 'M';
-      if (v<dp[i-1][k])
-      {
-        v = dp[i-1][k];
-        t = 'X';
-      }
-      if (v<dp[i][k-1])
-      {
-        v = dp[i][k-1];
-        t = 'Y';
-      }
-      dp[i][k] = v;
-      tr[i][k] = t;
-    }
-  }
-#else // naive implementation
-  for (uint i=1; i!=L1+1; ++i)
-  {
-    for (uint k=1; k!=L2+1; ++k)
-    {
-      float v = dp[i-1][k-1]+p[i-1][k-1]-th_a_+q[i-1][k-1];
-      char t = 'M';
-      if (v<dp[i-1][k])
-      {
-        v = dp[i-1][k];
-        t = 'X';
-      }
-      if (v<dp[i][k-1])
-      {
-        v = dp[i][k-1];
-        t = 'Y';
-      }
-      dp[i][k] = v;
-      tr[i][k] = t;
-    }
-  }
-#endif
-
-  // traceback
-  std::string rpath;
-  int i = L1, k = L2;
-  while (i>0 || k>0)
-  {
-    rpath.push_back(tr[i][k]);
-    switch (tr[i][k])
-    {
-      case 'M': --i; --k; break;
-      case 'X': --i; break;
-      case 'Y': --k; break;
-      default: assert(!"unreachable"); break;
-    }
-  }
-  std::string vpath(rpath.size(), ' ');
-  std::reverse_copy(rpath.begin(), rpath.end(), vpath.begin());
-
-  // decode the resultant alignment
-  al.resize(L1, -1u);
-  for (uint i=0, k=0, p=0; p!=vpath.size(); ++p)
-  {
-    switch (vpath[p])
-    {
-      case 'M':
-        assert(i<L1); assert(k<L2);
-        al[i++]=k++;
-        break;
-      case 'X':
-        assert(i<L1); assert(k<=L2);
-        al[i++]=-1u;
-        break;
-      case 'Y':
-        assert(i<=L1); assert(k<L2);
-        k++;
-        break;
-      default: break;
-    }
-  }
-
-  return dp[L1][L2];
-}
-
-void
-alignment_envelope(const VVF& p, float th, std::vector< std::pair<uint,uint> >& r)
-{
-#ifdef SPARSE_ALIGNMENT
-  const uint L1 = p.size();
-  const uint L2 = p[0].size();
-  r.resize(L1+1);
-  std::fill(r.begin(), r.end(), std::make_pair(0, 0));
-
-  for (uint i=1; i!=L1+1; ++i)
-  {
-    // find the first alignable point
-    for (uint k=1; k!=L2+1; ++k)
-    {
-      if (p[i-1][k-1]-th>=0.0)
-      {
-        r[i-1].first = std::min(r[i-1].first, k-1);
-        r[i].first = k;
-        break;
-      }
-    }
-    // no alignable point
-    if (r[i].first==0)          
-    {
-      r[i].first = r[i-1].first;
-      r[i].second = r[i-1].second;
-      continue;
-    }
-
-    // find the last alignable point
-    for (uint k=L2; k!=0; --k)
-    {
-      if (p[i-1][k-1]-th>=0.0)
-      {
-        r[i-1].second = std::max(r[i-1].second, k-1);
-        r[i].second = k;
-        break;
-      }
-    }
-  }
-  assert(r[0].first==0);
-  r[L1].second=L2;
-
-  // force the envelope to be monotonic
-  for (uint i=L1, v=L2; i!=0; --i)
-    r[i].first = v = std::min(v, r[i].first);
-  for (uint i=0, v=0; i!=L1+1; ++i)
-    r[i].second = v = std::max(v, r[i].second);
-
-  // ensure the connectivity
-  for (uint i=1; i!=L1+1; ++i)
-  {
-    if (r[i-1].second<r[i].first)
-      r[i].first = r[i-1].second;
-  }
-#endif
-}
-
 void
 Dusaf::
 project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const
@@ -1042,9 +884,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
   }
 #endif
 
-  // precalculate the range for alignment
-  std::vector< std::pair<uint,uint> > r;
-  alignment_envelope(p_z, th_a_, r);
+  // precalculate the range for alignment, i.e. alignment envelope
+  a_decoder_->initialize(p_z);
 
   // multipliers
   VVF q_x(L1, VF(L1, 0.0));
@@ -1062,7 +903,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
     float s = 0.0;
     s += s_decoder_->decode(p_x, q_x, x);
     s += s_decoder_->decode(p_y, q_y, y);
-    s += decode_alignment(p_z, q_z, r, z);
+    s += a_decoder_->decode(p_z, q_z, z);
 
     if (verbose_>=2) output_verbose(x, y, z, aln1, aln2);
 
@@ -1546,6 +1387,7 @@ parse_options(int& argc, char**& argv)
     a_model_ = new PartAlign(th_a_, arg_x);
 #endif
   assert(a_model_!=NULL);
+  a_decoder_ = new SparseNeedlemanWunsch(th_a_);
 
   // options for folding
   w_pct_s_ = args_info.fold_pct_arg;
