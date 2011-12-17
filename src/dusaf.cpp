@@ -1,6 +1,8 @@
 // $Id:$
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 #include <cstring>
 #include <unistd.h>
 #include <vector>
@@ -9,6 +11,7 @@
 #include "cmdline.h"
 #include "fa.h"
 #include "fold.h"
+#include "nussinov.h"
 #include "align.h"
 #include "ip.h"
 #include "typedefs.h"
@@ -53,8 +56,10 @@ public:
       th_s_(1.0/(1+4)),
       w_(1.0),
       eta0_(0.5),
-      en_a_(NULL),
-      en_s_(NULL),
+      a_model_(NULL),
+      a_decoder_(NULL),
+      s_model_(NULL),
+      s_decoder_(NULL),
       use_alifold_(false),
       use_bpscore_(false),
       verbose_(0)
@@ -63,8 +68,10 @@ public:
 
   ~Dusaf()
   {
-    if (en_a_) delete en_a_;
-    if (en_s_) delete en_s_;
+    if (a_model_) delete a_model_;
+    if (a_decoder_) delete a_decoder_;
+    if (s_model_) delete s_model_;
+    if (s_decoder_) delete s_decoder_;
   }
 
   Dusaf& parse_options(int& argc, char**& argv);
@@ -78,7 +85,6 @@ private:
   void print_tree(std::ostream& os, int i) const;
   float decode_alignment(const VVF& p, const VVF& q,
                          const std::vector< std::pair<uint,uint> >& r, VU& al) const;
-  float decode_secondary_structure(const VVF& p, const VVF& q, VU& ss) const;
   void project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const;
   void project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& z) const;
   void average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const;
@@ -118,8 +124,10 @@ private:
   float th_s_;                  // the threshold for alignment matching probabilities
   float w_;                     // the weight for base pairs in the objective function
   float eta0_;                  // the initial step width of the subgradient update
-  Align* en_a_;                 // alignment engine
-  Fold* en_s_;                  // folding engine
+  Align::Model* a_model_;       // alignment model
+  Align::Decoder* a_decoder_;   // alignment decoder
+  Fold::Model* s_model_;        // folding model
+  Fold::Decoder* s_decoder_;    // folding decoder
   std::vector<Fasta> fa_;       // input sequences
   std::vector<std::vector<MP> > mp_; // alignment matching probability matrices
   std::vector<BP> bp_;          // base-pairing probability matrices
@@ -793,177 +801,6 @@ alignment_envelope(const VVF& p, float th, std::vector< std::pair<uint,uint> >& 
 #endif
 }
 
-float
-Dusaf::
-decode_secondary_structure(const VVF& p, const VVF& q, VU& ss) const
-{
-  uint L=p.size();
-  assert(p[0].size()==L);
-
-#ifdef SPARSE_FOLDING // efficient implementation using sparsity
-  VVF dp(L, VF(L, 0.0));
-  BP bp(L);
-  VVU tr(L, VU(L, 0));
-  for (uint l=1; l<L; ++l)
-  {
-    for (uint i=0; i+l<L; ++i)
-    {
-      uint j=i+l;
-      float v=0.0;
-      int t=0;
-      if (i+1<j)
-      {
-        v=dp[i+1][j];
-        t=1;
-      }
-      if (i<j-1 && v<dp[i][j-1])
-      {
-        v=dp[i][j-1];
-        t=2;
-      }
-      if (i+1<j-1)
-      {
-        float s=w_*(p[i][j]-th_s_)-q[i][j];
-        if (s>0.0)
-        {
-          bp[j].push_back(std::make_pair(i,dp[i+1][j-1]+s));
-          if (v<dp[i+1][j-1]+s)
-          {
-            v=dp[i+1][j-1]+s;
-            t=3;
-          }
-        }
-      }
-      for (SV::const_iterator x=bp[j].begin(); x!=bp[j].end(); ++x)
-      {
-        const uint k=x->first;
-        const float s=x->second;
-        if (i<k)
-        {
-          if (v<dp[i][k-1]+s)
-          {
-            v=dp[i][k-1]+s;
-            t=k-i+3;
-          }
-        }
-      }
-      dp[i][j]=v;
-      tr[i][j]=t;
-    }
-  }
-
-  // trace back
-  ss.resize(L);
-  std::fill(ss.begin(), ss.end(), -1u);
-  std::stack<std::pair<uint,uint> > st;
-  st.push(std::make_pair(0, L-1));
-  while (!st.empty())
-  {
-    const std::pair<uint,uint> p=st.top(); st.pop();
-    const int i=p.first, j=p.second;
-    switch (tr[i][j])
-    {
-      case 0:
-        break;
-      case 1:
-        st.push(std::make_pair(i+1, j));
-        break;
-      case 2:
-        st.push(std::make_pair(i, j-1));
-        break;
-      case 3:
-        ss[i]=j;
-        st.push(std::make_pair(i+1, j-1));
-        break;
-      default:
-        const int k=i+tr[i][j]-3;
-        st.push(std::make_pair(i, k-1));
-        ss[k]=j;
-        st.push(std::make_pair(k+1, j-1));
-        break;
-    }
-  }
-
-  return dp[0][L-1];
-
-#else // naive implementation
-  // calculate scoring matrices for the current step
-  VVF sm(L, VF(L, 0.0));
-  for (uint i=0; i!=L-1; ++i)
-    for (uint j=i+1; j!=L; ++j)
-      sm[i][j] = w_*(p[i][j]-th_s_)-q[i][j];
-
-  VVF dp(L, VF(L, 0.0));
-  VVU tr(L, VU(L, 0));
-  for (uint l=1; l<L; ++l)
-  {
-    for (uint i=0; i+l<L; ++i)
-    {
-      uint j=i+l;
-      float v=0.0;
-      int t=0;
-      if (i+1<j)
-      {
-        v=dp[i+1][j];
-        t=1;
-      }
-      if (i<j-1 && v<dp[i][j-1])
-      {
-        v=dp[i][j-1];
-        t=2;
-      }
-      if (i+1<j-1 && v<dp[i+1][j-1]+sm[i][j])
-      {
-        v=dp[i+1][j-1]+sm[i][j];
-        t=3;
-      }
-      for (uint k=i+1; k<j; ++k)
-      {
-        if (v<dp[i][k]+dp[k+1][j])
-        {
-          v=dp[i][k]+dp[k+1][j];
-          t=k-i+3;
-        }        
-      }
-      dp[i][j]=v;
-      tr[i][j]=t;
-    }
-  }
-
-  // trace back
-  ss.resize(L);
-  std::fill(ss.begin(), ss.end(), -1u);
-  std::stack<std::pair<uint,uint> > st;
-  st.push(std::make_pair(0, L-1));
-  while (!st.empty())
-  {
-    const std::pair<uint,uint> p=st.top(); st.pop();
-    const int i=p.first, j=p.second;
-    switch (tr[i][j])
-    {
-      case 0:
-        break;
-      case 1:
-        st.push(std::make_pair(i+1, j));
-        break;
-      case 2:
-        st.push(std::make_pair(i, j-1));
-        break;
-      case 3:
-        ss[i]=j;
-        st.push(std::make_pair(i+1, j-1));
-        break;
-      default:
-        const int k=i+tr[i][j]-3;
-        st.push(std::make_pair(i, k));
-        st.push(std::make_pair(k+1, j));
-        break;
-    }
-  }
-  return dp[0][L-1];
-#endif
-}
-
 void
 Dusaf::
 project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const
@@ -1223,8 +1060,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
   {
     // solve the subproblems
     float s = 0.0;
-    s += decode_secondary_structure(p_x, q_x, x);
-    s += decode_secondary_structure(p_y, q_y, y);
+    s += s_decoder_->decode(p_x, q_x, x);
+    s += s_decoder_->decode(p_y, q_y, y);
     s += decode_alignment(p_z, q_z, r, z);
 
     if (verbose_>=2) output_verbose(x, y, z, aln1, aln2);
@@ -1701,12 +1538,14 @@ parse_options(int& argc, char**& argv)
   std::string arg_x;
   if (args_info.extra_given) arg_x = std::string(args_info.extra_arg);
   if (strcasecmp(args_info.align_model_arg, "CONTRAlign")==0)
-    en_a_ = new CONTRAlign(th_a_);
+    a_model_ = new CONTRAlign(th_a_);
   else if (strcasecmp(args_info.align_model_arg, "ProbCons")==0)
-    en_a_ = new ProbCons(th_a_);
+    a_model_ = new ProbCons(th_a_);
+#if 0
   else if (strcasecmp(args_info.align_model_arg, "PartAlign")==0)
-    en_a_ = new PartAlign(th_a_, arg_x);
-  assert(en_a_!=NULL);
+    a_model_ = new PartAlign(th_a_, arg_x);
+#endif
+  assert(a_model_!=NULL);
 
   // options for folding
   w_pct_s_ = args_info.fold_pct_arg;
@@ -1714,12 +1553,13 @@ parse_options(int& argc, char**& argv)
   if (args_info.gamma_given) th_s_ = 1.0/(1.0+args_info.gamma_arg);
   use_alifold_ = args_info.use_alifold_flag!=0;
   if (strcasecmp(args_info.fold_model_arg, "Boltzmann")==0)
-    en_s_ = new RNAfold(true, NULL, CUTOFF);
+    s_model_ = new RNAfold(true, NULL, CUTOFF);
   else if (strcasecmp(args_info.fold_model_arg, "Vienna")==0)
-    en_s_ = new RNAfold(false, NULL, CUTOFF);
+    s_model_ = new RNAfold(false, NULL, CUTOFF);
   else if (strcasecmp(args_info.fold_model_arg, "CONTRAfold")==0)
-    en_s_ = new CONTRAfold(CUTOFF);
-  assert(en_s_!=NULL);
+    s_model_ = new CONTRAfold(CUTOFF);
+  assert(s_model_!=NULL);
+  s_decoder_ = new SparseNussinov(w_, th_s_);
 
   if (args_info.inputs_num==0)
   {
@@ -1744,7 +1584,7 @@ run()
   // calculate base-pairing probabilities
   bp_.resize(N);
   for (uint i=0; i!=N; ++i)
-    en_s_->fold(fa_[i].seq(), bp_[i]);
+    s_model_->calculate(fa_[i].seq(), bp_[i]);
 
   // calculate matching probabilities
   mp_.resize(N, std::vector<MP>(N));
@@ -1756,9 +1596,9 @@ run()
     for (uint j=i+1; j!=N; ++j)
     {
       if (use_bpscore_)
-        en_a_->align(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[i][j]);
+        a_model_->calculate(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[i][j]);
       else
-        en_a_->align(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
+        a_model_->calculate(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
       transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
     }
   }

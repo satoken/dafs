@@ -9,30 +9,47 @@
 #include "typedefs.h"
 #include "contrafold/contrafold.h"
 
-// base class
-class Fold
+namespace Fold 
 {
-public:
-  Fold(float th) : th_(th) { }
-  virtual void fold(const std::string& seq, BP& bp) = 0;
-  float threshold() const { return th_; }
+  // base class for modeling probability distribution of secondary structures
+  class Model
+  {
+  public:
+    Model(float th) : th_(th) { }
+    virtual ~Model() { }
+    virtual void calculate(const std::string& seq, BP& bp) = 0;
+    float threshold() const { return th_; }
 
-private:
-  float th_;
-};
+  private:
+    float th_;
+  };
 
-class RNAfold : public Fold
+  class Decoder
+  {
+  public:
+    Decoder() { }
+    virtual ~Decoder() { }
+    virtual float decode(const VVF& p, const VVF& q, VU& ss) const = 0;
+    virtual float decode(const VVF& p, VU& ss) const = 0;
+  };
+}
+
+class RNAfold : public Fold::Model
 {
 public:
   RNAfold(bool bl, const char* param, float th);
-  void fold(const std::string& seq, BP& bp);
+  void calculate(const std::string& seq, BP& bp);
 };
 
-class CONTRAfold : public Fold, CONTRAFOLD::CONTRAfold<float>
+class CONTRAfold : public Fold::Model, CONTRAFOLD::CONTRAfold<float>
 {
 public:
   CONTRAfold(float th);
-  void fold(const std::string& seq, BP& bp);
+  void calculate(const std::string& seq, BP& bp);
 };
 
 #endif  //  __INC_FOLD_H__
+
+// Local Variables:
+// mode: C++
+// End:

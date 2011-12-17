@@ -208,8 +208,8 @@ public:
       for (uint i=0; i!=seq.size(); ++i)
       {
         BP bp1, bp2;
-        en_s_->fold(seq[i].first, bp1);
-        en_s_->fold(seq[i].second, bp2);
+        en_s_->calculate(seq[i].first, bp1);
+        en_s_->calculate(seq[i].second, bp2);
         bpseq.push_back(std::make_pair(std::make_pair(seq[i].first, bp1),
                                        std::make_pair(seq[i].second, bp2)));
       }
@@ -256,7 +256,7 @@ private:
   bool use_gap_;
   bool use_ext_;
   bool use_sm_;
-  Fold* en_s_;                  // folding engine
+  Fold::Model* en_s_;                  // folding engine
   bool use_stdin;
 };
 

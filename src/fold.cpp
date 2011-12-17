@@ -1,5 +1,9 @@
 // $Id:$
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "fold.h"
 
 namespace Vienna {
@@ -21,7 +25,7 @@ extern "C" {
 
 RNAfold::
 RNAfold(bool bl, const char* param, float th)
-  : Fold(th)
+  : Fold::Model(th)
 {
   if (bl) copy_boltzmann_parameters();
   if (param) Vienna::read_parameter_file(param);
@@ -29,7 +33,7 @@ RNAfold(bool bl, const char* param, float th)
 
 void
 RNAfold::
-fold(const std::string& seq, BP& bp)
+calculate(const std::string& seq, BP& bp)
 {
   uint L=seq.size();
   bp.resize(L);
@@ -56,13 +60,13 @@ fold(const std::string& seq, BP& bp)
 
 CONTRAfold::
 CONTRAfold(float th)
-  : Fold(th), CONTRAFOLD::CONTRAfold<float>()
+  : Fold::Model(th), CONTRAFOLD::CONTRAfold<float>()
 {
 }
 
 void
 CONTRAfold::
-fold(const std::string& seq, BP& bp)
+calculate(const std::string& seq, BP& bp)
 {
   bp.resize(seq.size());
   std::vector<float> posterior;

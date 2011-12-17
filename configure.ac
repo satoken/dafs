@@ -126,6 +126,5 @@ AC_CONFIG_FILES([
   src/contrafold/Makefile
   src/probconsRNA/Makefile
   src/contralign/Makefile
-  src/partalign/Makefile
 ])
 AC_OUTPUT

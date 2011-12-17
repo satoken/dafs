@@ -1,6 +1,9 @@
 // $Id:$
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
 #include "align.h"
 #include <iostream>
 #include <iterator>
@@ -8,13 +11,13 @@
 
 ProbCons::
 ProbCons(float th)
-  : Align(th), PROBCONS::Probcons()
+  : Align::Model(th), PROBCONS::Probcons()
 {
 }
 
 void
 ProbCons::
-align(const std::string& seq1, const std::string& seq2, MP& mp)
+calculate(const std::string& seq1, const std::string& seq2, MP& mp)
 {
   std::vector<float> posterior;
   ComputePosterior(seq1, seq2, posterior, threshold());
@@ -35,13 +38,13 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
 
 CONTRAlign::
 CONTRAlign(float th)
-  : Align(th), CONTRALIGN::CONTRAlign<float>()
+  : Align::Model(th), CONTRALIGN::CONTRAlign<float>()
 {
 }
 
 void
 CONTRAlign::
-align(const std::string& seq1, const std::string& seq2, MP& mp)
+calculate(const std::string& seq1, const std::string& seq2, MP& mp)
 {
   std::vector<float> posterior;
   ComputePosterior(seq1, seq2, posterior, threshold());
@@ -60,9 +63,10 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
   }
 }
 
+#if 0
 PartAlign::
 PartAlign(float th, const std::string& arg)
-  : Align(th), PARTALIGN::PartAlign<LogValue<float> >()
+  : Align::Model(th), PARTALIGN::PartAlign<LogValue<float> >()
 {
   float sm[10] = {                // ribosum85_60
     2.22, -1.86, -1.46, -1.39,
@@ -93,7 +97,7 @@ PartAlign(float th, const std::string& arg)
 
 void
 PartAlign::
-align(const std::string& seq1, const std::string& seq2, MP& mp)
+calculate(const std::string& seq1, const std::string& seq2, MP& mp)
 {
   const uint L1 = seq1.size();
   const uint L2 = seq2.size();
@@ -117,8 +121,8 @@ align(const std::string& seq1, const std::string& seq2, MP& mp)
 
 void
 PartAlign::
-align(const std::string& seq1, const std::string& seq2,
-      const BP& bp1, const BP& bp2, MP& mp)
+calculate(const std::string& seq1, const std::string& seq2,
+          const BP& bp1, const BP& bp2, MP& mp)
 {
   const uint L1 = seq1.size();
   const uint L2 = seq2.size();
@@ -139,3 +143,4 @@ align(const std::string& seq1, const std::string& seq2,
     }
   }
 }
+#endif

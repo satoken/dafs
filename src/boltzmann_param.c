@@ -4,6 +4,10 @@
   http://www.cs.ubc.ca/labs/beta/Projects/RNA-Params/data/parameters_BLstar_Vienna.txt
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
