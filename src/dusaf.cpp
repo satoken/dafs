@@ -61,8 +61,9 @@ public:
       a_decoder_(NULL),
       s_model_(NULL),
       s_decoder_(NULL),
+      s_decoder1_(NULL),
       use_alifold_(false),
-      use_bpscore_(false),
+      // use_bpscore_(false),
       verbose_(0)
   {
   }
@@ -73,6 +74,7 @@ public:
     if (a_decoder_) delete a_decoder_;
     if (s_model_) delete s_model_;
     if (s_decoder_) delete s_decoder_;
+    if (s_decoder1_) delete s_decoder1_;
   }
 
   Dusaf& parse_options(int& argc, char**& argv);
@@ -127,13 +129,14 @@ private:
   Align::Decoder* a_decoder_;   // alignment decoder
   Fold::Model* s_model_;        // folding model
   Fold::Decoder* s_decoder_;    // folding decoder
+  Fold::Decoder* s_decoder1_;    // folding decoder for the conclusive folding
   std::vector<Fasta> fa_;       // input sequences
   std::vector<std::vector<MP> > mp_; // alignment matching probability matrices
   std::vector<BP> bp_;          // base-pairing probability matrices
   VVF sim_;                     // simalarity matrix between input sequences
   std::vector<node_t> tree_;    // guide tree
   bool use_alifold_;
-  bool use_bpscore_;
+  // bool use_bpscore_;
   uint verbose_;
 };
 
@@ -1375,9 +1378,9 @@ parse_options(int& argc, char**& argv)
   // options for alignments
   th_a_ = args_info.align_th_arg;
   w_pct_a_ = args_info.align_pct_arg;
-  use_bpscore_ = args_info.use_bpscore_flag!=0;
-  std::string arg_x;
-  if (args_info.extra_given) arg_x = std::string(args_info.extra_arg);
+  // use_bpscore_ = args_info.use_bpscore_flag!=0;
+  // std::string arg_x;
+  // if (args_info.extra_given) arg_x = std::string(args_info.extra_arg);
   if (strcasecmp(args_info.align_model_arg, "CONTRAlign")==0)
     a_model_ = new CONTRAlign(th_a_);
   else if (strcasecmp(args_info.align_model_arg, "ProbCons")==0)
@@ -1391,8 +1394,8 @@ parse_options(int& argc, char**& argv)
 
   // options for folding
   w_pct_s_ = args_info.fold_pct_arg;
-  th_s_ = args_info.fold_th_arg;
-  if (args_info.gamma_given) th_s_ = 1.0/(1.0+args_info.gamma_arg);
+  th_s_ = args_info.fold_th_arg[0];
+  if (args_info.gamma_given) th_s_ = 1.0/(1.0+args_info.gamma_arg[0]);
   use_alifold_ = args_info.use_alifold_flag!=0;
   if (strcasecmp(args_info.fold_model_arg, "Boltzmann")==0)
     s_model_ = new RNAfold(true, NULL, CUTOFF);
@@ -1401,7 +1404,14 @@ parse_options(int& argc, char**& argv)
   else if (strcasecmp(args_info.fold_model_arg, "CONTRAfold")==0)
     s_model_ = new CONTRAfold(CUTOFF);
   assert(s_model_!=NULL);
+
   s_decoder_ = new SparseNussinov(w_, th_s_);
+  if (args_info.fold_th1_given)
+    s_decoder1_ = new SparseNussinov(w_, args_info.fold_th1_arg[0]);
+  else if (args_info.gamma1_given)
+    s_decoder1_ = new SparseNussinov(w_, 1.0/(1.0+args_info.gamma1_arg[0]));
+  else
+    s_decoder1_ = new SparseNussinov(w_, th_s_);
 
   if (args_info.inputs_num==0)
   {
@@ -1437,10 +1447,11 @@ run()
       mp_[i][i][x].push_back(std::make_pair(x, 1.0f));
     for (uint j=i+1; j!=N; ++j)
     {
-      if (use_bpscore_)
-        a_model_->calculate(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[i][j]);
-      else
-        a_model_->calculate(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
+      // if (use_bpscore_)
+      //   a_model_->calculate(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[i][j]);
+      // else
+      //   a_model_->calculate(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
+      a_model_->calculate(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
       transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
     }
   }
@@ -1494,20 +1505,13 @@ run()
       std::swap(aln, aln_temp);
     }
   }
-
-#if 0
-  if (do_refolding_)
+  if (s_decoder1_!=NULL)
   {
     // compute the common secondary structures from the averaged base-pairing matrix
-    const uint L=aln[0].second.size();
     VVF p;
     average_basepairing_probability(p, aln);
-    for (uint i=0; i!=L-1; ++i)
-      for (uint j=i+1; j!=L; ++j)
-        p[i][j] -= th_s_;
-    decode_secondary_structure(p, ss);
+    s_decoder1_->decode(p, ss);
   }
-#endif
   
   // output the alignment
   std::sort(aln.begin(), aln.end());
