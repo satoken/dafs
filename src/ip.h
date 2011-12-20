@@ -37,7 +37,7 @@ public:
   int make_constraint(BoundType bnd, double l, double u);
   void add_constraint(int row, int col, double val);
   void update();
-  void solve();
+  double solve();
   double get_value(int col) const;
 
 private:

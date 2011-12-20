@@ -32,8 +32,6 @@ extern "C" {
 #define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
 #define CUTOFF 0.01
 
-#define SPARSE_ALIGNMENT
-#define SPARSE_FOLDING
 #define SPARSE_UPDATE
 
 class Dusaf
@@ -63,6 +61,7 @@ public:
       s_decoder_(NULL),
       s_decoder1_(NULL),
       use_alifold_(false),
+      use_alifold1_(true),
       // use_bpscore_(false),
       verbose_(0)
   {
@@ -89,24 +88,24 @@ private:
   void project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const;
   void project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& z) const;
   void average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const;
-  void average_basepairing_probability(VVF& posterior, const ALN& aln) const;
+  void average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const;
   void align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const;
   float align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const;
-  void solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
-             const ALN& aln1, const ALN& aln2) const
+  float solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
+              const ALN& aln1, const ALN& aln2) const
   {
 #if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
-    t_max_!=0 ?
+    return t_max_!=0 ?
       solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : 
       solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2) ;
 #else
-    solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2);
+    return solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2);
 #endif
   }
-  void solve_by_dd(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
-                   const ALN& aln1, const ALN& aln2) const;
-  void solve_by_ip(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
-                   const ALN& aln1, const ALN& aln2) const;
+  float solve_by_dd(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                    const ALN& aln1, const ALN& aln2) const;
+  float solve_by_ip(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                    const ALN& aln1, const ALN& aln2) const;
   void align(ALN& aln, int ch) const;
   float align(VU& ss, ALN& aln, int ch) const;
   float refine(VU& ss, ALN& aln) const;
@@ -136,6 +135,7 @@ private:
   VVF sim_;                     // simalarity matrix between input sequences
   std::vector<node_t> tree_;    // guide tree
   bool use_alifold_;
+  bool use_alifold1_;
   // bool use_bpscore_;
   uint verbose_;
 };
@@ -523,7 +523,7 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
 
 void
 Dusaf::
-average_basepairing_probability(VVF& posterior, const ALN& aln) const
+average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const
 {
   const uint L=aln.front().second.size();
   const uint N=aln.size();
@@ -541,7 +541,7 @@ average_basepairing_probability(VVF& posterior, const ALN& aln) const
         p[idx[i]][idx[bp[i][j].first]] += bp[i][j].second/N;
   }
 
-  if (use_alifold_)
+  if (use_alifold)
   {
     char** seqs = new char*[N+1];
     seqs[N] = NULL;
@@ -770,8 +770,8 @@ align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const
 {
   // calculate posteriors
   VVF p_x, p_y, p_z;
-  average_basepairing_probability(p_x, aln1);
-  average_basepairing_probability(p_y, aln2);
+  average_basepairing_probability(p_x, aln1, use_alifold_);
+  average_basepairing_probability(p_y, aln2, use_alifold_);
   average_matching_probability(p_z, aln1, aln2);
 
   // solve the problem
@@ -788,13 +788,13 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 {
   // calculate posteriors
   VVF p_x, p_y, p_z;
-  average_basepairing_probability(p_x, aln1);
-  average_basepairing_probability(p_y, aln2);
+  average_basepairing_probability(p_x, aln1, use_alifold_);
+  average_basepairing_probability(p_y, aln2, use_alifold_);
   average_matching_probability(p_z, aln1, aln2);
 
   // solve the problem
   VU x, y, z;
-  solve(x, y, z, p_x, p_y, p_z, aln1, aln2);
+  float s = solve(x, y, z, p_x, p_y, p_z, aln1, aln2);
 
   // build the result
   project_alignment(aln, aln1, aln2, z);
@@ -806,6 +806,7 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   for (uint i=0; i!=ss.size(); ++i)
     if (xx[i]==yy[i]) ss[i]=xx[i];
 
+#if 0                           // calculate the score exactly
   // calculate alignment score
   float a_score=0.0;
   for (uint i=0; i!=z.size(); ++i)
@@ -830,9 +831,12 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   }
 
   return w_*s_score + a_score;
+#else
+  return s;                     // this score is probably incorrect, but gives good approximation.
+#endif
 }
 
-void
+float
 Dusaf::
 solve_by_dd(VU& x, VU& y, VU& z,
             const VVF& p_x, const VVF& p_y, const VVF& p_z,
@@ -1038,9 +1042,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
     s_prev = s;
   }
   if (verbose_==1) std::cout << "Step: " << t << ", Violated: " << violated << std::endl;
+
+  return s_prev;
 }
 
-void
+float
 Dusaf::
 solve_by_ip(VU& x, VU& y, VU& z,
             const VVF& p_x, const VVF& p_y, const VVF& p_z,
@@ -1212,7 +1218,7 @@ solve_by_ip(VU& x, VU& y, VU& z,
   }
 
   // execute optimization
-  ip.solve();
+  float s = ip.solve();
   
   // build the result
   x.resize(L1);
@@ -1235,6 +1241,8 @@ solve_by_ip(VU& x, VU& y, VU& z,
     for (uint k=0; k<L2; ++k)
       if (v_z[i][k]>=0 && ip.get_value(v_z[i][k])>0.5)
         z[i]=k;
+
+  return s;
 }
 
 void
@@ -1505,11 +1513,12 @@ run()
       std::swap(aln, aln_temp);
     }
   }
-  if (s_decoder1_!=NULL)
+
+  if (s_decoder1_)
   {
     // compute the common secondary structures from the averaged base-pairing matrix
     VVF p;
-    average_basepairing_probability(p, aln);
+    average_basepairing_probability(p, aln, use_alifold1_);
     s_decoder1_->decode(p, ss);
   }
   

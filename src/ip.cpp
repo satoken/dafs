@@ -90,7 +90,7 @@ public:
 
   void update() {}
 
-  void solve()
+  double solve()
   {
     glp_smcp smcp;
     glp_iocp iocp;
@@ -99,6 +99,7 @@ public:
     glp_load_matrix(ip_, ia_.size()-1, &ia_[0], &ja_[0], &ar_[0]);
     glp_simplex(ip_, &smcp);
     glp_intopt(ip_, &iocp);
+    return glp_get_obj_val(ip_);
   }
 
   double get_value(int col) const
@@ -157,7 +158,7 @@ public:
     model_->update();
   }
 
-  void solve()
+  double solve()
   {
     for (unsigned int i=0; i!=m_.size(); ++i)
     {
@@ -177,6 +178,7 @@ public:
     u_.clear();
     m_.clear();
     model_->optimize();
+    return model_->get(GRB_DoubleAttr_ObjVal);
   }
 
   double get_value(int col) const
@@ -242,7 +244,7 @@ public:
     }
   }
 
-  void solve()
+  double solve()
   {
     for (unsigned int i=0; i!=m_.size(); ++i)
     {
@@ -266,6 +268,7 @@ public:
     cplex_->setParam(IloCplex::Threads, n_th_);
     cplex_->setParam(IloCplex::MIPDisplay, 0);
     cplex_->solve();
+    return cplex_->getObjValue();
   }
 
   double get_value(int col) const
@@ -330,11 +333,11 @@ update()
   impl_->update();
 }
 
-void
+double
 IP::
 solve()
 {
-  impl_->solve();
+  return impl_->solve();
 }
 
 double
@@ -388,7 +391,7 @@ update()
   throw "no IP solver is linked.";
 }
 
-void
+double
 IP::
 solve()
 {
