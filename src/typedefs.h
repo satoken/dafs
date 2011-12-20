@@ -24,3 +24,7 @@ typedef std::vector<SV> MP;
 typedef std::vector<SV> BP;
 
 #endif
+
+// Local Variables:
+// mode: C++
+// End:

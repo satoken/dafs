@@ -46,24 +46,13 @@ private:
   
 public:
   Dusaf()
-    : w_pct_a_(0.0),
-      w_pct_s_(0.0),
-      w_pct_f_(0.0),
-      n_refinement_(0),
-      t_max_(100),
-      th_a_(1.0/(1+99)),
-      th_s_(1.0/(1+4)),
-      w_(1.0),
-      eta0_(0.5),
-      a_model_(NULL),
+    : a_model_(NULL),
       a_decoder_(NULL),
       s_model_(NULL),
       s_decoder_(NULL),
       s_decoder1_(NULL),
       use_alifold_(false),
-      use_alifold1_(true),
-      // use_bpscore_(false),
-      verbose_(0)
+      use_alifold1_(true)
   {
   }
 
@@ -110,7 +99,6 @@ private:
   float align(VU& ss, ALN& aln, int ch) const;
   float refine(VU& ss, ALN& aln) const;
   void output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN& aln2) const;
-  void output(std::ostream& os, const ALN& aln, const VU& ss) const;
   void output(std::ostream& os, const ALN& aln) const;
   void output(std::ostream& os, ALN::const_iterator b, ALN::const_iterator e) const;
 
@@ -128,7 +116,7 @@ private:
   Align::Decoder* a_decoder_;   // alignment decoder
   Fold::Model* s_model_;        // folding model
   Fold::Decoder* s_decoder_;    // folding decoder
-  Fold::Decoder* s_decoder1_;    // folding decoder for the conclusive folding
+  Fold::Decoder* s_decoder1_;    // folding decoder for the final folding
   std::vector<Fasta> fa_;       // input sequences
   std::vector<std::vector<MP> > mp_; // alignment matching probability matrices
   std::vector<BP> bp_;          // base-pairing probability matrices
@@ -747,13 +735,10 @@ output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN
   project_alignment(aln, aln1, aln2, z);
   VU xx, yy;
   project_secondary_structure(xx, yy, x, y, z);
-  const uint L=aln[0].second.size();
 
-  std::string x_str(L, '.'), y_str(L, '.');
-  for (uint i=0; i!=L; ++i)
-    if (xx[i]!=-1u) { x_str[i]='('; x_str[xx[i]]=')'; }
-  for (uint k=0; k!=L; ++k)
-    if (yy[k]!=-1u) { y_str[k]='('; y_str[yy[k]]=')'; }
+  std::string x_str, y_str;
+  s_decoder_->make_parenthsis(xx, x_str);
+  s_decoder_->make_parenthsis(yy, y_str);
   
   output(std::cout, aln.begin(), aln.begin()+aln1.size());
   std::cout << x_str << std::endl;
@@ -832,7 +817,7 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 
   return w_*s_score + a_score;
 #else
-  return s;                     // this score is probably incorrect, but gives good approximation.
+  return s; // this is the minimized upper bound of the exact score.
 #endif
 }
 
@@ -1328,22 +1313,6 @@ refine(VU& ss, ALN& aln) const
 
 void
 Dusaf::
-output(std::ostream& os, const ALN& aln, const VU& ss) const
-{
-  os << ">SS_cons" << std::endl;
-  std::string s(ss.size(), '.');
-  for (uint i=0; i!=ss.size(); ++i)
-    if (ss[i]!=-1u)
-    {
-      s[i]='(';
-      s[ss[i]]=')';
-    }
-  std::cout << s << std::endl;
-  output(os, aln);
-}
-
-void
-Dusaf::
 output(std::ostream& os, const ALN& aln) const
 {
   output(os, aln.begin(), aln.end());
@@ -1514,17 +1483,22 @@ run()
     }
   }
 
+  std::string str;
   if (s_decoder1_)
   {
     // compute the common secondary structures from the averaged base-pairing matrix
     VVF p;
     average_basepairing_probability(p, aln, use_alifold1_);
-    s_decoder1_->decode(p, ss);
+    s_decoder1_->decode(p, ss, str);
   }
+  else
+    s_decoder_->make_parenthsis(ss, str);
   
   // output the alignment
   std::sort(aln.begin(), aln.end());
-  output(std::cout, aln, ss);
+  std::cout << ">SS_cons" << std::endl
+            << str << std::endl;
+  output(std::cout, aln);
 
   return 0;
 }

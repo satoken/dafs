@@ -8,9 +8,13 @@
 #include <cassert>
 #include <stack>
 
+static
+std::string
+make_parenthsis(const VU& ss);
+
 float
 Nussinov::
-decode(const VVF& p, const VVF& q, VU& ss) const
+decode(const VVF& p, const VVF& q, VU& ss)
 {
   uint L=p.size();
   assert(p[0].size()==L);
@@ -93,7 +97,7 @@ decode(const VVF& p, const VVF& q, VU& ss) const
 
 float
 Nussinov::
-decode(const VVF& p, VU& ss) const
+decode(const VVF& p, VU& ss, std::string& str)
 {
   uint L=p.size();
   assert(p[0].size()==L);
@@ -171,12 +175,21 @@ decode(const VVF& p, VU& ss) const
         break;
     }
   }
+
+  make_parenthsis(ss, str);
   return dp[0][L-1];
+}
+
+void
+Nussinov::
+make_parenthsis(const VU& ss, std::string& str) const
+{
+  str=::make_parenthsis(ss);
 }
 
 float
 SparseNussinov::
-decode(const VVF& p, const VVF& q, VU& ss) const
+decode(const VVF& p, const VVF& q, VU& ss)
 {
   uint L=p.size();
   assert(p[0].size()==L);
@@ -269,7 +282,7 @@ decode(const VVF& p, const VVF& q, VU& ss) const
 
 float
 SparseNussinov::
-decode(const VVF& p, VU& ss) const
+decode(const VVF& p, VU& ss, std::string& str)
 {
   uint L=p.size();
   assert(p[0].size()==L);
@@ -357,5 +370,27 @@ decode(const VVF& p, VU& ss) const
     }
   }
 
+  make_parenthsis(ss, str);
   return dp[0][L-1];
+}
+
+void
+SparseNussinov::
+make_parenthsis(const VU& ss, std::string& str) const
+{
+  str=::make_parenthsis(ss);
+}
+
+static
+std::string
+make_parenthsis(const VU& ss)
+{
+  std::string s(ss.size(), '.');
+  for (uint i=0; i!=ss.size(); ++i)
+    if (ss[i]!=-1u)
+    {
+      s[i]='(';
+      s[ss[i]]=')';
+    }
+  return s;
 }

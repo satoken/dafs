@@ -9,8 +9,9 @@ class Nussinov : public Fold::Decoder
 {
 public:
   Nussinov(float w, float th) : Fold::Decoder(), w_(w), th_(th) { }
-  float decode(const VVF& p, const VVF& q, VU& ss) const;
-  float decode(const VVF& p, VU& ss) const;
+  float decode(const VVF& p, const VVF& q, VU& ss);
+  float decode(const VVF& p, VU& ss, std::string& str);
+  void make_parenthsis(const VU& ss, std::string& str) const;
 
 private:
   float w_;
@@ -21,8 +22,9 @@ class SparseNussinov : public Fold::Decoder
 {
 public:
   SparseNussinov(float w, float th) : Fold::Decoder(), w_(w), th_(th) { }
-  float decode(const VVF& p, const VVF& q, VU& ss) const;
-  float decode(const VVF& p, VU& ss) const;
+  float decode(const VVF& p, const VVF& q, VU& ss);
+  float decode(const VVF& p, VU& ss, std::string& str);
+  void make_parenthsis(const VU& ss, std::string& str) const;
 
 private:
   float w_;

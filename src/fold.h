@@ -29,8 +29,9 @@ namespace Fold
   public:
     Decoder() { }
     virtual ~Decoder() { }
-    virtual float decode(const VVF& p, const VVF& q, VU& ss) const = 0;
-    virtual float decode(const VVF& p, VU& ss) const = 0;
+    virtual float decode(const VVF& p, const VVF& q, VU& ss) = 0;
+    virtual float decode(const VVF& p, VU& ss, std::string& str) = 0;
+    virtual void make_parenthsis(const VU& ss, std::string& str) const = 0;
   };
 }
 
