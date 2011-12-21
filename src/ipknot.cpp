@@ -44,7 +44,7 @@ IPknot(float w, const VF& th, int n_th /*=1*/)
     alpha_(th_.size(), 1.0/th_.size()),
     levelwise_(true),
     stacking_constraints_(true),
-    ip_(IP::MAX, n_th)
+    n_th_(n_th)
 {
 }
 
@@ -52,18 +52,20 @@ float
 IPknot::
 decode(const VVF& p, const VVF& q, VU& ss)
 {
-  make_objective(p, q);
-  make_constraints();
-  return solve(ss);
+  IP ip(IP::MAX, n_th_);
+  make_objective(ip, p, q);
+  make_constraints(ip);
+  return solve(ip, ss);
 }
 
 float
 IPknot::
 decode(const VVF& p, VU& ss, std::string& str)
 {
-  make_objective(p);
-  make_constraints();
-  float s=solve(ss);
+  IP ip(IP::MAX, n_th_);
+  make_objective(ip, p);
+  make_constraints(ip);
+  float s=solve(ip, ss);
   str=::make_parenthsis(ss, plevel_);
   return s;
 }
@@ -79,7 +81,7 @@ make_parenthsis(const VU& ss, std::string& str) const
 
 void
 IPknot::
-make_objective(const VVF& p, const VVF& q) 
+make_objective(IP& ip, const VVF& p, const VVF& q) 
 {
   const uint L=p.size();
   const uint P=th_.size();
@@ -97,18 +99,18 @@ make_objective(const VVF& p, const VVF& q)
         float s=weight_*(p[i][j]-th_[lv])-q[i][j];
         if (s>0.0)
         {
-          v_[lv][i][j] = ip_.make_variable(s*alpha_[lv]);
+          v_[lv][i][j] = ip.make_variable(s*alpha_[lv]);
           w_[lv][i].push_back(j);
         }
       }
     }
   }
-  ip_.update();
+  ip.update();
 }
 
 void
 IPknot::
-make_objective(const VVF& p) 
+make_objective(IP& ip, const VVF& p) 
 {
   const uint L=p.size();
   const uint P=th_.size();
@@ -126,18 +128,18 @@ make_objective(const VVF& p)
         float s=p[i][j]-th_[lv];
         if (s>0.0)
         {
-          v_[lv][i][j] = ip_.make_variable(s*alpha_[lv]);
+          v_[lv][i][j] = ip.make_variable(s*alpha_[lv]);
           w_[lv][i].push_back(j);
         }
       }
     }
   }
-  ip_.update();
+  ip.update();
 }
 
 void
 IPknot::
-make_constraints()
+make_constraints(IP& ip)
 {
   const uint L=v_[0].size();
   const uint P=th_.size();
@@ -145,15 +147,15 @@ make_constraints()
   // constraint 1: each s_i is paired with at most one base
   for (uint i=0; i!=L; ++i)
   {
-    int row = ip_.make_constraint(IP::UP, 0, 1);
+    int row = ip.make_constraint(IP::UP, 0, 1);
     for (uint lv=0; lv!=P; ++lv)
     {
       for (uint j=0; j<i; ++j)
         if (v_[lv][j][i]>=0)
-          ip_.add_constraint(row, v_[lv][j][i], 1);
+          ip.add_constraint(row, v_[lv][j][i], 1);
       for (uint j=i+1; j<L; ++j)
         if (v_[lv][i][j]>=0)
-          ip_.add_constraint(row, v_[lv][i][j], 1);
+          ip.add_constraint(row, v_[lv][i][j], 1);
     }
   }
 
@@ -171,9 +173,9 @@ make_constraints()
               uint l=w_[lv][k][q];
               if (j<l)
               {
-                int row = ip_.make_constraint(IP::UP, 0, 1);
-                ip_.add_constraint(row, v_[lv][i][j], 1);
-                ip_.add_constraint(row, v_[lv][k][l], 1);
+                int row = ip.make_constraint(IP::UP, 0, 1);
+                ip.add_constraint(row, v_[lv][i][j], 1);
+                ip.add_constraint(row, v_[lv][k][l], 1);
               }
             }
         }
@@ -186,21 +188,21 @@ make_constraints()
           uint l=w_[lv][k][q];
           for (uint plv=0; plv!=lv; ++plv)
           {
-            int row = ip_.make_constraint(IP::LO, 0, 0);
-            ip_.add_constraint(row, v_[lv][k][l], -1);
+            int row = ip.make_constraint(IP::LO, 0, 0);
+            ip.add_constraint(row, v_[lv][k][l], -1);
             for (uint i=0; i<k; ++i)
               for (uint p=0; p<w_[plv][i].size(); ++p)
               {
                 uint j=w_[plv][i][p];
                 if (k<j && j<l)
-                  ip_.add_constraint(row, v_[plv][i][j], 1);
+                  ip.add_constraint(row, v_[plv][i][j], 1);
               }
             for (uint i=k+1; i<l; ++i)
               for (uint p=0; p<w_[plv][i].size(); ++p)
               {
                 uint j=w_[plv][i][p];
                 if (l<j)
-                  ip_.add_constraint(row, v_[plv][i][j], 1);
+                  ip.add_constraint(row, v_[plv][i][j], 1);
               }
           }
         }
@@ -213,35 +215,35 @@ make_constraints()
       // upstream
       for (uint i=0; i<L; ++i)
       {
-        int row = ip_.make_constraint(IP::LO, 0, 0);
+        int row = ip.make_constraint(IP::LO, 0, 0);
         for (uint j=0; j<i; ++j)
           if (v_[lv][j][i]>=0)
-            ip_.add_constraint(row, v_[lv][j][i], -1);
+            ip.add_constraint(row, v_[lv][j][i], -1);
         if (i>0)
           for (uint j=0; j<i-1; ++j)
             if (v_[lv][j][i-1]>=0)
-              ip_.add_constraint(row, v_[lv][j][i-1], 1);
+              ip.add_constraint(row, v_[lv][j][i-1], 1);
         if (i+1<L)
           for (uint j=0; j<i+1; ++j)
             if (v_[lv][j][i+1]>=0)
-              ip_.add_constraint(row, v_[lv][j][i+1], 1);
+              ip.add_constraint(row, v_[lv][j][i+1], 1);
       }
 
       // downstream
       for (uint i=0; i<L; ++i)
       {
-        int row = ip_.make_constraint(IP::LO, 0, 0);
+        int row = ip.make_constraint(IP::LO, 0, 0);
         for (uint j=i+1; j<L; ++j)
           if (v_[lv][i][j]>=0)
-            ip_.add_constraint(row, v_[lv][i][j], -1);
+            ip.add_constraint(row, v_[lv][i][j], -1);
         if (i>0)
           for (uint j=i; j<L; ++j)
             if (v_[lv][i-1][j]>=0)
-              ip_.add_constraint(row, v_[lv][i-1][j], 1);
+              ip.add_constraint(row, v_[lv][i-1][j], 1);
         if (i+1<L)
           for (uint j=i+2; j<L; ++j)
             if (v_[lv][i+1][j]>=0)
-              ip_.add_constraint(row, v_[lv][i+1][j], 1);
+              ip.add_constraint(row, v_[lv][i+1][j], 1);
       }
     }
   }
@@ -249,13 +251,13 @@ make_constraints()
 
 float
 IPknot::
-solve(VU& ss)
+solve(IP& ip, VU& ss)
 {
   const uint L=v_[0].size();
   const uint P=th_.size();
 
   // execute optimization
-  float s=ip_.solve();
+  float s=ip.solve();
 
   // build the result
   ss.resize(L);
@@ -266,7 +268,7 @@ solve(VU& ss)
   {
     for (uint i=0; i<L; ++i)
       for (uint j=i+1; j<L; ++j)
-        if (v_[lv][i][j]>=0 && ip_.get_value(v_[lv][i][j])>0.5)
+        if (v_[lv][i][j]>=0 && ip.get_value(v_[lv][i][j])>0.5)
         {
           ss[i]=j; ss[j]=i;
           plevel_[i]=plevel_[j]=lv;

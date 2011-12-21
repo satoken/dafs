@@ -44,3 +44,5 @@ option "fold-th1"	T "Threshold for base-pairing probabilities of the conclusive 
        			  float optional multiple
 option "gamma1"		G "Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))"
        			  float optional hidden multiple
+option "ipknot"		- "use IPknot decoding"
+       			  flag off

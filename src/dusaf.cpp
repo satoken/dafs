@@ -12,6 +12,7 @@
 #include "fa.h"
 #include "fold.h"
 #include "nussinov.h"
+#include "ipknot.h"
 #include "align.h"
 #include "needleman_wunsch.h"
 #include "ip.h"
@@ -83,7 +84,8 @@ private:
   float solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
               const ALN& aln1, const ALN& aln2) const
   {
-#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
+//#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
+#if 0
     return t_max_!=0 ?
       solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : 
       solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2) ;
@@ -109,7 +111,7 @@ private:
   uint n_refinement_;           // the number of the iterative refinement
   uint t_max_;                  // the maximum number of the iteration of the subgradient update
   float th_a_;                  // the threshold for base-pairing probabilities
-  float th_s_;                  // the threshold for alignment matching probabilities
+  VF th_s_;                     // the threshold for alignment matching probabilities
   float w_;                     // the weight for base pairs in the objective function
   float eta0_;                  // the initial step width of the subgradient update
   Align::Model* a_model_;       // alignment model
@@ -832,6 +834,9 @@ solve_by_dd(VU& x, VU& y, VU& z,
 
   // enumerate the candidates of consensus base-pairs
   std::vector<CBP> cbp;         // consensus base-pairs
+  float min_th_s = th_s_[0];
+  for (VF::const_iterator it=th_s_.begin(); it!=th_s_.end(); ++it)
+    min_th_s = std::min(min_th_s, *it);
 #ifdef SPARSE_UPDATE
   VVU c_x(L1), c_y(L2), c_z(L1); // project consensus base-pairs into each structure and alignment
 #endif
@@ -847,7 +852,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
                 assert(p_y[k][l]<=1.0);
                 float p=(p_x[i][j]+p_y[k][l])/2;
                 float q=(p_z[i][k]+p_z[j][l])/2;
-                if (p-th_s_>0.0 && w_*(p-th_s_)+(q-th_a_)>0.0)
+                if (p-min_th_s>0.0 && w_*(p-min_th_s)+(q-th_a_)>0.0)
                 {
                   cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
 #ifdef SPARSE_UPDATE
@@ -1031,6 +1036,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
   return s_prev;
 }
 
+#if 0
 float
 Dusaf::
 solve_by_ip(VU& x, VU& y, VU& z,
@@ -1229,6 +1235,7 @@ solve_by_ip(VU& x, VU& y, VU& z,
 
   return s;
 }
+#endif
 
 void
 Dusaf::
@@ -1371,8 +1378,6 @@ parse_options(int& argc, char**& argv)
 
   // options for folding
   w_pct_s_ = args_info.fold_pct_arg;
-  th_s_ = args_info.fold_th_arg[0];
-  if (args_info.gamma_given) th_s_ = 1.0/(1.0+args_info.gamma_arg[0]);
   use_alifold_ = args_info.use_alifold_flag!=0;
   if (strcasecmp(args_info.fold_model_arg, "Boltzmann")==0)
     s_model_ = new RNAfold(true, NULL, CUTOFF);
@@ -1382,13 +1387,52 @@ parse_options(int& argc, char**& argv)
     s_model_ = new CONTRAfold(CUTOFF);
   assert(s_model_!=NULL);
 
-  s_decoder_ = new SparseNussinov(w_, th_s_);
-  if (args_info.fold_th1_given)
-    s_decoder1_ = new SparseNussinov(w_, args_info.fold_th1_arg[0]);
-  else if (args_info.gamma1_given)
-    s_decoder1_ = new SparseNussinov(w_, 1.0/(1.0+args_info.gamma1_arg[0]));
+  if (args_info.fold_th_given==0)
+  {
+    th_s_.resize(1);
+    th_s_[0] = args_info.fold_th_arg[0];
+  }
   else
-    s_decoder1_ = new SparseNussinov(w_, th_s_);
+  {
+    th_s_.resize(args_info.fold_th_given);
+    std::copy(args_info.fold_th_arg, args_info.fold_th_arg+th_s_.size(), th_s_.begin());
+  }
+  if (args_info.gamma_given!=0)
+  {
+    th_s_.resize(args_info.gamma_given);
+    for (uint i=0; i!=th_s_.size(); ++i)
+      th_s_[i] = 1.0/(1.0+args_info.gamma_arg[i]);
+  }
+
+  if (args_info.ipknot_flag==0)
+  {
+    s_decoder_ = new SparseNussinov(w_, th_s_[0]);
+    if (args_info.fold_th1_given)
+      s_decoder1_ = new SparseNussinov(w_, args_info.fold_th1_arg[0]);
+    else if (args_info.gamma1_given)
+      s_decoder1_ = new SparseNussinov(w_, 1.0/(1.0+args_info.gamma1_arg[0]));
+    else
+      s_decoder1_ = new SparseNussinov(w_, th_s_[0]);
+  }
+  else
+  {
+    s_decoder_ = new IPknot(w_, th_s_);
+    if (args_info.fold_th1_given)
+    {
+      VF th(args_info.fold_th1_given);
+      std::copy(args_info.fold_th1_arg, args_info.fold_th1_arg+args_info.fold_th1_given, th.begin());
+      s_decoder1_ = new IPknot(w_, th);
+    }
+    else if (args_info.gamma1_given)
+    {
+      VF th(args_info.gamma1_given);
+      for (uint i=0; i!=th.size(); ++i)
+        th[i] = 1.0/(1.0+args_info.gamma1_arg[i]);
+      s_decoder1_ = new IPknot(w_, th);
+    }
+    else
+      s_decoder1_ = new IPknot(w_, th_s_);
+  }
 
   if (args_info.inputs_num==0)
   {

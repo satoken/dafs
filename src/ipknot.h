@@ -15,10 +15,10 @@ public:
   void make_parenthsis(const VU& ss, std::string& str) const;
 
 private:
-  void make_objective(const VVF& p, const VVF& q);
-  void make_objective(const VVF& p);
-  void make_constraints();
-  float solve(VU& ss);
+  void make_objective(IP& ip, const VVF& p, const VVF& q);
+  void make_objective(IP& ip, const VVF& p);
+  void make_constraints(IP& ip);
+  float solve(IP& ip, VU& ss);
   
 private:
   float weight_;
@@ -28,7 +28,7 @@ private:
   bool stacking_constraints_;
   std::vector<VVI> v_;
   std::vector<VVI> w_;
-  IP ip_;
+  uint n_th_;
   VU plevel_;
 };
 
