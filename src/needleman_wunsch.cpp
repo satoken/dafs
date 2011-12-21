@@ -6,6 +6,7 @@
 
 #include "needleman_wunsch.h"
 #include <cassert>
+#include <algorithm>
 
 float
 NeedlemanWunsch::
