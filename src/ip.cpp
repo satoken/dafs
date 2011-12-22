@@ -212,6 +212,7 @@ public:
   ~IPimpl()
   {
     delete cplex_;
+    env_.end();
   }
 
   int make_variable(double coef)
