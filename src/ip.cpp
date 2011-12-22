@@ -124,6 +124,7 @@ public:
   {
     env_ = new GRBEnv;
     env_->set(GRB_IntParam_Threads, n_th); // # of threads
+    env_->set(GRB_IntParam_OutputFlag, 0); // disable solver's outputs
     model_ = new GRBModel(*env_);
   }
 
