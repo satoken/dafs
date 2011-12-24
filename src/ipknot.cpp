@@ -271,7 +271,7 @@ solve(IP& ip, VU& ss)
       for (uint j=i+1; j<L; ++j)
         if (v_[lv][i][j]>=0 && ip.get_value(v_[lv][i][j])>0.5)
         {
-          ss[i]=j; ss[j]=i;
+          ss[i]=j; //ss[j]=i;
           plevel_[i]=plevel_[j]=lv;
         }
   }
