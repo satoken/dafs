@@ -84,8 +84,7 @@ private:
   float solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
               const ALN& aln1, const ALN& aln2) const
   {
-//#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
-#if 0
+#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
     return t_max_!=0 ?
       solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : 
       solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2) ;
@@ -1036,7 +1035,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
   return s_prev;
 }
 
-#if 0
+#if 1
 float
 Dusaf::
 solve_by_ip(VU& x, VU& y, VU& z,
@@ -1054,6 +1053,10 @@ solve_by_ip(VU& x, VU& y, VU& z,
   VVI v_y(L2, VI(L2, -1));
   VVI v_z(L1, VI(L2, -1));
   VI v_w;
+
+  float min_th_s = th_s_[0];
+  for (VF::const_iterator it=th_s_.begin(); it!=th_s_.end(); ++it)
+    min_th_s = std::min(min_th_s, *it);
 
   // enumerate the candidates of aligned bases
   for (uint i=0; i!=L1; ++i)
@@ -1075,14 +1078,14 @@ solve_by_ip(VU& x, VU& y, VU& z,
                 assert(p_y[k][l]<=1.0);
                 float p=(p_x[i][j]+p_y[k][l])/2;
                 float q=(p_z[i][k]+p_z[j][l])/2;
-                if (p-th_s_>0.0 && w_*(p-th_s_)+(q-th_a_)>0.0)
+                if (p-min_th_s>0.0 && w_*(p-min_th_s)+(q-th_a_)>0.0)
                 {
                   cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
                   v_w.push_back(ip.make_variable(0.0));
                   if (v_x[i][j]<0)
-                    v_x[i][j] = ip.make_variable(w_*(p_x[i][j]-th_s_));
+                    v_x[i][j] = ip.make_variable(w_*(p_x[i][j]-min_th_s));
                   if (v_y[k][l]<0)
-                    v_y[k][l] = ip.make_variable(w_*(p_y[k][l]-th_s_));
+                    v_y[k][l] = ip.make_variable(w_*(p_y[k][l]-min_th_s));
                 }
               }
   ip.update();
