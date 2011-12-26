@@ -15,6 +15,7 @@
 #include "ipknot.h"
 #include "align.h"
 #include "needleman_wunsch.h"
+#include "alifold.h"
 #include "ip.h"
 #include "typedefs.h"
 
@@ -40,8 +41,6 @@ class Dusaf
 private:
   // nodes in the guide tree
   typedef std::pair<float, std::pair<uint,uint> > node_t;
-  // alignments
-  typedef std::vector< std::pair<uint, std::vector<bool> > > ALN;
   // indices for consensus base pairs
   typedef std::pair< std::pair<uint,uint>, std::pair<uint,uint> > CBP;
   
@@ -532,40 +531,13 @@ average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold
 
   if (use_alifold)
   {
-    char** seqs = new char*[N+1];
-    seqs[N] = NULL;
-    char* str = new char[L+1];
-    char** s = seqs;
-    FOREACH (ALN::const_iterator, it, aln)
-    {
-      *s = new char[L+1];
-      for (uint i=0, j=0; i!=L; ++i)
-        (*s)[i] = it->second[i] ? fa_[it->first].seq()[j++] : '-';
-      (*s)[L] = 0;
-      ++s;
-    }
-
-    // scaling parameters to avoid overflow
-    double min_en = Vienna::alifold(seqs, str);
-    double kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
-    Vienna::pf_scale = exp(-(1.07*min_en)/kT/L);
-    Vienna::free_alifold_arrays();
-
-#ifdef HAVE_VIENNA18
-    Vienna::plist* pi;
-#else
-    Vienna::pair_info* pi;
-#endif
-    Vienna::alipf_fold(seqs, str, &pi);
-    for (uint k=0; pi[k].i!=0; ++k)
-      p[pi[k].i-1][pi[k].j-1] += pi[k].p;
-    free(pi);
-
-    Vienna::free_alipf_arrays();
-    delete[] str;
-    for (s=seqs; *s!=NULL; ++s)
-      delete[] *s;
-    delete[] seqs;
+    BP bp;
+    Alifold ali(CUTOFF);
+    ali.fold(aln, fa_, bp);
+    assert(L==bp.size());
+    for (uint i=0; i!=bp.size(); ++i)
+      for (uint j=0; j!=bp[i].size(); ++j)
+        p[i][bp[i][j].first] += bp[i][j].second;
 
     for (uint i=0; i!=L-1; ++i)
       for (uint j=i+1; j!=L; ++j)

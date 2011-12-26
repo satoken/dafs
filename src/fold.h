@@ -18,6 +18,7 @@ namespace Fold
     Model(float th) : th_(th) { }
     virtual ~Model() { }
     virtual void calculate(const std::string& seq, BP& bp) = 0;
+    virtual void calculate(const std::string& seq, const std::string& str, BP& bp) = 0;
     float threshold() const { return th_; }
 
   private:
@@ -40,6 +41,7 @@ class RNAfold : public Fold::Model
 public:
   RNAfold(bool bl, const char* param, float th);
   void calculate(const std::string& seq, BP& bp);
+  void calculate(const std::string& seq, const std::string& str, BP& bp);
 };
 
 class CONTRAfold : public Fold::Model, CONTRAFOLD::CONTRAfold<float>
@@ -47,6 +49,7 @@ class CONTRAfold : public Fold::Model, CONTRAFOLD::CONTRAfold<float>
 public:
   CONTRAfold(float th);
   void calculate(const std::string& seq, BP& bp);
+  void calculate(const std::string& seq, const std::string& str, BP& bp);
 };
 
 #endif  //  __INC_FOLD_H__

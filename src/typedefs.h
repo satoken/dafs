@@ -23,6 +23,8 @@ typedef std::vector<std::pair<uint,float> > SV; // sparse vectors
 typedef std::vector<SV> MP;
 typedef std::vector<SV> BP;
 
+typedef std::vector< std::pair<uint, std::vector<bool> > > ALN; // alignments
+
 #endif
 
 // Local Variables:
