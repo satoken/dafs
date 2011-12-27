@@ -36,7 +36,7 @@ decompose_plevel(const VU& ss, VU& plevel);
 
 static
 std::string
-make_parenthsis(const VU& ss, const VU& plevel);
+make_brackets(const VU& ss, const VU& plevel);
 
 IPknot::
 IPknot(float w, const VF& th, int n_th /*=1*/)
@@ -67,17 +67,17 @@ decode(const VVF& p, VU& ss, std::string& str)
   make_objective(ip, p);
   make_constraints(ip);
   float s=solve(ip, ss);
-  str=::make_parenthsis(ss, plevel_);
+  str=::make_brackets(ss, plevel_);
   return s;
 }
 
 void
 IPknot::
-make_parenthsis(const VU& ss, std::string& str) const
+make_brackets(const VU& ss, std::string& str) const
 {
   VU plevel;
   decompose_plevel(ss, plevel);
-  str=::make_parenthsis(ss, plevel);
+  str=::make_brackets(ss, plevel);
 }
 
 void
@@ -298,7 +298,7 @@ struct cmp_by_count : public std::less<int>
 static void
 decompose_plevel(const VU& ss, VU& plevel)
 {
-  // resolve the symbol of parenthsis by the graph coloring problem
+  // resolve the symbol of brackets by the graph coloring problem
   uint L=ss.size();
     
   // make an adjacent graph, in which pseudoknotted base-pairs are connected.
@@ -360,12 +360,8 @@ decompose_plevel(const VU& ss, VU& plevel)
 
 static
 std::string
-make_parenthsis(const VU& ss, const VU& plevel)
+make_brackets(const VU& ss, const VU& plevel) 
 {
-  const uint n_support_parens=4;
-  const char* left_paren="([{<";
-  const char* right_paren=")]}>";
-
   std::string r(ss.size(), '.');
   for (uint i=0; i!=ss.size(); ++i)
   {
@@ -373,15 +369,10 @@ make_parenthsis(const VU& ss, const VU& plevel)
     {
       uint j=ss[i];
       assert(plevel[i]!=-1u);
-      if (plevel[i]<n_support_parens)
+      if (plevel[i]<Fold::Decoder::n_support_brackets)
       {
-        r[i]=left_paren[plevel[i]];
-        r[j]=right_paren[plevel[i]];
-      }
-      else if (plevel[i]<n_support_parens+'Z'-'A'+1)
-      {
-        r[i]='A'+plevel[i]-n_support_parens;
-        r[j]='a'+plevel[i]-n_support_parens;
+        r[i]=Fold::Decoder::left_brackets[plevel[i]];
+        r[j]=Fold::Decoder::right_brackets[plevel[i]];
       }
     }
   }

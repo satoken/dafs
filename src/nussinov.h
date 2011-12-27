@@ -11,7 +11,7 @@ public:
   Nussinov(float w, float th) : Fold::Decoder(), w_(w), th_(th) { }
   float decode(const VVF& p, const VVF& q, VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
-  void make_parenthsis(const VU& ss, std::string& str) const;
+  void make_brackets(const VU& ss, std::string& str) const;
 
 private:
   float w_;
@@ -24,7 +24,7 @@ public:
   SparseNussinov(float w, float th) : Fold::Decoder(), w_(w), th_(th) { }
   float decode(const VVF& p, const VVF& q, VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
-  void make_parenthsis(const VU& ss, std::string& str) const;
+  void make_brackets(const VU& ss, std::string& str) const;
 
 private:
   float w_;

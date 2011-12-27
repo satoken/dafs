@@ -54,6 +54,7 @@ const char *gengetopt_args_info_full_help[] = {
   "  -T, --fold-th1=FLOAT      Threshold for base-pairing probabilities of the \n                              conclusive common secondary structures",
   "  -G, --gamma1=FLOAT        Specify the threshold for base-pairing \n                              probabilities of the conclusive common secondary \n                              structuresby 1/(gamma+1))",
   "      --ipknot              use IPknot decoding  (default=off)",
+  "      --bp-update           use the iterative update for BPs  (default=off)",
     0
 };
 
@@ -80,11 +81,12 @@ init_help_array(void)
   gengetopt_args_info_help[17] = gengetopt_args_info_full_help[18];
   gengetopt_args_info_help[18] = gengetopt_args_info_full_help[19];
   gengetopt_args_info_help[19] = gengetopt_args_info_full_help[21];
-  gengetopt_args_info_help[20] = 0; 
+  gengetopt_args_info_help[20] = gengetopt_args_info_full_help[22];
+  gengetopt_args_info_help[21] = 0; 
   
 }
 
-const char *gengetopt_args_info_help[21];
+const char *gengetopt_args_info_help[22];
 
 typedef enum {ARG_NO
   , ARG_FLAG
@@ -134,6 +136,7 @@ void clear_given (struct gengetopt_args_info *args_info)
   args_info->fold_th1_given = 0 ;
   args_info->gamma1_given = 0 ;
   args_info->ipknot_given = 0 ;
+  args_info->bp_update_given = 0 ;
 }
 
 static
@@ -172,6 +175,7 @@ void clear_args (struct gengetopt_args_info *args_info)
   args_info->gamma1_arg = NULL;
   args_info->gamma1_orig = NULL;
   args_info->ipknot_flag = 0;
+  args_info->bp_update_flag = 0;
   
 }
 
@@ -208,6 +212,7 @@ void init_args_info(struct gengetopt_args_info *args_info)
   args_info->gamma1_min = 0;
   args_info->gamma1_max = 0;
   args_info->ipknot_help = gengetopt_args_info_full_help[21] ;
+  args_info->bp_update_help = gengetopt_args_info_full_help[22] ;
   
 }
 
@@ -487,6 +492,8 @@ cmdline_parser_dump(FILE *outfile, struct gengetopt_args_info *args_info)
   write_multiple_into_file(outfile, args_info->gamma1_given, "gamma1", args_info->gamma1_orig, 0);
   if (args_info->ipknot_given)
     write_into_file(outfile, "ipknot", 0, 0 );
+  if (args_info->bp_update_given)
+    write_into_file(outfile, "bp-update", 0, 0 );
   
 
   i = EXIT_SUCCESS;
@@ -1091,6 +1098,7 @@ cmdline_parser_internal (
         { "fold-th1",	1, NULL, 'T' },
         { "gamma1",	1, NULL, 'G' },
         { "ipknot",	0, NULL, 0 },
+        { "bp-update",	0, NULL, 0 },
         { 0,  0, 0, 0 }
       };
 
@@ -1306,6 +1314,18 @@ cmdline_parser_internal (
             if (update_arg((void *)&(args_info->ipknot_flag), 0, &(args_info->ipknot_given),
                 &(local_args_info.ipknot_given), optarg, 0, 0, ARG_FLAG,
                 check_ambiguity, override, 1, 0, "ipknot", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          /* use the iterative update for BPs.  */
+          else if (strcmp (long_options[option_index].name, "bp-update") == 0)
+          {
+          
+          
+            if (update_arg((void *)&(args_info->bp_update_flag), 0, &(args_info->bp_update_given),
+                &(local_args_info.bp_update_given), optarg, 0, 0, ARG_FLAG,
+                check_ambiguity, override, 1, 0, "bp-update", '-',
                 additional_error))
               goto failure;
           

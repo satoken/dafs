@@ -10,7 +10,7 @@
 
 static
 std::string
-make_parenthsis(const VU& ss);
+make_brackets(const VU& ss);
 
 float
 Nussinov::
@@ -176,15 +176,15 @@ decode(const VVF& p, VU& ss, std::string& str)
     }
   }
 
-  make_parenthsis(ss, str);
+  make_brackets(ss, str);
   return dp[0][L-1];
 }
 
 void
 Nussinov::
-make_parenthsis(const VU& ss, std::string& str) const
+make_brackets(const VU& ss, std::string& str) const
 {
-  str=::make_parenthsis(ss);
+  str=::make_brackets(ss);
 }
 
 float
@@ -370,27 +370,27 @@ decode(const VVF& p, VU& ss, std::string& str)
     }
   }
 
-  make_parenthsis(ss, str);
+  make_brackets(ss, str);
   return dp[0][L-1];
 }
 
 void
 SparseNussinov::
-make_parenthsis(const VU& ss, std::string& str) const
+make_brackets(const VU& ss, std::string& str) const
 {
-  str=::make_parenthsis(ss);
+  str=::make_brackets(ss);
 }
 
 static
 std::string
-make_parenthsis(const VU& ss)
+make_brackets(const VU& ss)
 {
   std::string s(ss.size(), '.');
   for (uint i=0; i!=ss.size(); ++i)
     if (ss[i]!=-1u)
     {
-      s[i]='(';
-      s[ss[i]]=')';
+      s[i]=Fold::Decoder::left_brackets[0];
+      s[ss[i]]=Fold::Decoder::right_brackets[0];
     }
   return s;
 }

@@ -78,6 +78,7 @@ private:
   void project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& z) const;
   void average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const;
   void average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const;
+  void update_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const;
   void align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const;
   float align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const;
   float solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
@@ -124,6 +125,7 @@ private:
   std::vector<node_t> tree_;    // guide tree
   bool use_alifold_;
   bool use_alifold1_;
+  bool use_bp_update_;
   // bool use_bpscore_;
   uint verbose_;
 };
@@ -513,6 +515,7 @@ void
 Dusaf::
 average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const
 {
+  // calculate an averaged base-pairing probabilities
   const uint L=aln.front().second.size();
   const uint N=aln.size();
   VVF p(L, VF(L, 0.0));
@@ -529,6 +532,7 @@ average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold
         p[idx[i]][idx[bp[i][j].first]] += bp[i][j].second/N;
   }
 
+  // mix base-pairing probabilities by alifold and averaged base-pairing probabilities
   if (use_alifold)
   {
     BP bp;
@@ -544,6 +548,109 @@ average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold
         p[i][j] /= 2;
   }
 
+  // cut off
+  for (uint i=0; i!=L-1; ++i)
+    for (uint j=i+1; j!=L; ++j)
+    {
+      if (p[i][j]<=CUTOFF) p[i][j]=0.0;
+      assert(p[i][j]<=1.0);
+    }
+  std::swap(p, posterior);
+}
+
+void
+Dusaf::
+update_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const
+{
+  // predict the common secondary structure which is used for constraints for the next step
+  std::string str;
+  VU ss;
+  s_decoder_->decode(posterior, ss, str);
+  
+  const uint L=aln.front().second.size();
+  const uint N=aln.size();
+  const uint plevel=th_s_.size();
+  VVF p(L, VF(L, 0.0));
+
+  // calculate an averaged base-pairing probabilities
+  //   which are constrained by the previous prediction
+  FOREACH (ALN::const_iterator, it, aln)
+  {
+    assert(L==it->second.size());
+    // calculate the mapping 
+    uint s=it->first;
+    VU idx(fa_[s].size()); // from the sequence to the alignment
+    VU rev(L, -1u);        // from the alignment to the sequence
+    for (uint i=0, j=0; i!=L; ++i)
+      if (it->second[i])
+      {
+        idx[j]=i;
+        rev[i]=j;
+        j++;
+      }
+
+    for (uint plv=0; plv!=plevel; ++plv)
+    {
+      // make the constraint from the prediction
+      std::string con(fa_[s].size(), '?');
+      for (uint i=0; i!=L; ++i)
+      {
+        if (ss[i]!=-1u && rev[i]!=-1u && rev[ss[i]]!=-1u)
+          if (str[i]==Fold::Decoder::left_brackets[plv])
+          {
+            con[rev[i]]='('; con[rev[ss[i]]]=')';
+          }
+          else
+          {
+            con[rev[i]]=con[rev[ss[i]]]='.';
+          }
+      }
+
+      // calculate base-pairing probabilities under the constraint
+      BP bp;
+      s_model_->calculate(fa_[s].seq(), con, bp);
+      for (uint i=0; i!=bp.size(); ++i)
+        for (uint j=0; j!=bp[i].size(); ++j)
+          p[idx[i]][idx[bp[i][j].first]] += bp[i][j].second/N;
+    }
+  }
+
+  // mix base-pairing probabilities by alifold and averaged base-pairing probabilities
+  if (use_alifold)
+  {
+    for (uint plv=0; plv!=plevel; ++plv)
+    {
+      // make the constraint from the prediction
+      std::string con(L, '?');
+      for (uint i=0; i!=L; ++i)
+      {
+        if (ss[i]!=-1u)
+          if (str[i]==Fold::Decoder::left_brackets[plv])
+          {
+            con[i]='('; con[ss[i]]=')';
+          }
+          else
+          {
+            con[i]=con[ss[i]]='.';
+          }
+      }
+
+      // calculate base-pairing probabilities under the constraint
+      BP bp;
+      Alifold ali(CUTOFF);
+      ali.fold(aln, fa_, con, bp);
+      assert(L==bp.size());
+      for (uint i=0; i!=bp.size(); ++i)
+        for (uint j=0; j!=bp[i].size(); ++j)
+          p[i][bp[i][j].first] += bp[i][j].second;
+    }
+
+    for (uint i=0; i!=L-1; ++i)
+      for (uint j=i+1; j!=L; ++j)
+        p[i][j] /= 2;
+  }
+
+  // cut off
   for (uint i=0; i!=L-1; ++i)
     for (uint j=i+1; j!=L; ++j)
     {
@@ -710,8 +817,8 @@ output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN
   project_secondary_structure(xx, yy, x, y, z);
 
   std::string x_str, y_str;
-  s_decoder_->make_parenthsis(xx, x_str);
-  s_decoder_->make_parenthsis(yy, y_str);
+  s_decoder_->make_brackets(xx, x_str);
+  s_decoder_->make_brackets(yy, y_str);
   
   output(std::cout, aln.begin(), aln.begin()+aln1.size());
   std::cout << x_str << std::endl;
@@ -748,6 +855,11 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   VVF p_x, p_y, p_z;
   average_basepairing_probability(p_x, aln1, use_alifold_);
   average_basepairing_probability(p_y, aln2, use_alifold_);
+  if (use_bp_update_)
+  {
+    update_basepairing_probability(p_x, aln1, use_alifold_);
+    update_basepairing_probability(p_y, aln2, use_alifold_);
+  }
   average_matching_probability(p_z, aln1, aln2);
 
   // solve the problem
@@ -1409,6 +1521,8 @@ parse_options(int& argc, char**& argv)
       s_decoder1_ = new IPknot(w_, th_s_);
   }
 
+  use_bp_update_ = args_info.bp_update_flag!=0;
+
   if (args_info.inputs_num==0)
   {
     cmdline_parser_print_help();
@@ -1508,10 +1622,12 @@ run()
     // compute the common secondary structures from the averaged base-pairing matrix
     VVF p;
     average_basepairing_probability(p, aln, use_alifold1_);
+    if (use_bp_update_)
+      update_basepairing_probability(p, aln, use_alifold1_);
     s_decoder1_->decode(p, ss, str);
   }
   else
-    s_decoder_->make_parenthsis(ss, str);
+    s_decoder_->make_brackets(ss, str);
   
   // output the alignment
   std::sort(aln.begin(), aln.end());

@@ -28,11 +28,16 @@ namespace Fold
   class Decoder
   {
   public:
+    static const uint n_support_brackets;
+    static const char* left_brackets;
+    static const char* right_brackets;
+
+  public:
     Decoder() { }
     virtual ~Decoder() { }
     virtual float decode(const VVF& p, const VVF& q, VU& ss) = 0;
     virtual float decode(const VVF& p, VU& ss, std::string& str) = 0;
-    virtual void make_parenthsis(const VU& ss, std::string& str) const = 0;
+    virtual void make_brackets(const VU& ss, std::string& str) const = 0;
   };
 }
 

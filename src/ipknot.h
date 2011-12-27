@@ -12,7 +12,7 @@ public:
   IPknot(float w, const VF& th, int n_th = 1);
   float decode(const VVF& p, const VVF& q, VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
-  void make_parenthsis(const VU& ss, std::string& str) const;
+  void make_brackets(const VU& ss, std::string& str) const;
 
 private:
   void make_objective(IP& ip, const VVF& p, const VVF& q);
@@ -33,3 +33,7 @@ private:
 };
 
 #endif  //  __INC_IPKNOT_H__
+
+// Local Variables:
+// mode: C++
+// End:

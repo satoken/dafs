@@ -23,6 +23,12 @@ extern "C" {
 #include "boltzmann_param.h"
 };
 
+// some constants
+const uint Fold::Decoder::n_support_brackets=4+26;
+const char* Fold::Decoder::left_brackets ="([{<ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const char* Fold::Decoder::right_brackets=")]}>abcdefghijklmnopqrstuvwxyz";
+
+
 RNAfold::
 RNAfold(bool bl, const char* param, float th)
   : Fold::Model(th)

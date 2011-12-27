@@ -25,3 +25,7 @@ private:
 };
 
 #endif  //  __INC_ALIFOLD_H__
+
+// Local Variables:
+// mode: C++
+// End:
