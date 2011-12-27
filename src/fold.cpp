@@ -5,6 +5,7 @@
 #endif
 
 #include "fold.h"
+#include <algorithm>
 
 namespace Vienna {
 extern "C" {
