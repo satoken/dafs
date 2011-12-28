@@ -536,7 +536,7 @@ average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold
   if (use_alifold)
   {
     BP bp;
-    Alifold ali(CUTOFF);
+    Alifold ali(0.0 /*CUTOFF*/);
     ali.fold(aln, fa_, bp);
     assert(L==bp.size());
     for (uint i=0; i!=bp.size(); ++i)
@@ -637,7 +637,7 @@ update_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold)
 
       // calculate base-pairing probabilities under the constraint
       BP bp;
-      Alifold ali(CUTOFF);
+      Alifold ali(0.0 /*CUTOFF*/);
       ali.fold(aln, fa_, con, bp);
       assert(L==bp.size());
       for (uint i=0; i!=bp.size(); ++i)

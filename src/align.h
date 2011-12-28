@@ -22,11 +22,13 @@ namespace Align
     Model(float th) : th_(th) { }
     virtual ~Model() { }
     virtual void calculate(const std::string& seq1, const std::string& seq2, MP& mp) = 0;
+#if 0
     virtual void calculate(const std::string& seq1, const std::string& seq2,
                            const BP& bp1, const BP& bp2, MP& mp)
     {
       return calculate(seq1, seq2, mp);
     }
+#endif
     float threshold() const { return th_; };
 
   private:
