@@ -126,6 +126,7 @@ private:
   bool use_alifold_;
   bool use_alifold1_;
   bool use_bp_update_;
+  bool use_bp_update1_;
   // bool use_bpscore_;
   uint verbose_;
 };
@@ -1522,6 +1523,10 @@ parse_options(int& argc, char**& argv)
   }
 
   use_bp_update_ = args_info.bp_update_flag!=0;
+  if (args_info.bp_update1_given)
+    use_bp_update1_ = args_info.bp_update1_flag!=0;
+  else
+    use_bp_update1_ = use_bp_update_;
 
   if (args_info.inputs_num==0)
   {
@@ -1622,7 +1627,7 @@ run()
     // compute the common secondary structures from the averaged base-pairing matrix
     VVF p;
     average_basepairing_probability(p, aln, use_alifold1_);
-    if (use_bp_update_)
+    if (use_bp_update1_)
       update_basepairing_probability(p, aln, use_alifold1_);
     s_decoder1_->decode(p, ss, str);
   }

@@ -46,5 +46,7 @@ option "gamma1"		G "Specify the threshold for base-pairing probabilities of the 
        			  float optional hidden multiple
 option "ipknot"		- "use IPknot decoding"
        			  flag off
-option "bp-update"	- "use the iterative update for BPs"
+option "bp-update"	- "use the iterative update of BPs"
+       			  flag off
+option "bp-update1"	- "use the iterative update of BPs for the final prediction"
        			  flag off

@@ -101,8 +101,10 @@ struct gengetopt_args_info
   const char *gamma1_help; /**< @brief Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1)) help description.  */
   int ipknot_flag;	/**< @brief use IPknot decoding (default=off).  */
   const char *ipknot_help; /**< @brief use IPknot decoding help description.  */
-  int bp_update_flag;	/**< @brief use the iterative update for BPs (default=off).  */
-  const char *bp_update_help; /**< @brief use the iterative update for BPs help description.  */
+  int bp_update_flag;	/**< @brief use the iterative update of BPs (default=off).  */
+  const char *bp_update_help; /**< @brief use the iterative update of BPs help description.  */
+  int bp_update1_flag;	/**< @brief use the iterative update of BPs for the final prediction (default=off).  */
+  const char *bp_update1_help; /**< @brief use the iterative update of BPs for the final prediction help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int full_help_given ;	/**< @brief Whether full-help was given.  */
@@ -125,6 +127,7 @@ struct gengetopt_args_info
   unsigned int gamma1_given ;	/**< @brief Whether gamma1 was given.  */
   unsigned int ipknot_given ;	/**< @brief Whether ipknot was given.  */
   unsigned int bp_update_given ;	/**< @brief Whether bp-update was given.  */
+  unsigned int bp_update1_given ;	/**< @brief Whether bp-update1 was given.  */
 
   char **inputs ; /**< @brief unamed options (options without names) */
   unsigned inputs_num ; /**< @brief unamed options number */
