@@ -6,6 +6,7 @@
 
 #include "align.h"
 #include <sys/errno.h>
+#include <cstring>
 #include <iostream>
 #include <fstream>
 #include <sstream>

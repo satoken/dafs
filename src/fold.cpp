@@ -6,6 +6,7 @@
 
 #include "fold.h"
 #include <cassert>
+#include <cstring>
 #include <sys/errno.h>
 #include <algorithm>
 #include <iostream>
