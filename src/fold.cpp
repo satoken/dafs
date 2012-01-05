@@ -198,9 +198,13 @@ load_bp(std::istream& is, std::vector<BP>& bp)
       ss >> i;
       if (i-1>=bp[x-1].size()) bp[x-1].resize(i);
       while (ss >> t)
+      {
         if (sscanf(t.c_str(), "%u:%f", &j, &p)==2)
+        {
           assert(i<j);
           bp[x-1][i-1].push_back(std::make_pair(j-1, p));
+        }
+      }
     }
   }
 }
@@ -216,5 +220,11 @@ calculate(const std::vector<Fasta>& fa, std::vector<BP>& bp)
     load_bp(is, bp);
   else
     throw strerror(errno);
+#ifndef NDEBUG
+  for (uint i=0; i!=fa.size(); ++i)
+  {
+    assert(bp[i].size()==fa[i].size());
+  }
+#endif
 }
   
