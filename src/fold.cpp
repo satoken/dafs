@@ -191,20 +191,16 @@ load_bp(std::istream& is, std::vector<BP>& bp)
     if (s[0]=='>')
     {
       ss >> t >> x;
-      assert(x<bp.size());
+      assert(x-1<bp.size());
     }
     else
     {
       ss >> i;
-      if (i>=bp[x].size()) bp[x].resize(i+1);
+      if (i-1>=bp[x-1].size()) bp[x-1].resize(i);
       while (ss >> t)
-      {
         if (sscanf(t.c_str(), "%u:%f", &j, &p)==2)
-        {
           assert(i<j);
-          bp[x][i].push_back(std::make_pair(j, p));
-        }
-      }
+          bp[x-1][i-1].push_back(std::make_pair(j-1, p));
     }
   }
 }

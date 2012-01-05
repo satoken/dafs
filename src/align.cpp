@@ -195,19 +195,15 @@ load_mp(std::istream& is, std::vector<std::vector<MP> >& mp)
     if (s[0]=='>')
     {
       ss >> t >> x >> y;
-      assert(x<y && x<mp.size() && y<mp[x].size());
+      assert(x<y && x-1<mp.size() && y-1<mp[x-1].size());
     }
     else
     {
       ss >> i;
-      if (i>=mp[x][y].size()) mp[x][y].resize(i+1);
+      if (i-1>=mp[x-1][y-1].size()) mp[x-1][y-1].resize(i);
       while (ss >> t)
-      {
         if (sscanf(t.c_str(), "%d:%f", &k, &p)==2)
-        {
-          mp[x][y][i].push_back(std::make_pair(k, p));
-        }
-      }
+          mp[x-1][y-1][i-1].push_back(std::make_pair(k-1, p));
     }
   }
 }
