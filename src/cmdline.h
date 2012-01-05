@@ -71,6 +71,9 @@ struct gengetopt_args_info
   float align_th_arg;	/**< @brief Threshold for matching probabilities (default='0.01').  */
   char * align_th_orig;	/**< @brief Threshold for matching probabilities original value given at command line.  */
   const char *align_th_help; /**< @brief Threshold for matching probabilities help description.  */
+  char * align_aux_arg;	/**< @brief load matching probability matrices from a specified file.  */
+  char * align_aux_orig;	/**< @brief load matching probability matrices from a specified file original value given at command line.  */
+  const char *align_aux_help; /**< @brief load matching probability matrices from a specified file help description.  */
   char * fold_model_arg;	/**< @brief Folding model for calculating base-pairing probablities (default='Boltzmann').  */
   char * fold_model_orig;	/**< @brief Folding model for calculating base-pairing probablities original value given at command line.  */
   const char *fold_model_help; /**< @brief Folding model for calculating base-pairing probablities help description.  */
@@ -105,6 +108,9 @@ struct gengetopt_args_info
   const char *bp_update_help; /**< @brief use the iterative update of BPs help description.  */
   int bp_update1_flag;	/**< @brief use the iterative update of BPs for the final prediction (default=off).  */
   const char *bp_update1_help; /**< @brief use the iterative update of BPs for the final prediction help description.  */
+  char * fold_aux_arg;	/**< @brief load base-pairing probability matrices from a specified file.  */
+  char * fold_aux_orig;	/**< @brief load base-pairing probability matrices from a specified file original value given at command line.  */
+  const char *fold_aux_help; /**< @brief load base-pairing probability matrices from a specified file help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int full_help_given ;	/**< @brief Whether full-help was given.  */
@@ -118,6 +124,7 @@ struct gengetopt_args_info
   unsigned int align_model_given ;	/**< @brief Whether align-model was given.  */
   unsigned int align_pct_given ;	/**< @brief Whether align-pct was given.  */
   unsigned int align_th_given ;	/**< @brief Whether align-th was given.  */
+  unsigned int align_aux_given ;	/**< @brief Whether align-aux was given.  */
   unsigned int fold_model_given ;	/**< @brief Whether fold-model was given.  */
   unsigned int fold_pct_given ;	/**< @brief Whether fold-pct was given.  */
   unsigned int fold_th_given ;	/**< @brief Whether fold-th was given.  */
@@ -128,6 +135,7 @@ struct gengetopt_args_info
   unsigned int ipknot_given ;	/**< @brief Whether ipknot was given.  */
   unsigned int bp_update_given ;	/**< @brief Whether bp-update was given.  */
   unsigned int bp_update1_given ;	/**< @brief Whether bp-update1 was given.  */
+  unsigned int fold_aux_given ;	/**< @brief Whether fold-aux was given.  */
 
   char **inputs ; /**< @brief unamed options (options without names) */
   unsigned inputs_num ; /**< @brief unamed options number */

@@ -45,6 +45,7 @@ const char *gengetopt_args_info_full_help[] = {
   "  -a, --align-model=STRING  Alignment model for calcualating matching \n                              probablities  (possible values=\"CONTRAlign\", \n                              \"ProbCons\" default=`ProbCons')",
   "  -p, --align-pct=FLOAT     Weight of PCT for matching probabilities  \n                              (default=`0.0')",
   "  -u, --align-th=FLOAT      Threshold for matching probabilities  \n                              (default=`0.01')",
+  "      --align-aux=STRING    load matching probability matrices from a specified \n                              file",
   "\nOptions for folding:",
   "  -s, --fold-model=STRING   Folding model for calculating base-pairing \n                              probablities  (possible values=\"Boltzmann\", \n                              \"Vienna\", \"CONTRAfold\" default=`Boltzmann')",
   "  -q, --fold-pct=FLOAT      Weight of PCT for base-pairing probabilities  \n                              (default=`0.0')",
@@ -56,6 +57,7 @@ const char *gengetopt_args_info_full_help[] = {
   "      --ipknot              use IPknot decoding  (default=off)",
   "      --bp-update           use the iterative update of BPs  (default=off)",
   "      --bp-update1          use the iterative update of BPs for the final \n                              prediction  (default=off)",
+  "      --fold-aux=STRING     load base-pairing probability matrices from a \n                              specified file",
     0
 };
 
@@ -75,15 +77,15 @@ init_help_array(void)
   gengetopt_args_info_help[10] = gengetopt_args_info_full_help[10];
   gengetopt_args_info_help[11] = gengetopt_args_info_full_help[11];
   gengetopt_args_info_help[12] = gengetopt_args_info_full_help[12];
-  gengetopt_args_info_help[13] = gengetopt_args_info_full_help[13];
-  gengetopt_args_info_help[14] = gengetopt_args_info_full_help[14];
-  gengetopt_args_info_help[15] = gengetopt_args_info_full_help[15];
-  gengetopt_args_info_help[16] = gengetopt_args_info_full_help[16];
-  gengetopt_args_info_help[17] = gengetopt_args_info_full_help[18];
-  gengetopt_args_info_help[18] = gengetopt_args_info_full_help[19];
-  gengetopt_args_info_help[19] = gengetopt_args_info_full_help[21];
-  gengetopt_args_info_help[20] = gengetopt_args_info_full_help[22];
-  gengetopt_args_info_help[21] = gengetopt_args_info_full_help[23];
+  gengetopt_args_info_help[13] = gengetopt_args_info_full_help[14];
+  gengetopt_args_info_help[14] = gengetopt_args_info_full_help[15];
+  gengetopt_args_info_help[15] = gengetopt_args_info_full_help[16];
+  gengetopt_args_info_help[16] = gengetopt_args_info_full_help[17];
+  gengetopt_args_info_help[17] = gengetopt_args_info_full_help[19];
+  gengetopt_args_info_help[18] = gengetopt_args_info_full_help[20];
+  gengetopt_args_info_help[19] = gengetopt_args_info_full_help[22];
+  gengetopt_args_info_help[20] = gengetopt_args_info_full_help[23];
+  gengetopt_args_info_help[21] = gengetopt_args_info_full_help[24];
   gengetopt_args_info_help[22] = 0; 
   
 }
@@ -130,6 +132,7 @@ void clear_given (struct gengetopt_args_info *args_info)
   args_info->align_model_given = 0 ;
   args_info->align_pct_given = 0 ;
   args_info->align_th_given = 0 ;
+  args_info->align_aux_given = 0 ;
   args_info->fold_model_given = 0 ;
   args_info->fold_pct_given = 0 ;
   args_info->fold_th_given = 0 ;
@@ -140,6 +143,7 @@ void clear_given (struct gengetopt_args_info *args_info)
   args_info->ipknot_given = 0 ;
   args_info->bp_update_given = 0 ;
   args_info->bp_update1_given = 0 ;
+  args_info->fold_aux_given = 0 ;
 }
 
 static
@@ -164,6 +168,8 @@ void clear_args (struct gengetopt_args_info *args_info)
   args_info->align_pct_orig = NULL;
   args_info->align_th_arg = 0.01;
   args_info->align_th_orig = NULL;
+  args_info->align_aux_arg = NULL;
+  args_info->align_aux_orig = NULL;
   args_info->fold_model_arg = gengetopt_strdup ("Boltzmann");
   args_info->fold_model_orig = NULL;
   args_info->fold_pct_arg = 0.0;
@@ -180,6 +186,8 @@ void clear_args (struct gengetopt_args_info *args_info)
   args_info->ipknot_flag = 0;
   args_info->bp_update_flag = 0;
   args_info->bp_update1_flag = 0;
+  args_info->fold_aux_arg = NULL;
+  args_info->fold_aux_orig = NULL;
   
 }
 
@@ -200,24 +208,26 @@ void init_args_info(struct gengetopt_args_info *args_info)
   args_info->align_model_help = gengetopt_args_info_full_help[10] ;
   args_info->align_pct_help = gengetopt_args_info_full_help[11] ;
   args_info->align_th_help = gengetopt_args_info_full_help[12] ;
-  args_info->fold_model_help = gengetopt_args_info_full_help[14] ;
-  args_info->fold_pct_help = gengetopt_args_info_full_help[15] ;
-  args_info->fold_th_help = gengetopt_args_info_full_help[16] ;
+  args_info->align_aux_help = gengetopt_args_info_full_help[13] ;
+  args_info->fold_model_help = gengetopt_args_info_full_help[15] ;
+  args_info->fold_pct_help = gengetopt_args_info_full_help[16] ;
+  args_info->fold_th_help = gengetopt_args_info_full_help[17] ;
   args_info->fold_th_min = 0;
   args_info->fold_th_max = 0;
-  args_info->gamma_help = gengetopt_args_info_full_help[17] ;
+  args_info->gamma_help = gengetopt_args_info_full_help[18] ;
   args_info->gamma_min = 0;
   args_info->gamma_max = 0;
-  args_info->use_alifold_help = gengetopt_args_info_full_help[18] ;
-  args_info->fold_th1_help = gengetopt_args_info_full_help[19] ;
+  args_info->use_alifold_help = gengetopt_args_info_full_help[19] ;
+  args_info->fold_th1_help = gengetopt_args_info_full_help[20] ;
   args_info->fold_th1_min = 0;
   args_info->fold_th1_max = 0;
-  args_info->gamma1_help = gengetopt_args_info_full_help[20] ;
+  args_info->gamma1_help = gengetopt_args_info_full_help[21] ;
   args_info->gamma1_min = 0;
   args_info->gamma1_max = 0;
-  args_info->ipknot_help = gengetopt_args_info_full_help[21] ;
-  args_info->bp_update_help = gengetopt_args_info_full_help[22] ;
-  args_info->bp_update1_help = gengetopt_args_info_full_help[23] ;
+  args_info->ipknot_help = gengetopt_args_info_full_help[22] ;
+  args_info->bp_update_help = gengetopt_args_info_full_help[23] ;
+  args_info->bp_update1_help = gengetopt_args_info_full_help[24] ;
+  args_info->fold_aux_help = gengetopt_args_info_full_help[25] ;
   
 }
 
@@ -366,6 +376,8 @@ cmdline_parser_release (struct gengetopt_args_info *args_info)
   free_string_field (&(args_info->align_model_orig));
   free_string_field (&(args_info->align_pct_orig));
   free_string_field (&(args_info->align_th_orig));
+  free_string_field (&(args_info->align_aux_arg));
+  free_string_field (&(args_info->align_aux_orig));
   free_string_field (&(args_info->fold_model_arg));
   free_string_field (&(args_info->fold_model_orig));
   free_string_field (&(args_info->fold_pct_orig));
@@ -377,6 +389,8 @@ cmdline_parser_release (struct gengetopt_args_info *args_info)
   args_info->fold_th1_arg = 0;
   free_multiple_field (args_info->gamma1_given, (void *)(args_info->gamma1_arg), &(args_info->gamma1_orig));
   args_info->gamma1_arg = 0;
+  free_string_field (&(args_info->fold_aux_arg));
+  free_string_field (&(args_info->fold_aux_orig));
   
   
   for (i = 0; i < args_info->inputs_num; ++i)
@@ -485,6 +499,8 @@ cmdline_parser_dump(FILE *outfile, struct gengetopt_args_info *args_info)
     write_into_file(outfile, "align-pct", args_info->align_pct_orig, 0);
   if (args_info->align_th_given)
     write_into_file(outfile, "align-th", args_info->align_th_orig, 0);
+  if (args_info->align_aux_given)
+    write_into_file(outfile, "align-aux", args_info->align_aux_orig, 0);
   if (args_info->fold_model_given)
     write_into_file(outfile, "fold-model", args_info->fold_model_orig, cmdline_parser_fold_model_values);
   if (args_info->fold_pct_given)
@@ -501,6 +517,8 @@ cmdline_parser_dump(FILE *outfile, struct gengetopt_args_info *args_info)
     write_into_file(outfile, "bp-update", 0, 0 );
   if (args_info->bp_update1_given)
     write_into_file(outfile, "bp-update1", 0, 0 );
+  if (args_info->fold_aux_given)
+    write_into_file(outfile, "fold-aux", args_info->fold_aux_orig, 0);
   
 
   i = EXIT_SUCCESS;
@@ -1097,6 +1115,7 @@ cmdline_parser_internal (
         { "align-model",	1, NULL, 'a' },
         { "align-pct",	1, NULL, 'p' },
         { "align-th",	1, NULL, 'u' },
+        { "align-aux",	1, NULL, 0 },
         { "fold-model",	1, NULL, 's' },
         { "fold-pct",	1, NULL, 'q' },
         { "fold-th",	1, NULL, 't' },
@@ -1107,6 +1126,7 @@ cmdline_parser_internal (
         { "ipknot",	0, NULL, 0 },
         { "bp-update",	0, NULL, 0 },
         { "bp-update1",	0, NULL, 0 },
+        { "fold-aux",	1, NULL, 0 },
         { 0,  0, 0, 0 }
       };
 
@@ -1314,6 +1334,20 @@ cmdline_parser_internal (
               goto failure;
           
           }
+          /* load matching probability matrices from a specified file.  */
+          else if (strcmp (long_options[option_index].name, "align-aux") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->align_aux_arg), 
+                 &(args_info->align_aux_orig), &(args_info->align_aux_given),
+                &(local_args_info.align_aux_given), optarg, 0, 0, ARG_STRING,
+                check_ambiguity, override, 0, 0,
+                "align-aux", '-',
+                additional_error))
+              goto failure;
+          
+          }
           /* use IPknot decoding.  */
           else if (strcmp (long_options[option_index].name, "ipknot") == 0)
           {
@@ -1346,6 +1380,20 @@ cmdline_parser_internal (
             if (update_arg((void *)&(args_info->bp_update1_flag), 0, &(args_info->bp_update1_given),
                 &(local_args_info.bp_update1_given), optarg, 0, 0, ARG_FLAG,
                 check_ambiguity, override, 1, 0, "bp-update1", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          /* load base-pairing probability matrices from a specified file.  */
+          else if (strcmp (long_options[option_index].name, "fold-aux") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->fold_aux_arg), 
+                 &(args_info->fold_aux_orig), &(args_info->fold_aux_given),
+                &(local_args_info.fold_aux_given), optarg, 0, 0, ARG_STRING,
+                check_ambiguity, override, 0, 0,
+                "fold-aux", '-',
                 additional_error))
               goto failure;
           

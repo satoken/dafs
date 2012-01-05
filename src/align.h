@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "typedefs.h"
+#include "fa.h"
 #include "probconsRNA/probcons.h"
 #include "contralign/contralign.h"
 #if 0
@@ -29,6 +30,7 @@ namespace Align
       return calculate(seq1, seq2, mp);
     }
 #endif
+    virtual void calculate(const std::vector<Fasta>& fa, std::vector<std::vector<MP> >& mp);
     float threshold() const { return th_; };
 
   private:
@@ -73,6 +75,18 @@ public:
                  const BP& bp1, const BP& bp2, MP& mp);
 };
 #endif
+
+class AUXAlign : public Align::Model
+{
+public:
+  AUXAlign(const std::string& file, float th);
+  ~AUXAlign() { }
+  void calculate(const std::string& seq1, const std::string& seq2, MP& mp);
+  void calculate(const std::vector<Fasta>& fa, std::vector<std::vector<MP> >& mp);
+
+private:
+  std::string file_;
+};
 
 #endif  //  __INC_ALIGN_H__
 

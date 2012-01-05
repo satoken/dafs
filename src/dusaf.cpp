@@ -8,6 +8,8 @@
 #include <vector>
 #include <queue>
 #include <stack>
+//#include <iostream>
+//#include <fstream>
 #include "cmdline.h"
 #include "fa.h"
 #include "fold.h"
@@ -203,6 +205,45 @@ print_basepairing_probability(std::ostream& os, const VVF& p)
   }
 }
 #endif
+
+static
+void
+save_bp(std::ostream& os, const std::vector<BP>& bp)
+{
+  for (uint x=0; x!=bp.size(); ++x)
+  {
+    os << "> " << x << std::endl;
+    for (uint i=0; i!=bp[x].size(); ++i)
+    {
+      os << i;
+      FOREACH (SV::const_iterator, j, bp[x][i])
+        os << " " << j->first << ":" << j->second;
+      os << std::endl;
+    }
+  }
+}
+
+static
+void
+save_mp(std::ostream& os, const std::vector<std::vector<MP> >& mp)
+{
+  for (uint x=0; x!=mp.size()-1; ++x)
+  {
+    for (uint y=x+1; y!=mp[x].size(); ++y)
+    {
+      os << "> " << x << " " << y << std::endl;
+      for (uint i=0; i!=mp[x][y].size(); ++i)
+      {
+        os << i;
+        FOREACH (SV::const_iterator, k, mp[x][y][i])
+          os << " " << k->first << ":" << k->second;
+        os << std::endl;
+      }
+    }
+  }
+}
+
+
 
 void
 Dusaf::
@@ -1453,7 +1494,9 @@ parse_options(int& argc, char**& argv)
   // use_bpscore_ = args_info.use_bpscore_flag!=0;
   // std::string arg_x;
   // if (args_info.extra_given) arg_x = std::string(args_info.extra_arg);
-  if (strcasecmp(args_info.align_model_arg, "CONTRAlign")==0)
+  if (args_info.align_aux_given)
+    a_model_ = new AUXAlign(std::string(args_info.align_aux_arg), CUTOFF);
+  else if (strcasecmp(args_info.align_model_arg, "CONTRAlign")==0)
     a_model_ = new CONTRAlign(th_a_);
   else if (strcasecmp(args_info.align_model_arg, "ProbCons")==0)
     a_model_ = new ProbCons(th_a_);
@@ -1467,7 +1510,9 @@ parse_options(int& argc, char**& argv)
   // options for folding
   w_pct_s_ = args_info.fold_pct_arg;
   use_alifold_ = args_info.use_alifold_flag!=0;
-  if (strcasecmp(args_info.fold_model_arg, "Boltzmann")==0)
+  if (args_info.fold_aux_given)
+    s_model_ = new AUXFold(std::string(args_info.fold_aux_arg), CUTOFF);
+  else if (strcasecmp(args_info.fold_model_arg, "Boltzmann")==0)
     s_model_ = new RNAfold(true, NULL, CUTOFF);
   else if (strcasecmp(args_info.fold_model_arg, "Vienna")==0)
     s_model_ = new RNAfold(false, NULL, CUTOFF);
@@ -1549,27 +1594,25 @@ run()
   const uint N=fa_.size();
   
   // calculate base-pairing probabilities
-  bp_.resize(N);
-  for (uint i=0; i!=N; ++i)
-    s_model_->calculate(fa_[i].seq(), bp_[i]);
+  s_model_->calculate(fa_, bp_);
+#if 0
+  {
+    std::ofstream os("bp");
+    save_bp(os, bp_);
+  }
+#endif
 
   // calculate matching probabilities
-  mp_.resize(N, std::vector<MP>(N));
+  a_model_->calculate(fa_, mp_);
   for (uint i=0; i!=N; ++i)
-  {
-    mp_[i][i].resize(fa_[i].size());
-    for (uint x=0; x!=fa_[i].size(); ++x)
-      mp_[i][i][x].push_back(std::make_pair(x, 1.0f));
     for (uint j=i+1; j!=N; ++j)
-    {
-      // if (use_bpscore_)
-      //   a_model_->calculate(fa_[i].seq(), fa_[j].seq(), bp_[i], bp_[j], mp_[i][j]);
-      // else
-      //   a_model_->calculate(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
-      a_model_->calculate(fa_[i].seq(), fa_[j].seq(), mp_[i][j]);
       transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
-    }
+#if 0
+  {
+    std::ofstream os("mp");
+    save_mp(os, mp_);
   }
+#endif
 
   // four-way probabilistic consistency tranformation
   if (w_pct_f_!=0.0)

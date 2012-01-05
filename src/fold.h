@@ -8,6 +8,7 @@
 
 #include "typedefs.h"
 #include "contrafold/contrafold.h"
+#include "fa.h"
 
 namespace Fold 
 {
@@ -19,6 +20,7 @@ namespace Fold
     virtual ~Model() { }
     virtual void calculate(const std::string& seq, BP& bp) = 0;
     virtual void calculate(const std::string& seq, const std::string& str, BP& bp) = 0;
+    virtual void calculate(const std::vector<Fasta>& fa, std::vector<BP>& bp);
     float threshold() const { return th_; }
 
   private:
@@ -55,6 +57,19 @@ public:
   CONTRAfold(float th);
   void calculate(const std::string& seq, BP& bp);
   void calculate(const std::string& seq, const std::string& str, BP& bp);
+};
+
+class AUXFold : public Fold::Model
+{
+public:
+  AUXFold(const std::string& file, float th);
+  ~AUXFold() { }
+  void calculate(const std::string& seq, BP& bp);
+  void calculate(const std::string& seq, const std::string& str, BP& bp);
+  void calculate(const std::vector<Fasta>& fa, std::vector<BP>& bp);
+
+private:
+  std::string file_;
 };
 
 #endif  //  __INC_FOLD_H__

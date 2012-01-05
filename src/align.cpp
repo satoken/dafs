@@ -5,9 +5,31 @@
 #endif
 
 #include "align.h"
+#include <sys/errno.h>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <iterator>
 #include <cstdio>
+
+void
+Align::Model::
+calculate(const std::vector<Fasta>& fa, std::vector<std::vector<MP> >& mp)
+{
+  const uint N=fa.size();
+  mp.resize(N, std::vector<MP>(N));
+  for (uint i=0; i!=N; ++i)
+  {
+    mp[i][i].resize(fa[i].size());
+    for (uint x=0; x!=fa[i].size(); ++x)
+      mp[i][i][x].push_back(std::make_pair(x, 1.0f));
+    for (uint j=i+1; j!=N; ++j)
+    {
+      this->calculate(fa[i].seq(), fa[j].seq(), mp[i][j]);
+      //transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
+    }
+  }
+}
 
 ProbCons::
 ProbCons(float th)
@@ -144,3 +166,60 @@ calculate(const std::string& seq1, const std::string& seq2,
   }
 }
 #endif
+
+AUXAlign::
+AUXAlign(const std::string& file, float th)
+  : Align::Model(th),
+    file_(file)
+{
+}
+
+void
+AUXAlign::
+calculate(const std::string& seq1, const std::string& seq2, MP& mp)
+{
+  throw "not supported";
+}
+
+static
+void
+load_mp(std::istream& is, std::vector<std::vector<MP> >& mp)
+{
+  std::string s, t;
+  uint x, y, i, k;
+  float p;
+  while (std::getline(is, s))
+  {
+    std::istringstream ss(s);
+    if (s[0]=='>')
+    {
+      ss >> t >> x >> y;
+      assert(x<y && x<mp.size() && y<mp[x].size());
+    }
+    else
+    {
+      ss >> i;
+      if (i>=mp[x][y].size()) mp[x][y].resize(i+1);
+      while (ss >> t)
+      {
+        if (sscanf(t.c_str(), "%d:%f", &k, &p)==2)
+        {
+          mp[x][y][i].push_back(std::make_pair(k, p));
+        }
+      }
+    }
+  }
+}
+
+void
+AUXAlign::
+calculate(const std::vector<Fasta>& fa, std::vector<std::vector<MP> >& mp)
+{
+  const uint N=fa.size();
+  mp.resize(N, std::vector<MP>(N));
+  std::ifstream is(file_.c_str());
+  if (is.is_open())
+    load_mp(is, mp);
+  else
+    throw strerror(errno);
+}
