@@ -548,7 +548,8 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
     for (uint j=0; j!=p[i].size(); ++j)
     {
       if (p[i][j]<=CUTOFF) p[i][j]=0.0;
-      assert(p[i][j]<=1.0);
+      if (p[i][j]>1.0) p[i][j]=1.0;
+      //assert(p[i][j]<=1.0);
     }
   std::swap(posterior, p);
 }

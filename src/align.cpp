@@ -223,4 +223,10 @@ calculate(const std::vector<Fasta>& fa, std::vector<std::vector<MP> >& mp)
     load_mp(is, mp);
   else
     throw strerror(errno);
+  for (uint i=0; i!=N; ++i)
+  {
+    mp[i][i].resize(fa[i].size());
+    for (uint x=0; x!=fa[i].size(); ++x)
+      mp[i][i][x].push_back(std::make_pair(x, 1.0f));
+  }
 }
