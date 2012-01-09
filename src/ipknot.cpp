@@ -42,7 +42,7 @@ IPknot::
 IPknot(float w, const VF& th, int n_th /*=1*/)
   : weight_(w),
     th_(th),
-    alpha_(th_.size(), 1.0/th_.size()),
+    alpha_(th_.size(), 1.0),
     levelwise_(true),
     stacking_constraints_(true),
     n_th_(n_th)
