@@ -53,7 +53,7 @@ struct gengetopt_args_info
   float eta_arg;	/**< @brief Initial step width for the subgradient optimization (default='0.5').  */
   char * eta_orig;	/**< @brief Initial step width for the subgradient optimization original value given at command line.  */
   const char *eta_help; /**< @brief Initial step width for the subgradient optimization help description.  */
-  int max_iter_arg;	/**< @brief The maximum number of iteration of the subgradient optimization (default='400').  */
+  int max_iter_arg;	/**< @brief The maximum number of iteration of the subgradient optimization (default='600').  */
   char * max_iter_orig;	/**< @brief The maximum number of iteration of the subgradient optimization original value given at command line.  */
   const char *max_iter_help; /**< @brief The maximum number of iteration of the subgradient optimization help description.  */
   float fourway_pct_arg;	/**< @brief Weight of four-way PCT (default='0.0').  */
@@ -65,19 +65,19 @@ struct gengetopt_args_info
   char * align_model_arg;	/**< @brief Alignment model for calcualating matching probablities (default='ProbCons').  */
   char * align_model_orig;	/**< @brief Alignment model for calcualating matching probablities original value given at command line.  */
   const char *align_model_help; /**< @brief Alignment model for calcualating matching probablities help description.  */
-  float align_pct_arg;	/**< @brief Weight of PCT for matching probabilities (default='0.0').  */
+  float align_pct_arg;	/**< @brief Weight of PCT for matching probabilities (default='0.25').  */
   char * align_pct_orig;	/**< @brief Weight of PCT for matching probabilities original value given at command line.  */
   const char *align_pct_help; /**< @brief Weight of PCT for matching probabilities help description.  */
   float align_th_arg;	/**< @brief Threshold for matching probabilities (default='0.01').  */
   char * align_th_orig;	/**< @brief Threshold for matching probabilities original value given at command line.  */
   const char *align_th_help; /**< @brief Threshold for matching probabilities help description.  */
-  char * align_aux_arg;	/**< @brief load matching probability matrices from a specified file.  */
-  char * align_aux_orig;	/**< @brief load matching probability matrices from a specified file original value given at command line.  */
-  const char *align_aux_help; /**< @brief load matching probability matrices from a specified file help description.  */
+  char * align_aux_arg;	/**< @brief Load matching probability matrices from a specified file.  */
+  char * align_aux_orig;	/**< @brief Load matching probability matrices from a specified file original value given at command line.  */
+  const char *align_aux_help; /**< @brief Load matching probability matrices from a specified file help description.  */
   char * fold_model_arg;	/**< @brief Folding model for calculating base-pairing probablities (default='Boltzmann').  */
   char * fold_model_orig;	/**< @brief Folding model for calculating base-pairing probablities original value given at command line.  */
   const char *fold_model_help; /**< @brief Folding model for calculating base-pairing probablities help description.  */
-  float fold_pct_arg;	/**< @brief Weight of PCT for base-pairing probabilities (default='0.0').  */
+  float fold_pct_arg;	/**< @brief Weight of PCT for base-pairing probabilities (default='0.25').  */
   char * fold_pct_orig;	/**< @brief Weight of PCT for base-pairing probabilities original value given at command line.  */
   const char *fold_pct_help; /**< @brief Weight of PCT for base-pairing probabilities help description.  */
   float* fold_th_arg;	/**< @brief Threshold for base-pairing probabilities (default='0.2').  */
@@ -90,8 +90,8 @@ struct gengetopt_args_info
   unsigned int gamma_min; /**< @brief Specify the threshold for base-pairing probabilities by 1/(gamma+1))'s minimum occurreces */
   unsigned int gamma_max; /**< @brief Specify the threshold for base-pairing probabilities by 1/(gamma+1))'s maximum occurreces */
   const char *gamma_help; /**< @brief Specify the threshold for base-pairing probabilities by 1/(gamma+1)) help description.  */
-  int use_alifold_flag;	/**< @brief Mix RNAalifold for calculating base-pairing probabilities (default=off).  */
-  const char *use_alifold_help; /**< @brief Mix RNAalifold for calculating base-pairing probabilities help description.  */
+  int no_alifold_flag;	/**< @brief No use of RNAalifold for calculating base-pairing probabilities (default=off).  */
+  const char *no_alifold_help; /**< @brief No use of RNAalifold for calculating base-pairing probabilities help description.  */
   float* fold_th1_arg;	/**< @brief Threshold for base-pairing probabilities of the conclusive common secondary structures.  */
   char ** fold_th1_orig;	/**< @brief Threshold for base-pairing probabilities of the conclusive common secondary structures original value given at command line.  */
   unsigned int fold_th1_min; /**< @brief Threshold for base-pairing probabilities of the conclusive common secondary structures's minimum occurreces */
@@ -102,15 +102,15 @@ struct gengetopt_args_info
   unsigned int gamma1_min; /**< @brief Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))'s minimum occurreces */
   unsigned int gamma1_max; /**< @brief Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))'s maximum occurreces */
   const char *gamma1_help; /**< @brief Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1)) help description.  */
-  int ipknot_flag;	/**< @brief use IPknot decoding (default=off).  */
-  const char *ipknot_help; /**< @brief use IPknot decoding help description.  */
-  int bp_update_flag;	/**< @brief use the iterative update of BPs (default=off).  */
-  const char *bp_update_help; /**< @brief use the iterative update of BPs help description.  */
-  int bp_update1_flag;	/**< @brief use the iterative update of BPs for the final prediction (default=off).  */
-  const char *bp_update1_help; /**< @brief use the iterative update of BPs for the final prediction help description.  */
-  char * fold_aux_arg;	/**< @brief load base-pairing probability matrices from a specified file.  */
-  char * fold_aux_orig;	/**< @brief load base-pairing probability matrices from a specified file original value given at command line.  */
-  const char *fold_aux_help; /**< @brief load base-pairing probability matrices from a specified file help description.  */
+  int ipknot_flag;	/**< @brief Use IPknot decoding (default=off).  */
+  const char *ipknot_help; /**< @brief Use IPknot decoding help description.  */
+  int bp_update_flag;	/**< @brief Use the iterative update of BPs (default=off).  */
+  const char *bp_update_help; /**< @brief Use the iterative update of BPs help description.  */
+  int bp_update1_flag;	/**< @brief Use the iterative update of BPs for the final prediction (default=off).  */
+  const char *bp_update1_help; /**< @brief Use the iterative update of BPs for the final prediction help description.  */
+  char * fold_aux_arg;	/**< @brief Load base-pairing probability matrices from a specified file.  */
+  char * fold_aux_orig;	/**< @brief Load base-pairing probability matrices from a specified file original value given at command line.  */
+  const char *fold_aux_help; /**< @brief Load base-pairing probability matrices from a specified file help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int full_help_given ;	/**< @brief Whether full-help was given.  */
@@ -129,7 +129,7 @@ struct gengetopt_args_info
   unsigned int fold_pct_given ;	/**< @brief Whether fold-pct was given.  */
   unsigned int fold_th_given ;	/**< @brief Whether fold-th was given.  */
   unsigned int gamma_given ;	/**< @brief Whether gamma was given.  */
-  unsigned int use_alifold_given ;	/**< @brief Whether use-alifold was given.  */
+  unsigned int no_alifold_given ;	/**< @brief Whether no-alifold was given.  */
   unsigned int fold_th1_given ;	/**< @brief Whether fold-th1 was given.  */
   unsigned int gamma1_given ;	/**< @brief Whether gamma1 was given.  */
   unsigned int ipknot_given ;	/**< @brief Whether ipknot was given.  */

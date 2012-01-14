@@ -25,7 +25,7 @@
 
 #include "cmdline.h"
 
-const char *gengetopt_args_info_purpose = "DUSAF: dual decomposition for simultaneous aligning and folding RNA sequences.";
+const char *gengetopt_args_info_purpose = "DAFS: dual decomposition for simultaneous aligning and folding RNA sequences.";
 
 const char *gengetopt_args_info_usage = "Usage: " CMDLINE_PARSER_PACKAGE " [OPTIONS]... [FILES]...";
 
@@ -38,26 +38,26 @@ const char *gengetopt_args_info_full_help[] = {
   "  -r, --refinement=INT      The number of iteration of the iterative refinment  \n                              (default=`0')",
   "  -w, --weight=FLOAT        Weight of the expected accuracy score for secondary \n                              structures  (default=`4.0')",
   "      --eta=FLOAT           Initial step width for the subgradient optimization \n                               (default=`0.5')",
-  "  -m, --max-iter=INT        The maximum number of iteration of the subgradient \n                              optimization  (default=`400')",
+  "  -m, --max-iter=INT        The maximum number of iteration of the subgradient \n                              optimization  (default=`600')",
   "  -f, --fourway-pct=FLOAT   Weight of four-way PCT  (default=`0.0')",
   "  -v, --verbose=INT         The level of verbose outputs  (default=`0')",
   "\nOptions for alignments:",
   "  -a, --align-model=STRING  Alignment model for calcualating matching \n                              probablities  (possible values=\"CONTRAlign\", \n                              \"ProbCons\" default=`ProbCons')",
-  "  -p, --align-pct=FLOAT     Weight of PCT for matching probabilities  \n                              (default=`0.0')",
+  "  -p, --align-pct=FLOAT     Weight of PCT for matching probabilities  \n                              (default=`0.25')",
   "  -u, --align-th=FLOAT      Threshold for matching probabilities  \n                              (default=`0.01')",
-  "      --align-aux=STRING    load matching probability matrices from a specified \n                              file",
+  "      --align-aux=FILENAME  Load matching probability matrices from a specified \n                              file",
   "\nOptions for folding:",
   "  -s, --fold-model=STRING   Folding model for calculating base-pairing \n                              probablities  (possible values=\"Boltzmann\", \n                              \"Vienna\", \"CONTRAfold\" default=`Boltzmann')",
-  "  -q, --fold-pct=FLOAT      Weight of PCT for base-pairing probabilities  \n                              (default=`0.0')",
+  "  -q, --fold-pct=FLOAT      Weight of PCT for base-pairing probabilities  \n                              (default=`0.25')",
   "  -t, --fold-th=FLOAT       Threshold for base-pairing probabilities  \n                              (default=`0.2')",
   "  -g, --gamma=FLOAT         Specify the threshold for base-pairing \n                              probabilities by 1/(gamma+1))",
-  "  -l, --use-alifold         Mix RNAalifold for calculating base-pairing \n                              probabilities  (default=off)",
+  "      --no-alifold          No use of RNAalifold for calculating base-pairing \n                              probabilities  (default=off)",
   "  -T, --fold-th1=FLOAT      Threshold for base-pairing probabilities of the \n                              conclusive common secondary structures",
   "  -G, --gamma1=FLOAT        Specify the threshold for base-pairing \n                              probabilities of the conclusive common secondary \n                              structuresby 1/(gamma+1))",
-  "      --ipknot              use IPknot decoding  (default=off)",
-  "      --bp-update           use the iterative update of BPs  (default=off)",
-  "      --bp-update1          use the iterative update of BPs for the final \n                              prediction  (default=off)",
-  "      --fold-aux=STRING     load base-pairing probability matrices from a \n                              specified file",
+  "      --ipknot              Use IPknot decoding  (default=off)",
+  "      --bp-update           Use the iterative update of BPs  (default=off)",
+  "      --bp-update1          Use the iterative update of BPs for the final \n                              prediction  (default=off)",
+  "      --fold-aux=STRING     Load base-pairing probability matrices from a \n                              specified file",
     0
 };
 
@@ -67,30 +67,22 @@ init_help_array(void)
   gengetopt_args_info_help[0] = gengetopt_args_info_full_help[0];
   gengetopt_args_info_help[1] = gengetopt_args_info_full_help[1];
   gengetopt_args_info_help[2] = gengetopt_args_info_full_help[2];
-  gengetopt_args_info_help[3] = gengetopt_args_info_full_help[3];
-  gengetopt_args_info_help[4] = gengetopt_args_info_full_help[4];
-  gengetopt_args_info_help[5] = gengetopt_args_info_full_help[5];
-  gengetopt_args_info_help[6] = gengetopt_args_info_full_help[6];
-  gengetopt_args_info_help[7] = gengetopt_args_info_full_help[7];
-  gengetopt_args_info_help[8] = gengetopt_args_info_full_help[8];
-  gengetopt_args_info_help[9] = gengetopt_args_info_full_help[9];
-  gengetopt_args_info_help[10] = gengetopt_args_info_full_help[10];
-  gengetopt_args_info_help[11] = gengetopt_args_info_full_help[11];
-  gengetopt_args_info_help[12] = gengetopt_args_info_full_help[12];
-  gengetopt_args_info_help[13] = gengetopt_args_info_full_help[14];
-  gengetopt_args_info_help[14] = gengetopt_args_info_full_help[15];
-  gengetopt_args_info_help[15] = gengetopt_args_info_full_help[16];
-  gengetopt_args_info_help[16] = gengetopt_args_info_full_help[17];
-  gengetopt_args_info_help[17] = gengetopt_args_info_full_help[19];
-  gengetopt_args_info_help[18] = gengetopt_args_info_full_help[20];
-  gengetopt_args_info_help[19] = gengetopt_args_info_full_help[22];
-  gengetopt_args_info_help[20] = gengetopt_args_info_full_help[23];
-  gengetopt_args_info_help[21] = gengetopt_args_info_full_help[24];
-  gengetopt_args_info_help[22] = 0; 
+  gengetopt_args_info_help[3] = gengetopt_args_info_full_help[4];
+  gengetopt_args_info_help[4] = gengetopt_args_info_full_help[6];
+  gengetopt_args_info_help[5] = gengetopt_args_info_full_help[8];
+  gengetopt_args_info_help[6] = gengetopt_args_info_full_help[9];
+  gengetopt_args_info_help[7] = gengetopt_args_info_full_help[10];
+  gengetopt_args_info_help[8] = gengetopt_args_info_full_help[12];
+  gengetopt_args_info_help[9] = gengetopt_args_info_full_help[14];
+  gengetopt_args_info_help[10] = gengetopt_args_info_full_help[15];
+  gengetopt_args_info_help[11] = gengetopt_args_info_full_help[17];
+  gengetopt_args_info_help[12] = gengetopt_args_info_full_help[20];
+  gengetopt_args_info_help[13] = gengetopt_args_info_full_help[22];
+  gengetopt_args_info_help[14] = 0; 
   
 }
 
-const char *gengetopt_args_info_help[23];
+const char *gengetopt_args_info_help[15];
 
 typedef enum {ARG_NO
   , ARG_FLAG
@@ -137,7 +129,7 @@ void clear_given (struct gengetopt_args_info *args_info)
   args_info->fold_pct_given = 0 ;
   args_info->fold_th_given = 0 ;
   args_info->gamma_given = 0 ;
-  args_info->use_alifold_given = 0 ;
+  args_info->no_alifold_given = 0 ;
   args_info->fold_th1_given = 0 ;
   args_info->gamma1_given = 0 ;
   args_info->ipknot_given = 0 ;
@@ -156,7 +148,7 @@ void clear_args (struct gengetopt_args_info *args_info)
   args_info->weight_orig = NULL;
   args_info->eta_arg = 0.5;
   args_info->eta_orig = NULL;
-  args_info->max_iter_arg = 400;
+  args_info->max_iter_arg = 600;
   args_info->max_iter_orig = NULL;
   args_info->fourway_pct_arg = 0.0;
   args_info->fourway_pct_orig = NULL;
@@ -164,7 +156,7 @@ void clear_args (struct gengetopt_args_info *args_info)
   args_info->verbose_orig = NULL;
   args_info->align_model_arg = gengetopt_strdup ("ProbCons");
   args_info->align_model_orig = NULL;
-  args_info->align_pct_arg = 0.0;
+  args_info->align_pct_arg = 0.25;
   args_info->align_pct_orig = NULL;
   args_info->align_th_arg = 0.01;
   args_info->align_th_orig = NULL;
@@ -172,13 +164,13 @@ void clear_args (struct gengetopt_args_info *args_info)
   args_info->align_aux_orig = NULL;
   args_info->fold_model_arg = gengetopt_strdup ("Boltzmann");
   args_info->fold_model_orig = NULL;
-  args_info->fold_pct_arg = 0.0;
+  args_info->fold_pct_arg = 0.25;
   args_info->fold_pct_orig = NULL;
   args_info->fold_th_arg = NULL;
   args_info->fold_th_orig = NULL;
   args_info->gamma_arg = NULL;
   args_info->gamma_orig = NULL;
-  args_info->use_alifold_flag = 0;
+  args_info->no_alifold_flag = 0;
   args_info->fold_th1_arg = NULL;
   args_info->fold_th1_orig = NULL;
   args_info->gamma1_arg = NULL;
@@ -217,7 +209,7 @@ void init_args_info(struct gengetopt_args_info *args_info)
   args_info->gamma_help = gengetopt_args_info_full_help[18] ;
   args_info->gamma_min = 0;
   args_info->gamma_max = 0;
-  args_info->use_alifold_help = gengetopt_args_info_full_help[19] ;
+  args_info->no_alifold_help = gengetopt_args_info_full_help[19] ;
   args_info->fold_th1_help = gengetopt_args_info_full_help[20] ;
   args_info->fold_th1_min = 0;
   args_info->fold_th1_max = 0;
@@ -507,8 +499,8 @@ cmdline_parser_dump(FILE *outfile, struct gengetopt_args_info *args_info)
     write_into_file(outfile, "fold-pct", args_info->fold_pct_orig, 0);
   write_multiple_into_file(outfile, args_info->fold_th_given, "fold-th", args_info->fold_th_orig, 0);
   write_multiple_into_file(outfile, args_info->gamma_given, "gamma", args_info->gamma_orig, 0);
-  if (args_info->use_alifold_given)
-    write_into_file(outfile, "use-alifold", 0, 0 );
+  if (args_info->no_alifold_given)
+    write_into_file(outfile, "no-alifold", 0, 0 );
   write_multiple_into_file(outfile, args_info->fold_th1_given, "fold-th1", args_info->fold_th1_orig, 0);
   write_multiple_into_file(outfile, args_info->gamma1_given, "gamma1", args_info->gamma1_orig, 0);
   if (args_info->ipknot_given)
@@ -1120,7 +1112,7 @@ cmdline_parser_internal (
         { "fold-pct",	1, NULL, 'q' },
         { "fold-th",	1, NULL, 't' },
         { "gamma",	1, NULL, 'g' },
-        { "use-alifold",	0, NULL, 'l' },
+        { "no-alifold",	0, NULL, 0 },
         { "fold-th1",	1, NULL, 'T' },
         { "gamma1",	1, NULL, 'G' },
         { "ipknot",	0, NULL, 0 },
@@ -1130,7 +1122,7 @@ cmdline_parser_internal (
         { 0,  0, 0, 0 }
       };
 
-      c = getopt_long (argc, argv, "hVr:w:m:f:v:a:p:u:s:q:t:g:lT:G:", long_options, &option_index);
+      c = getopt_long (argc, argv, "hVr:w:m:f:v:a:p:u:s:q:t:g:T:G:", long_options, &option_index);
 
       if (c == -1) break;	/* Exit from `while (1)' loop.  */
 
@@ -1175,7 +1167,7 @@ cmdline_parser_internal (
         
           if (update_arg( (void *)&(args_info->max_iter_arg), 
                &(args_info->max_iter_orig), &(args_info->max_iter_given),
-              &(local_args_info.max_iter_given), optarg, 0, "400", ARG_INT,
+              &(local_args_info.max_iter_given), optarg, 0, "600", ARG_INT,
               check_ambiguity, override, 0, 0,
               "max-iter", 'm',
               additional_error))
@@ -1223,7 +1215,7 @@ cmdline_parser_internal (
         
           if (update_arg( (void *)&(args_info->align_pct_arg), 
                &(args_info->align_pct_orig), &(args_info->align_pct_given),
-              &(local_args_info.align_pct_given), optarg, 0, "0.0", ARG_FLOAT,
+              &(local_args_info.align_pct_given), optarg, 0, "0.25", ARG_FLOAT,
               check_ambiguity, override, 0, 0,
               "align-pct", 'p',
               additional_error))
@@ -1259,7 +1251,7 @@ cmdline_parser_internal (
         
           if (update_arg( (void *)&(args_info->fold_pct_arg), 
                &(args_info->fold_pct_orig), &(args_info->fold_pct_given),
-              &(local_args_info.fold_pct_given), optarg, 0, "0.0", ARG_FLOAT,
+              &(local_args_info.fold_pct_given), optarg, 0, "0.25", ARG_FLOAT,
               check_ambiguity, override, 0, 0,
               "fold-pct", 'q',
               additional_error))
@@ -1280,16 +1272,6 @@ cmdline_parser_internal (
           if (update_multiple_arg_temp(&gamma_list, 
               &(local_args_info.gamma_given), optarg, 0, 0, ARG_FLOAT,
               "gamma", 'g',
-              additional_error))
-            goto failure;
-        
-          break;
-        case 'l':	/* Mix RNAalifold for calculating base-pairing probabilities.  */
-        
-        
-          if (update_arg((void *)&(args_info->use_alifold_flag), 0, &(args_info->use_alifold_given),
-              &(local_args_info.use_alifold_given), optarg, 0, 0, ARG_FLAG,
-              check_ambiguity, override, 1, 0, "use-alifold", 'l',
               additional_error))
             goto failure;
         
@@ -1334,7 +1316,7 @@ cmdline_parser_internal (
               goto failure;
           
           }
-          /* load matching probability matrices from a specified file.  */
+          /* Load matching probability matrices from a specified file.  */
           else if (strcmp (long_options[option_index].name, "align-aux") == 0)
           {
           
@@ -1348,7 +1330,19 @@ cmdline_parser_internal (
               goto failure;
           
           }
-          /* use IPknot decoding.  */
+          /* No use of RNAalifold for calculating base-pairing probabilities.  */
+          else if (strcmp (long_options[option_index].name, "no-alifold") == 0)
+          {
+          
+          
+            if (update_arg((void *)&(args_info->no_alifold_flag), 0, &(args_info->no_alifold_given),
+                &(local_args_info.no_alifold_given), optarg, 0, 0, ARG_FLAG,
+                check_ambiguity, override, 1, 0, "no-alifold", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          /* Use IPknot decoding.  */
           else if (strcmp (long_options[option_index].name, "ipknot") == 0)
           {
           
@@ -1360,7 +1354,7 @@ cmdline_parser_internal (
               goto failure;
           
           }
-          /* use the iterative update of BPs.  */
+          /* Use the iterative update of BPs.  */
           else if (strcmp (long_options[option_index].name, "bp-update") == 0)
           {
           
@@ -1372,7 +1366,7 @@ cmdline_parser_internal (
               goto failure;
           
           }
-          /* use the iterative update of BPs for the final prediction.  */
+          /* Use the iterative update of BPs for the final prediction.  */
           else if (strcmp (long_options[option_index].name, "bp-update1") == 0)
           {
           
@@ -1384,7 +1378,7 @@ cmdline_parser_internal (
               goto failure;
           
           }
-          /* load base-pairing probability matrices from a specified file.  */
+          /* Load base-pairing probability matrices from a specified file.  */
           else if (strcmp (long_options[option_index].name, "fold-aux") == 0)
           {
           

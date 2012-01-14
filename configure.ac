@@ -2,10 +2,10 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT(dusaf, 0.0.1, no-define)
+AC_INIT(dafs, 0.0.1, no-define)
 AM_INIT_AUTOMAKE([-Wall foreign])
 AM_CONFIG_HEADER(config.h)
-AC_CONFIG_SRCDIR([src/dusaf.cpp])
+AC_CONFIG_SRCDIR([src/dafs.cpp])
 
 # Checks for programs.
 AC_PROG_CXX

@@ -38,7 +38,7 @@ extern "C" {
 
 #define SPARSE_UPDATE
 
-class Dusaf
+class DAFS
 {
 private:
   // nodes in the guide tree
@@ -47,7 +47,7 @@ private:
   typedef std::pair< std::pair<uint,uint>, std::pair<uint,uint> > CBP;
   
 public:
-  Dusaf()
+  DAFS()
     : a_model_(NULL),
       a_decoder_(NULL),
       s_model_(NULL),
@@ -58,7 +58,7 @@ public:
   {
   }
 
-  ~Dusaf()
+  ~DAFS()
   {
     if (a_model_) delete a_model_;
     if (a_decoder_) delete a_decoder_;
@@ -67,7 +67,7 @@ public:
     if (s_decoder1_) delete s_decoder1_;
   }
 
-  Dusaf& parse_options(int& argc, char**& argv);
+  DAFS& parse_options(int& argc, char**& argv);
   int run();
 
 private:
@@ -246,7 +246,7 @@ save_mp(std::ostream& os, const std::vector<std::vector<MP> >& mp)
 
 
 void
-Dusaf::
+DAFS::
 relax_matching_probability()
 {
   const uint N=fa_.size();
@@ -315,7 +315,7 @@ relax_matching_probability()
 }
 
 void
-Dusaf::
+DAFS::
 relax_basepairing_probability()
 {
   const uint N=bp_.size();
@@ -372,7 +372,7 @@ relax_basepairing_probability()
 }
 
 void
-Dusaf::
+DAFS::
 relax_fourway_consistency()
 {
   const uint N=fa_.size();
@@ -443,7 +443,7 @@ relax_fourway_consistency()
 }
 
 void
-Dusaf::
+DAFS::
 build_tree()
 {
   uint n=fa_.size();
@@ -491,7 +491,7 @@ build_tree()
 
 // print the guide tree
 void
-Dusaf::
+DAFS::
 print_tree(std::ostream& os, int i) const
 {
   if (tree_[i].second.first==-1u)
@@ -510,7 +510,7 @@ print_tree(std::ostream& os, int i) const
 }
 
 void
-Dusaf::
+DAFS::
 average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const
 {
   const uint L1 = aln1.front().second.size();
@@ -555,7 +555,7 @@ average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) c
 }
 
 void
-Dusaf::
+DAFS::
 average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const
 {
   // calculate an averaged base-pairing probabilities
@@ -602,7 +602,7 @@ average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold
 }
 
 void
-Dusaf::
+DAFS::
 update_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const
 {
   // predict the common secondary structure which is used for constraints for the next step
@@ -758,7 +758,7 @@ calculate_similarity_score(const MP& mp, uint L1, uint L2)
 }
 
 void
-Dusaf::
+DAFS::
 project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const
 {
   const uint L1=aln1[0].second.size();
@@ -807,7 +807,7 @@ project_alignment(ALN& aln, const ALN& aln1, const ALN& aln2, const VU& z) const
 }
 
 void
-Dusaf::
+DAFS::
 project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& z) const
 {
   const uint L1=x.size();
@@ -851,7 +851,7 @@ project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& 
 }
 
 void
-Dusaf::
+DAFS::
 output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN& aln2) const
 {
   ALN aln;
@@ -873,7 +873,7 @@ output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN
 }
 
 void
-Dusaf::
+DAFS::
 align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const
 {
   // calculate posteriors
@@ -891,7 +891,7 @@ align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const
 }
 
 float
-Dusaf::
+DAFS::
 align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 {
   // calculate posteriors
@@ -950,7 +950,7 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 }
 
 float
-Dusaf::
+DAFS::
 solve_by_dd(VU& x, VU& y, VU& z,
             const VVF& p_x, const VVF& p_y, const VVF& p_z,
             const ALN& aln1, const ALN& aln2) const
@@ -1164,7 +1164,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
 
 #if 1
 float
-Dusaf::
+DAFS::
 solve_by_ip(VU& x, VU& y, VU& z,
             const VVF& p_x, const VVF& p_y, const VVF& p_z,
             const ALN& aln1, const ALN& aln2) const
@@ -1368,7 +1368,7 @@ solve_by_ip(VU& x, VU& y, VU& z,
 #endif
 
 void
-Dusaf::
+DAFS::
 align(ALN& aln, int ch) const
 {
   if (tree_[ch].second.first==-1u)
@@ -1388,7 +1388,7 @@ align(ALN& aln, int ch) const
 }
 
 float
-Dusaf::
+DAFS::
 align(VU& ss, ALN& aln, int ch) const
 {
   float s=0.0;
@@ -1410,7 +1410,7 @@ align(VU& ss, ALN& aln, int ch) const
 }
 
 float
-Dusaf::
+DAFS::
 refine(VU& ss, ALN& aln) const
 { 
  VU group[2];
@@ -1449,14 +1449,14 @@ refine(VU& ss, ALN& aln) const
 }
 
 void
-Dusaf::
+DAFS::
 output(std::ostream& os, const ALN& aln) const
 {
   output(os, aln.begin(), aln.end());
 }
 
 void
-Dusaf::
+DAFS::
 output(std::ostream& os, ALN::const_iterator b, ALN::const_iterator e) const
 {
   for (ALN::const_iterator a=b; a!=e; ++a)
@@ -1474,8 +1474,8 @@ output(std::ostream& os, ALN::const_iterator b, ALN::const_iterator e) const
   }
 }
 
-Dusaf&
-Dusaf::
+DAFS&
+DAFS::
 parse_options(int& argc, char**& argv)
 {
   gengetopt_args_info args_info;
@@ -1510,7 +1510,7 @@ parse_options(int& argc, char**& argv)
 
   // options for folding
   w_pct_s_ = args_info.fold_pct_arg;
-  use_alifold_ = args_info.use_alifold_flag!=0;
+  use_alifold_ = args_info.no_alifold_flag==0;
   if (args_info.fold_aux_given)
     s_model_ = new AUXFold(std::string(args_info.fold_aux_arg), CUTOFF);
   else if (strcasecmp(args_info.fold_model_arg, "Boltzmann")==0)
@@ -1589,7 +1589,7 @@ parse_options(int& argc, char**& argv)
 }
 
 int
-Dusaf::
+DAFS::
 run()
 {
   const uint N=fa_.size();
@@ -1690,6 +1690,6 @@ run()
 int
 main(int argc, char* argv[])
 {
-  Dusaf dusaf;
-  return dusaf.parse_options(argc, argv).run();
+  DAFS dafs;
+  return dafs.parse_options(argc, argv).run();
 }
