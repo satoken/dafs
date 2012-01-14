@@ -9,6 +9,6 @@ dafs_SOURCES = dafs.cpp typedefs.h fa.cpp fa.h \
 dafs_LDADD = contrafold/libcontrafold.a contralign/libcontralign.a probconsRNA/libprobcons.a
 EXTRA_DIST = gnugetopt.h getopt.c getopt1.c
 
-dafs.cpp: cmdline.h
-cmdline.c cmdline.h: dafs.ggo
-	gengetopt --unamed-opts < dafs.ggo
+#dafs.cpp: cmdline.h
+#cmdline.c cmdline.h: dafs.ggo
+#	gengetopt --unamed-opts < dafs.ggo

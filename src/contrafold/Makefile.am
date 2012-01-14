@@ -8,3 +8,5 @@ libcontrafold_a_SOURCES = \
 	InferenceEngine.ipp InferenceEngine.hpp \
 	Defaults.ipp Config.hpp LogSpace.hpp \
 	rand.h
+
+EXTRA_DIST = COPYING

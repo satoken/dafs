@@ -32,19 +32,6 @@ fi
 if test "x$BOOST_LDFLAGS" != x; then
   LDFLAGS="$LDFLAGS $BOOST_LDFLAGS"
 fi
-dnl dnl AC_CHECK_HEADER(boost/lambda/lambda.hpp, ,
-dnl dnl                 AC_MSG_ERROR("boost/lambda/lambda.hpp is unavailable"))
-dnl AC_CHECK_HEADER(boost/multi_array.hpp, ,
-dnl                 AC_MSG_ERROR("boost/multi_array.hpp is unavailable"))
-dnl AC_CHECK_HEADER(boost/random.hpp, ,
-dnl                 AC_MSG_ERROR("boost/random.hpp is unavailable"))
-
-dnl AX_BOOST_PROGRAM_OPTIONS
-dnl if test "x$BOOST_PROGRAM_OPTIONS_LIB" != x; then
-dnl   LIBS="$LIBS $BOOST_PROGRAM_OPTIONS_LIB"
-dnl else
-dnl   AC_MSG_ERROR("the Boost::Program_Options library is unavailable")  
-dnl fi
 
 # Checks for libraries.
 AC_CHECK_LIB([pthread], [pthread_create])

@@ -13,3 +13,5 @@ libcontralign_a_SOURCES =  contralign.h wrapper.cpp MultiSequence.cpp Sequence.c
 	Defaults.ipp InferenceEngine.hpp ParameterManager.hpp \
 	Config.hpp MultiSequence.hpp Utilities.hpp ParameterManager.ipp InferenceEngine.ipp \
 	Sequence.hpp Utilities.ipp LogSpace.hpp SparseMatrix.hpp SparseMatrix.ipp
+
+EXTRA_DIST = COPYING
