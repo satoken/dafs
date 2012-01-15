@@ -1,22 +1,20 @@
 /*
- * $Id: ip.h 35 2010-12-09 09:01:24Z satoken $
- * 
- * Copyright (C) 2010 Kengo Sato
+ * Copyright (C) 2012 Kengo Sato
  *
- * This file is part of IPknot.
+ * This file is part of DAFS.
  *
- * IPknot is free software: you can redistribute it and/or modify
+ * DAFS is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * IPknot is distributed in the hope that it will be useful,
+ * DAFS is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with IPknot.  If not, see <http://www.gnu.org/licenses/>.
+ * along with DAFS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef __INC_IP_H__

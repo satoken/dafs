@@ -27,7 +27,7 @@ option "align-th"	u "Threshold for matching probabilities"
 #        		  flag on hidden 
 # option "extra"	- "Extra options for PartAlign"
 #      			  string hidden optional
-option "align-aux"	- "Load matching probability matrices from a specified file"
+option "align-aux"	- "Load matching probability matrices from FILENAME"
        			  string typestr="FILENAME" hidden optional
 
 section "Options for folding"
@@ -52,5 +52,5 @@ option "bp-update"	- "Use the iterative update of BPs"
        			  flag off hidden
 option "bp-update1"	- "Use the iterative update of BPs for the final prediction"
        			  flag off hidden
-option "fold-aux"	- "Load base-pairing probability matrices from a specified file"
-       			  string hidden optional
+option "fold-aux"	- "Load base-pairing probability matrices from FILENAME"
+       			  string typestr="FILENAME" hidden optional

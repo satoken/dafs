@@ -71,9 +71,9 @@ struct gengetopt_args_info
   float align_th_arg;	/**< @brief Threshold for matching probabilities (default='0.01').  */
   char * align_th_orig;	/**< @brief Threshold for matching probabilities original value given at command line.  */
   const char *align_th_help; /**< @brief Threshold for matching probabilities help description.  */
-  char * align_aux_arg;	/**< @brief Load matching probability matrices from a specified file.  */
-  char * align_aux_orig;	/**< @brief Load matching probability matrices from a specified file original value given at command line.  */
-  const char *align_aux_help; /**< @brief Load matching probability matrices from a specified file help description.  */
+  char * align_aux_arg;	/**< @brief Load matching probability matrices from FILENAME.  */
+  char * align_aux_orig;	/**< @brief Load matching probability matrices from FILENAME original value given at command line.  */
+  const char *align_aux_help; /**< @brief Load matching probability matrices from FILENAME help description.  */
   char * fold_model_arg;	/**< @brief Folding model for calculating base-pairing probablities (default='Boltzmann').  */
   char * fold_model_orig;	/**< @brief Folding model for calculating base-pairing probablities original value given at command line.  */
   const char *fold_model_help; /**< @brief Folding model for calculating base-pairing probablities help description.  */
@@ -108,9 +108,9 @@ struct gengetopt_args_info
   const char *bp_update_help; /**< @brief Use the iterative update of BPs help description.  */
   int bp_update1_flag;	/**< @brief Use the iterative update of BPs for the final prediction (default=off).  */
   const char *bp_update1_help; /**< @brief Use the iterative update of BPs for the final prediction help description.  */
-  char * fold_aux_arg;	/**< @brief Load base-pairing probability matrices from a specified file.  */
-  char * fold_aux_orig;	/**< @brief Load base-pairing probability matrices from a specified file original value given at command line.  */
-  const char *fold_aux_help; /**< @brief Load base-pairing probability matrices from a specified file help description.  */
+  char * fold_aux_arg;	/**< @brief Load base-pairing probability matrices from FILENAME.  */
+  char * fold_aux_orig;	/**< @brief Load base-pairing probability matrices from FILENAME original value given at command line.  */
+  const char *fold_aux_help; /**< @brief Load base-pairing probability matrices from FILENAME help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int full_help_given ;	/**< @brief Whether full-help was given.  */

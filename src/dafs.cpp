@@ -1,4 +1,21 @@
-// $Id:$
+/*
+ * Copyright (C) 2012 Kengo Sato
+ *
+ * This file is part of DAFS.
+ *
+ * DAFS is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * DAFS is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with DAFS.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -206,6 +223,7 @@ print_basepairing_probability(std::ostream& os, const VVF& p)
 }
 #endif
 
+#if 0
 static
 void
 save_bp(std::ostream& os, const std::vector<BP>& bp)
@@ -242,7 +260,7 @@ save_mp(std::ostream& os, const std::vector<std::vector<MP> >& mp)
     }
   }
 }
-
+#endif
 
 
 void
@@ -1690,6 +1708,10 @@ run()
 int
 main(int argc, char* argv[])
 {
-  DAFS dafs;
-  return dafs.parse_options(argc, argv).run();
+  try {
+    DAFS dafs;
+    return dafs.parse_options(argc, argv).run();
+  } catch (const char* str) {
+    std::cerr << str << std::endl;
+  }
 }
