@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT(dafs, 0.0.1, no-define)
+AC_INIT(dafs, 0.0.2, no-define)
 AM_INIT_AUTOMAKE([-Wall foreign])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR([src/dafs.cpp])
@@ -91,7 +91,7 @@ AC_ARG_WITH([vienna-rna], AS_HELP_STRING([--with-vienna-rna], [support Vienna RN
      LDFLAGS="-L${with_vienna_rna}/lib $LDFLAGS"
   fi
 )
-AC_CHECK_LIB(RNA, init_pf_fold)
+AC_CHECK_LIB(RNA, pf_fold)
 
 # getopt_long
 AX_FUNC_GETOPT_LONG
@@ -107,6 +107,8 @@ AC_C_INLINE
 
 # Checks for library functions.
 AC_HEADER_STDC
+AC_CHECK_FUNC(energy_of_structure,
+	      [AC_DEFINE([HAVE_VIENNA20], [], [have the Vienna RNA package version 2.0 or above])])
 
 AC_CONFIG_FILES([
   Makefile

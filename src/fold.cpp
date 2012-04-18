@@ -85,7 +85,9 @@ calculate(const std::string& seq, BP& bp)
 #else
   Vienna::pf_scale = -1;
 #endif
+#ifndef HAVE_VIENNA20
   Vienna::init_pf_fold(L);
+#endif
   Vienna::pf_fold(const_cast<char*>(seq.c_str()), NULL);
   for (uint i=0; i!=L-1; ++i)
     for (uint j=i+1; j!=L; ++j)
@@ -120,7 +122,9 @@ calculate(const std::string& seq, const std::string& str, BP& bp)
 #else
   Vienna::pf_scale = -1;
 #endif
+#ifndef HAVE_VIENNA20
   Vienna::init_pf_fold(L);
+#endif
   Vienna::pf_fold(const_cast<char*>(seq.c_str()), &p[0]);
   for (uint i=0; i!=L-1; ++i)
     for (uint j=i+1; j!=L; ++j)

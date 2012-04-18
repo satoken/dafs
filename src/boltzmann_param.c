@@ -1,4 +1,5 @@
 /*
+  $Id$
   Set the new parameters estimated by Andronescu et al (RNA 2010).
   http://www.cs.ubc.ca/labs/beta/Projects/RNA-Params/data/parameters_BLstar_Vienna.txt
  */
@@ -5974,12 +5975,20 @@ static void copy_MLparams(const int values[])
   ML_BASE37 = values[0];
   ML_closing37 = values[1];
   ML_intern37 = values[2];
+#ifdef HAVE_VIENNA20
+  TerminalAU37 = values[3];
+#else
   TerminalAU = values[3];
+#endif
 }
 
 static void copy_ninio(const int values[])
 {
+#ifdef HAVE_VIENNA20
+  ninio37 = values[0];
+#else
   F_ninio37[2] = values[0];
+#endif
   MAX_NINIO = values[1];
 }
 
@@ -5989,7 +5998,11 @@ static void copy_Tetra_loop(const struct tetra_loops tl[])
   while (tl[i].s!=NULL && i<200) {
     strcpy(&Tetraloops[7*i], tl[i].s);
     strcat(Tetraloops, " ");
+#ifdef HAVE_VIENNA20
+    Tetraloop37[i] = tl[i].e;
+#else
     TETRA_ENERGY37[i] = tl[i].e;
+#endif
     i++;
   }
 }
