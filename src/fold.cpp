@@ -88,11 +88,18 @@ calculate(const std::string& seq, BP& bp)
 #ifndef HAVE_VIENNA20
   Vienna::init_pf_fold(L);
 #endif
+#ifdef HAVE_VIENNA20
+  FLT_OR_DBL* pr = Vienna::export_bppm();
+  int* iindx = Vienna::get_iindx(seq.size());
+#else
+  FLT_OR_DBL* pr = Vienna::pr;
+  int* iindx = Vienna::iindx;
+#endif
   Vienna::pf_fold(const_cast<char*>(seq.c_str()), NULL);
   for (uint i=0; i!=L-1; ++i)
     for (uint j=i+1; j!=L; ++j)
     {
-      const float& p = Vienna::pr[Vienna::iindx[i+1]-(j+1)];
+      const float& p = pr[iindx[i+1]-(j+1)];
       if (p>threshold())
         bp[i].push_back(std::make_pair(j, p));
     }
@@ -126,10 +133,17 @@ calculate(const std::string& seq, const std::string& str, BP& bp)
   Vienna::init_pf_fold(L);
 #endif
   Vienna::pf_fold(const_cast<char*>(seq.c_str()), &p[0]);
+#ifdef HAVE_VIENNA20
+  FLT_OR_DBL* pr = Vienna::export_bppm();
+  int* iindx = Vienna::get_iindx(seq.size());
+#else
+  FLT_OR_DBL* pr = Vienna::pr;
+  int* iindx = Vienna::iindx;
+#endif
   for (uint i=0; i!=L-1; ++i)
     for (uint j=i+1; j!=L; ++j)
     {
-      const float& p = Vienna::pr[Vienna::iindx[i+1]-(j+1)];
+      const float& p = pr[iindx[i+1]-(j+1)];
       if (p>threshold())
         bp[i].push_back(std::make_pair(j, p));
     }
