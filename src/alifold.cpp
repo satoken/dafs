@@ -37,9 +37,9 @@ extern "C" {
 #define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
 
 #ifdef HAVE_VIENNA18
-  typedef Vienna::plist pair_info;
+typedef Vienna::plist pair_info;
 #else
-  typedef Vienna::pair_info pair_info;
+typedef Vienna::pair_info pair_info;
 #endif
 
 void
