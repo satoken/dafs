@@ -33,6 +33,9 @@ public:
   void fold(const ALN& aln, const std::vector<Fasta>& fa,
             const std::string& str, BP& bp) const;
 
+  float energy_of_struct(const ALN& aln, const std::vector<Fasta>& fa,
+                         const std::string& str, float& cv) const;
+  
 private:
   static char** alloc_aln(const ALN& aln, const std::vector<Fasta>& fa);
   static void free_aln(char** seqs);

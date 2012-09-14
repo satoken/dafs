@@ -82,45 +82,67 @@ fold(const ALN& aln, const std::vector<Fasta>& fa, BP& bp) const
 void
 Alifold::
 fold(const ALN& aln, const std::vector<Fasta>& fa, const std::string& str, BP& bp) const
-  {
-    const uint L=aln.front().second.size();
-    std::string p(str);
-    std::replace(p.begin(), p.end(), '.', 'x');
-    std::replace(p.begin(), p.end(), '?', '.');
+{
+  const uint L=aln.front().second.size();
+  std::string p(str);
+  std::replace(p.begin(), p.end(), '.', 'x');
+  std::replace(p.begin(), p.end(), '?', '.');
 
-    int bk = Vienna::fold_constrained;
-    Vienna::fold_constrained = 1;
+  int bk = Vienna::fold_constrained;
+  Vienna::fold_constrained = 1;
 
-    char** seqs = alloc_aln(aln, fa);
+  char** seqs = alloc_aln(aln, fa);
 
-    // scaling parameters to avoid overflow
-    std::string res(p);
+  // scaling parameters to avoid overflow
+  std::string res(p);
 #ifdef HAVE_VIENNA20
-    double min_en = Vienna::alifold((const char**)seqs, &res[0]);
+  double min_en = Vienna::alifold((const char**)seqs, &res[0]);
 #else
-    double min_en = Vienna::alifold(seqs, &res[0]);
+  double min_en = Vienna::alifold(seqs, &res[0]);
 #endif
-    double kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
-    Vienna::pf_scale = exp(-(1.07*min_en)/kT/L);
-    Vienna::free_alifold_arrays();
+  double kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
+  Vienna::pf_scale = exp(-(1.07*min_en)/kT/L);
+  Vienna::free_alifold_arrays();
 
-    pair_info* pi;
+  pair_info* pi;
 #ifdef HAVE_VIENNA20
-    Vienna::alipf_fold((const char**)seqs, &p[0], &pi);
+  Vienna::alipf_fold((const char**)seqs, &p[0], &pi);
 #else
-    Vienna::alipf_fold(seqs, &p[0], &pi);
+  Vienna::alipf_fold(seqs, &p[0], &pi);
 #endif
 
-    bp.resize(L);
-    for (uint k=0; pi[k].i!=0; ++k)
-      if (pi[k].p>th_)
-        bp[pi[k].i-1].push_back(std::make_pair(pi[k].j-1, pi[k].p));
+  bp.resize(L);
+  for (uint k=0; pi[k].i!=0; ++k)
+    if (pi[k].p>th_)
+      bp[pi[k].i-1].push_back(std::make_pair(pi[k].j-1, pi[k].p));
 
-    free(pi);
-    Vienna::free_alipf_arrays();
-    free_aln(seqs);
-    Vienna::fold_constrained = bk;
-  }
+  free(pi);
+  Vienna::free_alipf_arrays();
+  free_aln(seqs);
+  Vienna::fold_constrained = bk;
+}
+
+float
+Alifold::
+energy_of_struct(const ALN& aln, const std::vector<Fasta>& fa,
+                 const std::string& str, float& cv) const
+{
+  const uint L=aln.front().second.size();
+  const uint N=aln.size();
+
+  std::string res(L+1, ' ');
+  char** seqs = alloc_aln(aln, fa);
+    
+#ifdef HAVE_VIENNA20
+  float min_en = Vienna::energy_of_alistruct((const char **)seqs, str.c_str(), N, &cv);
+#else
+  std::vector<float> cv_temp(2);
+  float min_en = Vienna::energy_of_alistruct(seqs, str.c_str(), N, &cv_temp[0]);
+  cv = cv_temp[1];
+#endif
+  free_aln(seqs);
+  return min_en;
+}
 
 //static
 char**

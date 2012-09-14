@@ -76,19 +76,22 @@ calculate(const std::string& seq, BP& bp)
 {
   uint L=seq.size();
   bp.resize(L);
-#if 0
-  std::string str(seq.size()+1, '.');
-  float min_en = Vienna::fold(const_cast<char*>(seq.c_str()), &str[0]);
-  float sfact = 1.07;
-  float kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
-  Vienna::pf_scale = exp(-(sfact*min_en)/kT/seq.size());
-#else
   Vienna::pf_scale = -1;
-#endif
+
+  // scaling parameters to avoid overflow
+  if (1 /*L>1600*/)
+  {
+    std::string res(L+1, ' ');
+    float min_en = Vienna::fold(const_cast<char*>(seq.c_str()), &res[0]);
+    float sfact = 1.07;
+    float kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
+    Vienna::pf_scale = exp(-(sfact*min_en)/kT/seq.size());
+  }
 #ifndef HAVE_VIENNA20
   Vienna::init_pf_fold(L);
 #endif
   Vienna::pf_fold(const_cast<char*>(seq.c_str()), NULL);
+
 #ifdef HAVE_VIENNA20
   FLT_OR_DBL* pr = Vienna::export_bppm();
   int* iindx = Vienna::get_iindx(seq.size());
@@ -120,20 +123,24 @@ calculate(const std::string& seq, const std::string& str, BP& bp)
 
   uint L=seq.size();
   bp.resize(L);
-#if 0
-  std::string str(seq.size()+1, '.');
-  float min_en = Vienna::fold(const_cast<char*>(seq.c_str()), &str[0]);
-  float sfact = 1.07;
-  float kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
-  Vienna::pf_scale = exp(-(sfact*min_en)/kT/seq.size());
-#else
   Vienna::pf_scale = -1;
-#endif
+
+  // scaling parameters to avoid overflow
+  if (1 /*L>1600*/)
+  {
+    std::string res(p);
+    float min_en = Vienna::fold(const_cast<char*>(seq.c_str()), &res[0]);
+    float sfact = 1.07;
+    float kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
+    Vienna::pf_scale = exp(-(sfact*min_en)/kT/seq.size());
+  }
+
 #ifndef HAVE_VIENNA20
   Vienna::init_pf_fold(L);
 #endif
   Vienna::pf_fold(const_cast<char*>(seq.c_str()), &p[0]);
 #ifdef HAVE_VIENNA20
+
   FLT_OR_DBL* pr = Vienna::export_bppm();
   int* iindx = Vienna::get_iindx(seq.size());
 #else

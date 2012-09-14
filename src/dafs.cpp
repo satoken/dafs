@@ -97,7 +97,8 @@ private:
   void project_secondary_structure(VU& xx, VU& yy, const VU& x, const VU& y, const VU& z) const;
   void average_matching_probability(VVF& posterior, const ALN& aln1, const ALN& aln2) const;
   void average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const;
-  void update_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const;
+  void update_basepairing_probability(VVF& posterior,  const VU& ss, const std::string& str,
+                                      const ALN& aln, bool use_alifold) const;
   void align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const;
   float align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const;
   float solve(VU& x, VU& y, VU& z, const VVF& p_x, const VVF& p_y, const VVF& p_z,
@@ -621,13 +622,9 @@ average_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold
 
 void
 DAFS::
-update_basepairing_probability(VVF& posterior, const ALN& aln, bool use_alifold) const
+update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& str,
+                               const ALN& aln, bool use_alifold) const
 {
-  // predict the common secondary structure which is used for constraints for the next step
-  std::string str;
-  VU ss;
-  s_decoder_->decode(posterior, ss, str);
-  
   const uint L=aln.front().second.size();
   const uint N=aln.size();
   const uint plevel=th_s_.size();
@@ -915,12 +912,23 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   // calculate posteriors
   VVF p_x, p_y, p_z;
   average_basepairing_probability(p_x, aln1, use_alifold_);
+  if (use_bp_update_)
+  {
+    std::string str;
+    VU ss;
+    s_decoder_->decode(p_x, ss, str);
+    update_basepairing_probability(p_x, ss, str, aln1, use_alifold_);
+  }
+
   average_basepairing_probability(p_y, aln2, use_alifold_);
   if (use_bp_update_)
   {
-    update_basepairing_probability(p_x, aln1, use_alifold_);
-    update_basepairing_probability(p_y, aln2, use_alifold_);
+    std::string str;
+    VU ss;
+    s_decoder_->decode(p_y, ss, str);
+    update_basepairing_probability(p_y, ss, str, aln2, use_alifold_);
   }
+
   average_matching_probability(p_z, aln1, aln2);
 
   // solve the problem
@@ -1180,7 +1188,6 @@ solve_by_dd(VU& x, VU& y, VU& z,
   return s_prev;
 }
 
-#if 1
 float
 DAFS::
 solve_by_ip(VU& x, VU& y, VU& z,
@@ -1383,7 +1390,6 @@ solve_by_ip(VU& x, VU& y, VU& z,
 
   return s;
 }
-#endif
 
 void
 DAFS::
@@ -1690,7 +1696,12 @@ run()
     VVF p;
     average_basepairing_probability(p, aln, use_alifold1_);
     if (use_bp_update1_)
-      update_basepairing_probability(p, aln, use_alifold1_);
+    {
+      std::string str;
+      VU ss;
+      s_decoder1_->decode(p, ss, str);
+      update_basepairing_probability(p, ss, str, aln, use_alifold1_);
+    }
     s_decoder1_->decode(p, ss, str);
   }
   else
@@ -1701,6 +1712,13 @@ run()
   std::cout << ">SS_cons" << std::endl
             << str << std::endl;
   output(std::cout, aln);
+
+#if 0
+  Alifold ali(0.0);
+  float cv;
+  std::cout << ali.energy_of_struct(aln, fa_, str, cv) << std::endl
+            << cv << std::endl;
+#endif
 
   return 0;
 }
