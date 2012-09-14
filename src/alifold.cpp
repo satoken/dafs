@@ -52,13 +52,12 @@ fold(const ALN& aln, const std::vector<Fasta>& fa, BP& bp) const
   char** seqs = alloc_aln(aln, fa);
     
   // scaling parameters to avoid overflow
-  char* res = new char[L+1];
+  std::string res(L+1, ' ');
 #ifdef HAVE_VIENNA20
-  double min_en = Vienna::alifold((const char**)seqs, res);
+  double min_en = Vienna::alifold((const char**)seqs, &res[0]);
 #else
-  double min_en = Vienna::alifold(seqs, res);
+  double min_en = Vienna::alifold(seqs, &res[0]);
 #endif
-  delete[] res;
   double kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
   Vienna::pf_scale = exp(-(1.07*min_en)/kT/L);
   Vienna::free_alifold_arrays();
@@ -95,25 +94,22 @@ fold(const ALN& aln, const std::vector<Fasta>& fa, const std::string& str, BP& b
   char** seqs = alloc_aln(aln, fa);
 
   // scaling parameters to avoid overflow
-  char* res = new char[L+1];
-  strcpy(res, p.c_str());
+  std::string res(p);
 #ifdef HAVE_VIENNA20
-  double min_en = Vienna::alifold((const char**)seqs, res);
+  double min_en = Vienna::alifold((const char**)seqs, &res[0]);
 #else
-  double min_en = Vienna::alifold(seqs, res);
+  double min_en = Vienna::alifold(seqs, &res[0]);
 #endif
   double kT = (Vienna::temperature+273.15)*1.98717/1000.; /* in Kcal */
   Vienna::pf_scale = exp(-(1.07*min_en)/kT/L);
   Vienna::free_alifold_arrays();
 
-  strcpy(res, p.c_str());
   pair_info* pi;
 #ifdef HAVE_VIENNA20
-  Vienna::alipf_fold((const char**)seqs, res, &pi);
+  Vienna::alipf_fold((const char**)seqs, &p[0], &pi);
 #else
-  Vienna::alipf_fold(seqs, res, &pi);
+  Vienna::alipf_fold(seqs, &p[0], &pi);
 #endif
-  delete[] res;
 
   bp.resize(L);
   for (uint k=0; pi[k].i!=0; ++k)
