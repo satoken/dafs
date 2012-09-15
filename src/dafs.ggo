@@ -1,5 +1,7 @@
 # command line options
 
+args "-u"
+
 purpose "DAFS: dual decomposition for simultaneous aligning and folding RNA sequences."
 
 option "refinement"	r "The number of iteration of the iterative refinment"
@@ -34,6 +36,8 @@ section "Options for folding"
 
 option "fold-model"	s "Folding model for calculating base-pairing probablities"
        			  values="Boltzmann","Vienna","CONTRAfold" default="Boltzmann" optional
+option "fold-decoder"   - "Decoder for common secondary structure prediction"
+                          values="Nussinov","IPknot" default="Nussinov" optional hidden
 option "fold-pct"	q "Weight of PCT for base-pairing probabilities"
        			  float default="0.25" optional hidden
 option "fold-th"	t "Threshold for base-pairing probabilities"
@@ -46,7 +50,7 @@ option "fold-th1"	T "Threshold for base-pairing probabilities of the conclusive 
        			  float optional multiple
 option "gamma1"		G "Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))"
        			  float optional hidden multiple
-option "ipknot"		- "Use IPknot decoding"
+option "ipknot"		- "Set optimized parameters for IPknot decoding (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)"
        			  flag off
 option "bp-update"	- "Use the iterative update of BPs"
        			  flag off hidden

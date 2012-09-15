@@ -77,6 +77,9 @@ struct gengetopt_args_info
   char * fold_model_arg;	/**< @brief Folding model for calculating base-pairing probablities (default='Boltzmann').  */
   char * fold_model_orig;	/**< @brief Folding model for calculating base-pairing probablities original value given at command line.  */
   const char *fold_model_help; /**< @brief Folding model for calculating base-pairing probablities help description.  */
+  char * fold_decoder_arg;	/**< @brief Decoder for common secondary structure prediction (default='Nussinov').  */
+  char * fold_decoder_orig;	/**< @brief Decoder for common secondary structure prediction original value given at command line.  */
+  const char *fold_decoder_help; /**< @brief Decoder for common secondary structure prediction help description.  */
   float fold_pct_arg;	/**< @brief Weight of PCT for base-pairing probabilities (default='0.25').  */
   char * fold_pct_orig;	/**< @brief Weight of PCT for base-pairing probabilities original value given at command line.  */
   const char *fold_pct_help; /**< @brief Weight of PCT for base-pairing probabilities help description.  */
@@ -102,8 +105,8 @@ struct gengetopt_args_info
   unsigned int gamma1_min; /**< @brief Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))'s minimum occurreces */
   unsigned int gamma1_max; /**< @brief Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))'s maximum occurreces */
   const char *gamma1_help; /**< @brief Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1)) help description.  */
-  int ipknot_flag;	/**< @brief Use IPknot decoding (default=off).  */
-  const char *ipknot_help; /**< @brief Use IPknot decoding help description.  */
+  int ipknot_flag;	/**< @brief Set optimized parameters for IPknot decoding (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1) (default=off).  */
+  const char *ipknot_help; /**< @brief Set optimized parameters for IPknot decoding (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1) help description.  */
   int bp_update_flag;	/**< @brief Use the iterative update of BPs (default=off).  */
   const char *bp_update_help; /**< @brief Use the iterative update of BPs help description.  */
   int bp_update1_flag;	/**< @brief Use the iterative update of BPs for the final prediction (default=off).  */
@@ -126,6 +129,7 @@ struct gengetopt_args_info
   unsigned int align_th_given ;	/**< @brief Whether align-th was given.  */
   unsigned int align_aux_given ;	/**< @brief Whether align-aux was given.  */
   unsigned int fold_model_given ;	/**< @brief Whether fold-model was given.  */
+  unsigned int fold_decoder_given ;	/**< @brief Whether fold-decoder was given.  */
   unsigned int fold_pct_given ;	/**< @brief Whether fold-pct was given.  */
   unsigned int fold_th_given ;	/**< @brief Whether fold-th was given.  */
   unsigned int gamma_given ;	/**< @brief Whether gamma was given.  */
@@ -268,6 +272,7 @@ int cmdline_parser_required (struct gengetopt_args_info *args_info,
 
 extern const char *cmdline_parser_align_model_values[];  /**< @brief Possible values for align-model. */
 extern const char *cmdline_parser_fold_model_values[];  /**< @brief Possible values for fold-model. */
+extern const char *cmdline_parser_fold_decoder_values[];  /**< @brief Possible values for fold-decoder. */
 
 
 #ifdef __cplusplus

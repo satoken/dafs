@@ -1545,58 +1545,66 @@ parse_options(int& argc, char**& argv)
     s_model_ = new CONTRAfold(CUTOFF);
   assert(s_model_!=NULL);
 
-  if (args_info.fold_th_given==0)
-  {
-    th_s_.resize(1);
-    th_s_[0] = args_info.fold_th_arg[0];
-  }
-  else
+  VF th_s1;
+  if (args_info.fold_th_given)
   {
     th_s_.resize(args_info.fold_th_given);
     std::copy(args_info.fold_th_arg, args_info.fold_th_arg+th_s_.size(), th_s_.begin());
   }
-  if (args_info.gamma_given!=0)
+  else if (args_info.gamma_given)
   {
     th_s_.resize(args_info.gamma_given);
     for (uint i=0; i!=th_s_.size(); ++i)
       th_s_[i] = 1.0/(1.0+args_info.gamma_arg[i]);
   }
-
-  if (args_info.ipknot_flag==0)
+  else if (args_info.ipknot_flag)
   {
-    s_decoder_ = new SparseNussinov(w_, th_s_[0]);
-    if (args_info.fold_th1_given)
-      s_decoder1_ = new SparseNussinov(w_, args_info.fold_th1_arg[0]);
-    else if (args_info.gamma1_given)
-      s_decoder1_ = new SparseNussinov(w_, 1.0/(1.0+args_info.gamma1_arg[0]));
-    else
-      s_decoder1_ = new SparseNussinov(w_, th_s_[0]);
+    th_s_.resize(2);
+    th_s_[0] = 1.0/(1.0+4.0);
+    th_s_[1] = 1.0/(1.0+8.0);
   }
   else
+  {
+    th_s_.resize(1);
+    th_s_[0] = args_info.fold_th_arg[0];
+  }
+
+  if (args_info.fold_th1_given)
+  {
+    th_s1.resize(args_info.fold_th1_given);
+    std::copy(args_info.fold_th1_arg, args_info.fold_th1_arg+args_info.fold_th1_given, th_s1.begin());
+  }
+  else if (args_info.gamma1_given)
+  {
+    th_s1.resize(args_info.gamma1_given);
+    for (uint i=0; i!=th_s1.size(); ++i)
+      th_s1[i] = 1.0/(1.0+args_info.gamma1_arg[i]);
+  }
+  else if (args_info.ipknot_flag)
+  {
+    th_s1.resize(2);
+    th_s1[0] = 1.0/(1.0+2.0);
+    th_s1[1] = 1.0/(1.0+4.0);
+  }
+  else
+  {
+    th_s1=th_s_;
+  }
+
+  if (strcasecmp(args_info.fold_decoder_arg, "IPknot")==0 || args_info.ipknot_flag)
   {
     s_decoder_ = new IPknot(w_, th_s_);
-    if (args_info.fold_th1_given)
-    {
-      VF th(args_info.fold_th1_given);
-      std::copy(args_info.fold_th1_arg, args_info.fold_th1_arg+args_info.fold_th1_given, th.begin());
-      s_decoder1_ = new IPknot(w_, th);
-    }
-    else if (args_info.gamma1_given)
-    {
-      VF th(args_info.gamma1_given);
-      for (uint i=0; i!=th.size(); ++i)
-        th[i] = 1.0/(1.0+args_info.gamma1_arg[i]);
-      s_decoder1_ = new IPknot(w_, th);
-    }
-    else
-      s_decoder1_ = new IPknot(w_, th_s_);
+    s_decoder1_ = new IPknot(w_, th_s1);
   }
+  else if (strcasecmp(args_info.fold_decoder_arg, "Nussinov")==0)
+  {
+    s_decoder_ = new SparseNussinov(w_, th_s_[0]);
+    s_decoder1_ = new SparseNussinov(w_, th_s1[0]);
+  }
+  assert(s_decoder_!=NULL);
 
   use_bp_update_ = args_info.bp_update_flag!=0;
-  if (args_info.bp_update1_given)
-    use_bp_update1_ = args_info.bp_update1_flag!=0;
-  else
-    use_bp_update1_ = use_bp_update_;
+  use_bp_update1_ = args_info.bp_update1_flag!=0 ^ args_info.ipknot_flag!=0;
 
   if (args_info.inputs_num==0)
   {
