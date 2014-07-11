@@ -13,6 +13,7 @@ AC_PROG_CC
 AC_LANG(C++)
 AC_CXX_HAVE_STL
 AC_PROG_RANLIB
+AM_PROG_AR
 
 # debug option
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug], [turn on debugging (default: off)]))
