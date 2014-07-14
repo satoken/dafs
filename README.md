@@ -4,12 +4,12 @@ DAFS: simultaneous aligning and folding of RNA sequences by dual decomposition
 Requirements
 ------------
 
-* [Boost C++ Library](http://www.boost.org/) (>=1.38.0) 
-* [Vienna RNA package](http://www.tbi.univie.ac.at/~ivo/RNA/>) (>= 1.8) 
+* [Boost C++ Library](http://www.boost.org/) (>=1.38.0)
+* [Vienna RNA package](http://www.tbi.univie.ac.at/~ivo/RNA/) (>= 1.8)
 * (optional)
   [GNU Linear Programming Kit](http://www.gnu.org/software/glpk/) (>=4.41)
-  or [Gurobi Optimizer](http://www.gurobi.com/) (>=2.0) 
-  or [ILOG CPLEX](http://http://www-01.ibm.com/software/integration/optimization/cplex/) (>=12.0) 
+  or [Gurobi Optimizer](http://www.gurobi.com/) (>=2.0)
+  or [ILOG CPLEX](http://http://www-01.ibm.com/software/integration/optimization/cplex/) (>=12.0)
 
 Install
 -------
@@ -22,15 +22,19 @@ To use "--ipknot" option for pseudoknotted common secondary structure
 prediction, build DAFS with an IP solver.
 
 For GLPK,
+
 	./configure --with-vienna-rna=/path/to/vienna-rna --with-glpk
 
 For Gurobi, 
+
 	./configure --with-vienna-rna=/path/to/vienna-rna --with-gurobi
 
 For CPLEX,
+
 	./configure --with-vienna-rna=/path/to/vienna-rna --with-cplex
 
 You may have to specify the include path and the library path by CPPFLAGS and LDFLAGS like
+
 	env CPPFLAGS='-I/path/to/gurobi/include' LDFLAGS='-L/path/to/gurobi/lib' \
 	./configure --with-vienna-rna=/path/to/vienna-rna --with-gurobi
 
@@ -38,8 +42,7 @@ You may have to specify the include path and the library path by CPPFLAGS and LD
 Usage
 -----
 
-DAFS can take FASTA formatted RNA sequences as input, then produce
-a structural alignment.
+DAFS can take FASTA formatted RNA sequences as input, then produce a structural alignment.
 
     Usage: dafs [OPTIONS]... [FILES]
     
@@ -102,6 +105,4 @@ Example
 References
 ----------
 
-* Sato, K., Kato, Y., Akutsu, T., Asai, K., Sakakibara, Y.: DAFS:
-  simultaneous aligning and folding RNA sequences via dual
-  decomposition. *Bioinformatics*, 28(24):3218-3224, 2012.
+* Sato, K., Kato, Y., Akutsu, T., Asai, K., Sakakibara, Y.: DAFS: simultaneous aligning and folding RNA sequences via dual decomposition. *Bioinformatics*, 28(24):3218-3224, 2012.
