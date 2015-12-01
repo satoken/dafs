@@ -21,11 +21,13 @@
 #include "config.h"
 #endif
 #include <cstring>
+#include <cassert>
+#include <cmath>
 #include <unistd.h>
 #include <vector>
 #include <queue>
 #include <stack>
-//#include <iostream>
+#include <iostream>
 //#include <fstream>
 #include "cmdline.h"
 #include "fa.h"
@@ -654,6 +656,7 @@ update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& 
       for (uint i=0; i!=L; ++i)
       {
         if (ss[i]!=-1u && rev[i]!=-1u && rev[ss[i]]!=-1u)
+        {
           if (str[i]==Fold::Decoder::left_brackets[plv])
           {
             con[rev[i]]='('; con[rev[ss[i]]]=')';
@@ -662,6 +665,7 @@ update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& 
           {
             con[rev[i]]=con[rev[ss[i]]]='.';
           }
+        }
       }
 
       // calculate base-pairing probabilities under the constraint
@@ -683,6 +687,7 @@ update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& 
       for (uint i=0; i!=L; ++i)
       {
         if (ss[i]!=-1u)
+        {
           if (str[i]==Fold::Decoder::left_brackets[plv])
           {
             con[i]='('; con[ss[i]]=')';
@@ -691,6 +696,7 @@ update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& 
           {
             con[i]=con[ss[i]]='.';
           }
+        }
       }
 
       // calculate base-pairing probabilities under the constraint

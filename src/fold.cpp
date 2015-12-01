@@ -24,6 +24,7 @@
 #include "fold.h"
 #include <cassert>
 #include <cstring>
+#include <cmath>
 #include <sys/errno.h>
 #include <algorithm>
 #include <iostream>
