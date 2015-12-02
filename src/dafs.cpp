@@ -981,6 +981,16 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 #endif
 }
 
+#define ADAGRAD
+#ifdef ADAGRAD
+float
+adagrad_update(float& g2, const float g, float eta0)
+{
+  g2 += g*g;
+  return eta0*g/std::sqrt(1e-6+g2);
+}
+#endif
+
 float
 DAFS::
 solve_by_dd(VU& x, VU& y, VU& z,
@@ -992,9 +1002,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
 
   // enumerate the candidates of consensus base-pairs
   std::vector<CBP> cbp;         // consensus base-pairs
-  float min_th_s = th_s_[0];
-  for (VF::const_iterator it=th_s_.begin(); it!=th_s_.end(); ++it)
-    min_th_s = std::min(min_th_s, *it);
+  float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
 #ifdef SPARSE_UPDATE
   VVU c_x(L1), c_y(L2), c_z(L1); // project consensus base-pairs into each structure and alignment
 #endif
@@ -1049,7 +1057,14 @@ solve_by_dd(VU& x, VU& y, VU& z,
 
   //uint c=0;
   float c=0.0;
-  float eta=eta0_, s_prev=0.0;
+#ifdef ADAGRAD
+  VVF g_x(L1, VF(L1, 0.0));
+  VVF g_y(L2, VF(L2, 0.0));
+  VVF g_z(L1, VF(L2, 0.0));
+#else
+  float eta=eta0_;
+#endif
+  float s_prev=0.0;
   uint violated=0;
   uint t;
   for (t=0; t!=t_max_; ++t)
@@ -1090,7 +1105,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
       if (j!=-1u && t_x[i][j]!=1)
       {
         violated++;
+#ifdef ADAGRAD
+        q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j]-1, eta0_);
+#else
         q_x[i][j] -= eta*(t_x[i][j]-1);
+#endif
       }
       for (uint jj=0; jj!=c_x[i].size(); ++jj)
       {
@@ -1098,7 +1117,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (x[i]!=j && t_x[i][j]!=0)
         {
           violated++;
+#ifdef ADAGRAD
+          q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j], eta0_);
+#else
           q_x[i][j] -= eta*t_x[i][j];
+#endif
         }
       }
     }
@@ -1109,7 +1132,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
       if (l!=-1u && t_y[k][l]!=1)
       {
         violated++;
+#ifdef ADAGRAD
+        q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l]-1, eta0_);
+#else
         q_y[k][l] -= eta*(t_y[k][l]-1);
+#endif
       }
       for (uint ll=0; ll!=c_y[k].size(); ++ll)
       {
@@ -1117,7 +1144,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (y[k]!=l && t_y[k][l]!=0)
         {
           violated++;
+#ifdef ADAGRAD
+          q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l], eta0_);
+#else
           q_y[k][l] -= eta*t_y[k][l];
+#endif
         }
       }
     }
@@ -1128,7 +1159,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
       if (k!=-1u && t_z[i][k]>1)
       {
         violated++;
+#ifdef ADAGRAD
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], 1-t_z[i][k], eta0_));
+#else
         q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(1-t_z[i][k]));
+#endif
       }
       for (uint kk=0; kk!=c_z[i].size(); ++kk)
       {
@@ -1136,7 +1171,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (z[i]!=k && t_z[i][k]>0)
         {
           violated++;
+#ifdef ADAGRAD
+          q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], -t_z[i][k], eta0_));
+#else
           q_z[i][k] = std::max(0.0f, q_z[i][k]+eta*t_z[i][k]);
+#endif
         }
       }
     }
@@ -1148,7 +1187,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (t_x[i][j]-x_ij!=0)
         {
           violated++;
+#ifdef ADAGRAD
+          q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j]-x_ij, eta0_);
+#else
           q_x[i][j] -= eta*(t_x[i][j]-x_ij);
+#endif
         }
       }
     for (uint k=0; k!=L2-1; ++k)
@@ -1158,7 +1201,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (t_y[k][l]-y_kl!=0)
         {
           violated++;
+#ifdef ADAGRAD
+          q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l]-y_kl, eta0_);
+#else
           q_y[k][l] -= eta*(t_y[k][l]-y_kl);
+#endif
         }
       }
     for (uint i=0; i!=L1; ++i)
@@ -1168,25 +1215,33 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (z_ik-t_z[i][k]<0)
         {
           violated++;
+#ifdef ADAGRAD
+          q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], z_ik-t_z[i][k], eta0_));
+#else
           q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(z_ik-t_z[i][k]));
+#endif          
         }
       }
 #endif
 
     if (verbose_>=2)
       std::cout << "Step: " << t << std::endl
+#ifndef ADAGRAD
                 << "eta: " << eta << std::endl
+#endif
                 << "L: " << s << std::endl
                 << "Violated: " << violated << std::endl << std::endl;
 
     if (violated==0)  break;     // all constraints were satisfied.
 
     // update the step width
+#ifndef ADAGRAD
     if (s<s_prev || t==0)
     {
       c += std::max(0.0f, 4.0f*cbp.size()-violated)/(4.0*cbp.size());
       eta = eta0_/(1.0+sqrt(c));
     }
+#endif
     s_prev = s;
   }
   if (verbose_==1) std::cout << "Step: " << t << ", Violated: " << violated << std::endl;
