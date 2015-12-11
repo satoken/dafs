@@ -981,8 +981,9 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 #endif
 }
 
-#define ADAM
-#undef SPARSE_UPDATE
+#define ADAGRAD
+//#define ADAM
+//#undef SPARSE_UPDATE
 
 #ifdef ADAGRAD
 float
@@ -1112,11 +1113,11 @@ solve_by_dd(VU& x, VU& y, VU& z,
       const int w_ijkl = s_w>0.0f ? 1 : 0;
       if (w_ijkl)
       {
-        s += s_w * w_ijkl;
-        t_x[i][j] += w_ijkl;
-        t_y[k][l] += w_ijkl;
-        t_z[i][k] += w_ijkl;
-        t_z[j][l] += w_ijkl;
+        s += s_w; /* * w_ijkl*/
+        t_x[i][j]++; // += w_ijkl;
+        t_y[k][l]++; // += w_ijkl;
+        t_z[i][k]++; // += w_ijkl;
+        t_z[j][l]++; // += w_ijkl;
       }
     }
 
@@ -1138,7 +1139,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
       for (uint jj=0; jj!=c_x[i].size(); ++jj)
       {
         const uint j=c_x[i][jj];
-        if (x[i]!=j && t_x[i][j]!=0)
+        if (x[i]!=j && t_x[i][j]==1)
         {
           violated++;
 #if defined ADAGRAD
@@ -1169,7 +1170,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
       for (uint ll=0; ll!=c_y[k].size(); ++ll)
       {
         const uint l=c_y[k][ll];
-        if (y[k]!=l && t_y[k][l]!=0)
+        if (y[k]!=l && t_y[k][l]==1)
         {
           violated++;
 #if defined ADAGRAD
@@ -1186,13 +1187,13 @@ solve_by_dd(VU& x, VU& y, VU& z,
     for (uint i=0; i!=L1; ++i)
     {
       const uint k = z[i];
-      if (k!=-1u && t_z[i][k]>1)
+      if (k!=-1u)               // z_ik==1
       {
-        violated++;
+        if (t_z[i][k]>1) violated++;
 #if defined ADAGRAD
         q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], 1-t_z[i][k], eta0_));
 #elif defined ADAM
-        q_z[i][k] = std::max(0.0f, q_z[i][k]-adam_update(t+1, m_z[i][k], v_z[i][k], 1-t_z[i][k]), eta0_);
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-adam_update(t+1, m_z[i][k], v_z[i][k], 1-t_z[i][k], eta0_));
 #else
         q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(1-t_z[i][k]));
 #endif
@@ -1200,9 +1201,9 @@ solve_by_dd(VU& x, VU& y, VU& z,
       for (uint kk=0; kk!=c_z[i].size(); ++kk)
       {
         const uint k=c_z[i][kk];
-        if (z[i]!=k && t_z[i][k]>0)
+        if (z[i]!=k)            // z_ik==0
         {
-          violated++;
+          if (t_z[i][k]>0) violated++;
 #if defined ADAGRAD
           q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], -t_z[i][k], eta0_));
 #elif defined ADAM
@@ -1250,17 +1251,14 @@ solve_by_dd(VU& x, VU& y, VU& z,
       for (uint k=0; k!=L2; ++k)
       {
         const int z_ik = z[i]==k ? 1 : 0;
-        if (z_ik-t_z[i][k]<0)
-        {
-          violated++;
+        if (z_ik-t_z[i][k]<0) violated++;
 #if defined ADAGRAD
-          q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], z_ik-t_z[i][k], eta0_));
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], z_ik-t_z[i][k], eta0_));
 #elif defined ADAM
-          q_z[i][k] = std::max(0.0f, q_z[i][k]-adam_update(t+1, m_z[i][k], v_z[i][k], z_ik-t_z[i][k], eta0_));
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-adam_update(t+1, m_z[i][k], v_z[i][k], z_ik-t_z[i][k], eta0_));
 #else
-          q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(z_ik-t_z[i][k]));
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(z_ik-t_z[i][k]));
 #endif          
-        }
       }
 #endif
 
