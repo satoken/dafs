@@ -4,7 +4,6 @@ DAFS: simultaneous aligning and folding of RNA sequences by dual decomposition
 Requirements
 ------------
 
-* [Boost C++ Library](http://www.boost.org/) (>=1.38.0)
 * [Vienna RNA package](http://www.tbi.univie.ac.at/~ivo/RNA/) (>= 1.8)
 * (optional)
   [GNU Linear Programming Kit](http://www.gnu.org/software/glpk/) (>=4.41)
