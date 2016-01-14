@@ -288,7 +288,7 @@ public:
     const int numrows = bnd_.size();
 
     int status;
-    lp_ = CPXcreateprob(env_, &status, "PRactIP");
+    lp_ = CPXcreateprob(env_, &status, "");
     if (lp_==NULL) 
       throw std::runtime_error("failed to create LP");
     
