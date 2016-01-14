@@ -55,7 +55,7 @@ extern "C" {
 #define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
 #define CUTOFF 0.01
 
-//#define SPARSE_UPDATE
+#define SPARSE_UPDATE
 //#define ADAGRAD
 //#define ADAM
 
@@ -1119,6 +1119,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
       }
     }
 
+    // update Lagrangian for x (=q_x)
 #ifdef SPARSE_UPDATE // efficient implementation using sparsity
     for (uint i=0; i!=L1; ++i)
     {
@@ -1137,7 +1138,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
       for (uint jj=0; jj!=c_x[i].size(); ++jj)
       {
         const uint j=c_x[i][jj];
-        if (x[i]!=j && t_x[i][j]==1)
+        if (x[i]!=j && t_x[i][j]!=0)
         {
           violated++;
 #if defined ADAGRAD
@@ -1169,6 +1170,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
       }
 #endif
 
+    // update Lagrangian for y (=q_y)
 #ifdef SPARSE_UPDATE
     for (uint k=0; k!=L2; ++k)
     {
@@ -1187,7 +1189,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
       for (uint ll=0; ll!=c_y[k].size(); ++ll)
       {
         const uint l=c_y[k][ll];
-        if (y[k]!=l && t_y[k][l]==1)
+        if (y[k]!=l && t_y[k][l]!=0)
         {
           violated++;
 #if defined ADAGRAD
@@ -1200,7 +1202,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
         }
       }
     }
-#else
+#else  // naive implementation
     for (uint k=0; k!=L2-1; ++k)
       for (uint l=k+1; l!=L2; ++l)
       {
@@ -1219,6 +1221,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
       }
 #endif
 
+    // update Lagrangian for z (=q_z)
 #ifdef SPARSE_UPDATE
     for (uint i=0; i!=L1; ++i)
     {
