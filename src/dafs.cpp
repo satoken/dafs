@@ -981,7 +981,7 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 #endif
 }
 
-#define ADAM
+#define ADAGRAD
 #undef SPARSE_UPDATE
 
 #ifdef ADAGRAD
@@ -1189,6 +1189,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
       if (k!=-1u && t_z[i][k]>1)
       {
         violated++;
+      }
+      {
 #if defined ADAGRAD
         q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], 1-t_z[i][k], eta0_));
 #elif defined ADAM
@@ -1203,6 +1205,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (z[i]!=k && t_z[i][k]>0)
         {
           violated++;
+        }
+        {
 #if defined ADAGRAD
           q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], -t_z[i][k], eta0_));
 #elif defined ADAM
@@ -1253,6 +1257,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (z_ik-t_z[i][k]<0)
         {
           violated++;
+        }
+        {
 #if defined ADAGRAD
           q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], z_ik-t_z[i][k], eta0_));
 #elif defined ADAM
