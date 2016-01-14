@@ -25,15 +25,6 @@ else
   CXXFLAGS="-DNDEBUG $CXXFLAGS"
 fi
 
-# boost libraries
-AX_BOOST_BASE(1.40, , AC_MSG_ERROR("the boost library is unavailable"))
-if test "x$BOOST_CPPFLAGS" != x; then
-  CPPFLAGS="$CPPFLAGS $BOOST_CPPFLAGS"
-fi
-if test "x$BOOST_LDFLAGS" != x; then
-  LDFLAGS="$LDFLAGS $BOOST_LDFLAGS"
-fi
-
 # Checks for libraries.
 AC_CHECK_LIB([pthread], [pthread_create])
 
