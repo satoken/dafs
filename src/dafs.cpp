@@ -55,7 +55,9 @@ extern "C" {
 #define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
 #define CUTOFF 0.01
 
-#define SPARSE_UPDATE
+//#define SPARSE_UPDATE
+//#define ADAGRAD
+//#define ADAM
 
 class DAFS
 {
@@ -981,10 +983,6 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 #endif
 }
 
-#define ADAGRAD
-//#define ADAM
-#undef SPARSE_UPDATE
-
 #ifdef ADAGRAD
 float
 adagrad_update(float& g2, const float g, const float eta0)
@@ -1152,7 +1150,26 @@ solve_by_dd(VU& x, VU& y, VU& z,
         }
       }
     }
+#else  // naive implementation
+    for (uint i=0; i!=L1-1; ++i)
+      for (uint j=i+1; j!=L1; ++j)
+      {
+        const int x_ij = x[i]==j ? 1 : 0;
+        if (t_x[i][j]-x_ij!=0)
+        {
+          violated++;
+#if defined ADAGRAD
+          q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j]-x_ij, eta0_);
+#elif defined ADAM
+          q_x[i][j] -= adam_update(t+1, m_x[i][j], v_x[i][j], t_x[i][j]-x_ij, eta0_);
+#else
+          q_x[i][j] -= eta*(t_x[i][j]-x_ij);
+#endif
+        }
+      }
+#endif
 
+#ifdef SPARSE_UPDATE
     for (uint k=0; k!=L2; ++k)
     {
       const uint l = y[k];
@@ -1183,7 +1200,26 @@ solve_by_dd(VU& x, VU& y, VU& z,
         }
       }
     }
+#else
+    for (uint k=0; k!=L2-1; ++k)
+      for (uint l=k+1; l!=L2; ++l)
+      {
+        const int y_kl = y[k]==l ? 1 : 0;
+        if (t_y[k][l]-y_kl!=0)
+        {
+          violated++;
+#if defined ADAGRAD
+          q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l]-y_kl, eta0_);
+#elif defined ADAM
+          q_y[k][l] -= adam_update(t+1, m_y[k][l], v_y[k][l], t_y[k][l]-y_kl, eta0_);
+#else
+          q_y[k][l] -= eta*(t_y[k][l]-y_kl);
+#endif
+        }
+      }
+#endif
 
+#ifdef SPARSE_UPDATE
     for (uint i=0; i!=L1; ++i)
     {
       const uint k = z[i];
@@ -1215,38 +1251,6 @@ solve_by_dd(VU& x, VU& y, VU& z,
       }
     }
 #else // naive implementation
-    for (uint i=0; i!=L1-1; ++i)
-      for (uint j=i+1; j!=L1; ++j)
-      {
-        const int x_ij = x[i]==j ? 1 : 0;
-        if (t_x[i][j]-x_ij!=0)
-        {
-          violated++;
-#if defined ADAGRAD
-          q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j]-x_ij, eta0_);
-#elif defined ADAM
-          q_x[i][j] -= adam_update(t+1, m_x[i][j], v_x[i][j], t_x[i][j]-x_ij, eta0_);
-#else
-          q_x[i][j] -= eta*(t_x[i][j]-x_ij);
-#endif
-        }
-      }
-    for (uint k=0; k!=L2-1; ++k)
-      for (uint l=k+1; l!=L2; ++l)
-      {
-        const int y_kl = y[k]==l ? 1 : 0;
-        if (t_y[k][l]-y_kl!=0)
-        {
-          violated++;
-#if defined ADAGRAD
-          q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l]-y_kl, eta0_);
-#elif defined ADAM
-          q_y[k][l] -= adam_update(t+1, m_y[k][l], v_y[k][l], t_y[k][l]-y_kl, eta0_);
-#else
-          q_y[k][l] -= eta*(t_y[k][l]-y_kl);
-#endif
-        }
-      }
     for (uint i=0; i!=L1; ++i)
       for (uint k=0; k!=L2; ++k)
       {
@@ -1274,14 +1278,15 @@ solve_by_dd(VU& x, VU& y, VU& z,
 
     // update the step width
 #if !defined ADAGRAD && !defined ADAM
-    if (s<s_prev || t==0)
+    if (s>s_prev || t==0)
     {
       c += std::max(0.0f, 4.0f*cbp.size()-violated)/(4.0*cbp.size());
-      eta = eta0_/(1.0+sqrt(c));
+      //eta = eta0_/(1.0+sqrt(c));
+      eta = eta0_/(1.0+c);
     }
 #endif
-    s_prev = s;
-  }
+      s_prev = s;
+    }
   if (verbose_==1) std::cout << "Step: " << t << ", Violated: " << violated << std::endl;
 
   return s_prev;
