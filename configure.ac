@@ -62,7 +62,7 @@ AC_ARG_WITH([gurobi], AS_HELP_STRING([--with-gurobi], [support Gurobi optimizer]
       if test "$with_gurobi" != "yes"; then
         CPPFLAGS="-I${with_gurobi}/include $CPPFLAGS"
       	LDFLAGS="-L${with_gurobi}/lib $LDFLAGS"
-	      fi
+      fi
       AC_CHECK_HEADERS([gurobi_c++.h])
       for i in `echo ${with_gurobi}/lib/libgurobi*.so | sed 's,.*/,,' | sed -e 's;lib\(gurobi.*\).so;\1;'`; do
       	  AC_CHECK_LIB([${i}], [GRBloadenv], LIBS="-lgurobi_c++ -l${i} $LIBS")

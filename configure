@@ -5418,7 +5418,7 @@ if test "${with_gurobi+set}" = set; then :
       if test "$with_gurobi" != "yes"; then
         CPPFLAGS="-I${with_gurobi}/include $CPPFLAGS"
       	LDFLAGS="-L${with_gurobi}/lib $LDFLAGS"
-	      fi
+      fi
       for ac_header in gurobi_c++.h
 do :
   ac_fn_cxx_check_header_mongrel "$LINENO" "gurobi_c++.h" "ac_cv_header_gurobi_cpp_h" "$ac_includes_default"

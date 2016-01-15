@@ -26,17 +26,12 @@ For GLPK,
 
 For Gurobi, 
 
-	./configure --with-vienna-rna=/path/to/vienna-rna --with-gurobi
+	./configure --with-vienna-rna=/path/to/vienna-rna --with-gurobi=/path/to/gurobi
 
 For CPLEX,
 
+	env CPPFLAGS='-I/path/to/cplex/include' LDFLAGS='-L/path/to/cplex/lib' \
 	./configure --with-vienna-rna=/path/to/vienna-rna --with-cplex
-
-You may have to specify the include path and the library path by CPPFLAGS and LDFLAGS like
-
-	env CPPFLAGS='-I/path/to/gurobi/include' LDFLAGS='-L/path/to/gurobi/lib' \
-	./configure --with-vienna-rna=/path/to/vienna-rna --with-gurobi
-
 
 Usage
 -----
