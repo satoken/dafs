@@ -151,6 +151,12 @@ public:
     return vars_.size()-1;
   }
 
+  int make_variable(double coef, int lo, int hi)
+  {
+    vars_.push_back(model_->addVar(lo, hi, dir_*coef, GRB_INTEGER));
+    return vars_.size()-1;
+  }
+
   int make_constraint(IP::BoundType bnd, double l, double u)
   {
     bnd_.push_back(bnd);
@@ -439,6 +445,12 @@ IP::
 int
 IP::
 make_variable(double coef)
+{
+  throw "no IP solver is linked.";
+  return 0;
+}
+
+make_variable(double coef, int lo, int hi)
 {
   throw "no IP solver is linked.";
   return 0;

@@ -1016,6 +1016,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
 {
   const uint L1=p_x.size();
   const uint L2=p_y.size();
+  const uint N1=aln1.size();
+  const uint N2=aln2.size();
 
   // enumerate the candidates of consensus base-pairs
   std::vector<CBP> cbp;         // consensus base-pairs
@@ -1033,7 +1035,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
               {
                 assert(p_x[i][j]<=1.0);
                 assert(p_y[k][l]<=1.0);
-                float p=(p_x[i][j]+p_y[k][l])/2;
+                float p=(N1*p_x[i][j]+N2*p_y[k][l])/(N1+N2);
                 float q=(p_z[i][k]+p_z[j][l])/2;
                 if (p-min_th_s>0.0 && w_*(p-min_th_s)+(q-th_a_)>0.0)
                 {
@@ -1092,8 +1094,8 @@ solve_by_dd(VU& x, VU& y, VU& z,
   {
     // solve the subproblems
     float s = 0.0;
-    s += s_decoder_->decode(p_x, q_x, x);
-    s += s_decoder_->decode(p_y, q_y, y);
+    s += s_decoder_->decode(w_*2*N1/(N1+N2), p_x, q_x, x);
+    s += s_decoder_->decode(w_*2*N2/(N1+N2), p_y, q_y, y);
     s += a_decoder_->decode(p_z, q_z, z);
 
     if (verbose_>=2) output_verbose(x, y, z, aln1, aln2);
@@ -1700,13 +1702,13 @@ parse_options(int& argc, char**& argv)
 
   if (strcasecmp(args_info.fold_decoder_arg, "IPknot")==0 || args_info.ipknot_flag)
   {
-    s_decoder_ = new IPknot(w_, th_s_);
-    s_decoder1_ = new IPknot(w_, th_s1);
+    s_decoder_ = new IPknot(th_s_);
+    s_decoder1_ = new IPknot(th_s1);
   }
   else if (strcasecmp(args_info.fold_decoder_arg, "Nussinov")==0)
   {
-    s_decoder_ = new SparseNussinov(w_, th_s_[0]);
-    s_decoder1_ = new SparseNussinov(w_, th_s1[0]);
+    s_decoder_ = new SparseNussinov(th_s_[0]);
+    s_decoder1_ = new SparseNussinov(th_s1[0]);
   }
   assert(s_decoder_!=NULL);
 

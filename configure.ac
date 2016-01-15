@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT(dafs, 0.0.2, no-define)
+AC_INIT(dafs, 0.0.3, no-define)
 AM_INIT_AUTOMAKE([-Wall foreign])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR([src/dafs.cpp])
@@ -62,13 +62,11 @@ AC_ARG_WITH([gurobi], AS_HELP_STRING([--with-gurobi], [support Gurobi optimizer]
       if test "$with_gurobi" != "yes"; then
         CPPFLAGS="-I${with_gurobi}/include $CPPFLAGS"
       	LDFLAGS="-L${with_gurobi}/lib $LDFLAGS"
-      fi
+	      fi
       AC_CHECK_HEADERS([gurobi_c++.h])
-      AC_CHECK_LIB([gurobi], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi $LIBS")
-      AC_CHECK_LIB([gurobi20], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi20 $LIBS")
-      AC_CHECK_LIB([gurobi30], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi30 $LIBS")
-      AC_CHECK_LIB([gurobi40], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi40 $LIBS")
-      AC_CHECK_LIB([gurobi46], [GRBloadenv], LIBS="-lgurobi_c++ -lgurobi46 $LIBS")
+      for i in `echo ${with_gurobi}/lib/libgurobi*.so | sed 's,.*/,,' | sed -e 's;lib\(gurobi.*\).so;\1;'`; do
+      	  AC_CHECK_LIB([${i}], [GRBloadenv], LIBS="-lgurobi_c++ -l${i} $LIBS")
+      done
     fi
   ]
 )
