@@ -29,7 +29,7 @@ fi
 AC_CHECK_LIB([pthread], [pthread_create])
 
 # glpk
-AC_ARG_WITH([glpk], AS_HELP_STRING([--with-glpk], [support GNU linear programming kit]),
+AC_ARG_WITH([glpk], AS_HELP_STRING([--with-glpk(=PATH)], [support GNU linear programming kit]),
   [
     if test "$with_glpk" != "no"; then
       CPPFLAGS="-DWITH_GLPK $CPPFLAGS"
@@ -49,12 +49,12 @@ AC_ARG_WITH([glpk], AS_HELP_STRING([--with-glpk], [support GNU linear programmin
 
 # ILOG CPLEX
 AC_ARG_WITH([cplex-include],
-  AC_HELP_STRING([--with-cplex-include(=PATH)], [location of CPLEX include directory] ),
+  AC_HELP_STRING([--with-cplex-include=PATH], [location of CPLEX include directory] ),
   [CPPFLAGS="-I$withval ${CPPFLAGS}"] )
 AC_ARG_WITH([cplex-lib],
   AC_HELP_STRING([--with-cplex-lib=PATH], [location of CPLEX callable library] ),
   [LDFLAGS="-L$withval ${LDFLAGS}"] )
-AC_ARG_WITH([cplex], AS_HELP_STRING([--with-cplex], [support CPLEX optimizer]),
+AC_ARG_WITH([cplex], AS_HELP_STRING([--with-cplex(=PATH)], [support CPLEX optimizer]),
   [
     if test "$with_cplex" != "no"; then
       CPPFLAGS="-DWITH_CPLEX -DIL_STD $CPPFLAGS"
