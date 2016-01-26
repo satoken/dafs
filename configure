@@ -726,6 +726,8 @@ enable_silent_rules
 enable_dependency_tracking
 enable_debug
 with_glpk
+with_cplex_include
+with_cplex_lib
 with_cplex
 with_gurobi
 with_vienna_rna
@@ -1368,9 +1370,13 @@ Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-glpk             support GNU linear programming kit
+  --with-cplex-include(=PATH)
+                          location of CPLEX include directory
+  --with-cplex-lib=PATH   location of CPLEX callable library
   --with-cplex            support CPLEX optimizer
-  --with-gurobi           support Gurobi optimizer
-  --with-vienna-rna       support Vienna RNA package
+  --with-gurobi(=PATH)    support Gurobi optimizer
+  --with-vienna-rna(=PATH)
+                          support Vienna RNA package
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -5125,6 +5131,10 @@ if test "${with_glpk+set}" = set; then :
   withval=$with_glpk;
     if test "$with_glpk" != "no"; then
       CPPFLAGS="-DWITH_GLPK $CPPFLAGS"
+      if test "$with_glpk" != "yes"; then
+        CPPFLAGS="-I${with_glpk}/include $CPPFLAGS"
+      	LDFLAGS="-L${with_glpk}/lib $LDFLAGS"
+      fi
       for ac_header in glpk.h
 do :
   ac_fn_cxx_check_header_mongrel "$LINENO" "glpk.h" "ac_cv_header_glpk_h" "$ac_includes_default"
@@ -5346,11 +5356,27 @@ fi
 
 # ILOG CPLEX
 
+# Check whether --with-cplex-include was given.
+if test "${with_cplex_include+set}" = set; then :
+  withval=$with_cplex_include; CPPFLAGS="-I$withval ${CPPFLAGS}"
+fi
+
+
+# Check whether --with-cplex-lib was given.
+if test "${with_cplex_lib+set}" = set; then :
+  withval=$with_cplex_lib; LDFLAGS="-L$withval ${LDFLAGS}"
+fi
+
+
 # Check whether --with-cplex was given.
 if test "${with_cplex+set}" = set; then :
   withval=$with_cplex;
     if test "$with_cplex" != "no"; then
       CPPFLAGS="-DWITH_CPLEX -DIL_STD $CPPFLAGS"
+      if test "$with_cplex" != "yes"; then
+        CPPFLAGS="-I${with_cplex}/include $CPPFLAGS"
+      	LDFLAGS="-L${with_cplex}/lib $LDFLAGS"
+      fi
       for ac_header in ilcplex/cplex.h
 do :
   ac_fn_cxx_check_header_mongrel "$LINENO" "ilcplex/cplex.h" "ac_cv_header_ilcplex_cplex_h" "$ac_includes_default"
@@ -5535,6 +5561,76 @@ _ACEOF
 
   LIBS="-lRNA $LIBS"
 
+else
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: try '-fopenmp'" >&5
+$as_echo "$as_me: try '-fopenmp'" >&6;}
+  CXXFLAGS_BAK=${CXXFLAGS}
+  CXXFLAGS="-fopenmp ${CXXFLAGS}"
+  unset ac_cv_lib_RNA_pf_fold
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for pf_fold in -lRNA" >&5
+$as_echo_n "checking for pf_fold in -lRNA... " >&6; }
+if ${ac_cv_lib_RNA_pf_fold+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lRNA  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char pf_fold ();
+int
+main ()
+{
+return pf_fold ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_link "$LINENO"; then :
+  ac_cv_lib_RNA_pf_fold=yes
+else
+  ac_cv_lib_RNA_pf_fold=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_RNA_pf_fold" >&5
+$as_echo "$ac_cv_lib_RNA_pf_fold" >&6; }
+if test "x$ac_cv_lib_RNA_pf_fold" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBRNA 1
+_ACEOF
+
+  LIBS="-lRNA $LIBS"
+
+else
+   CXXFLAGS=${CXXFLAGS_BAK}
+fi
+
+
+fi
+
+ac_fn_cxx_check_header_mongrel "$LINENO" "ViennaRNA/ribo.h" "ac_cv_header_ViennaRNA_ribo_h" "$ac_includes_default"
+if test "x$ac_cv_header_ViennaRNA_ribo_h" = xyes; then :
+
+$as_echo "#define HAVE_VIENNA18 /**/" >>confdefs.h
+
+fi
+
+
+ac_fn_cxx_check_func "$LINENO" "energy_of_structure" "ac_cv_func_energy_of_structure"
+if test "x$ac_cv_func_energy_of_structure" = xyes; then :
+
+$as_echo "#define HAVE_VIENNA20 /**/" >>confdefs.h
+
 fi
 
 
@@ -5623,16 +5719,6 @@ fi
 
 fi
 done
-
-
-# Checks for header files.
-ac_fn_cxx_check_header_mongrel "$LINENO" "ViennaRNA/ribo.h" "ac_cv_header_ViennaRNA_ribo_h" "$ac_includes_default"
-if test "x$ac_cv_header_ViennaRNA_ribo_h" = xyes; then :
-
-$as_echo "#define HAVE_VIENNA18 /**/" >>confdefs.h
-
-fi
-
 
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -5852,8 +5938,6 @@ _ACEOF
     ;;
 esac
 
-
-# Checks for library functions.
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ANSI C header files" >&5
 $as_echo_n "checking for ANSI C header files... " >&6; }
 if ${ac_cv_header_stdc+:} false; then :
@@ -5963,13 +6047,6 @@ $as_echo "$ac_cv_header_stdc" >&6; }
 if test $ac_cv_header_stdc = yes; then
 
 $as_echo "#define STDC_HEADERS 1" >>confdefs.h
-
-fi
-
-ac_fn_cxx_check_func "$LINENO" "energy_of_structure" "ac_cv_func_energy_of_structure"
-if test "x$ac_cv_func_energy_of_structure" = xyes; then :
-
-$as_echo "#define HAVE_VIENNA20 /**/" >>confdefs.h
 
 fi
 
