@@ -26,19 +26,18 @@
 class IPknot : public Fold::Decoder
 {
 public:
-  IPknot(float w, const VF& th, int n_th = 1);
-  float decode(const VVF& p, const VVF& q, VU& ss);
+  IPknot(const VF& th, int n_th = 1);
+  float decode(float w, const VVF& p, const VVF& q, VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 
 private:
-  void make_objective(IP& ip, const VVF& p, const VVF& q);
+  void make_objective(IP& ip, float w, const VVF& p, const VVF& q);
   void make_objective(IP& ip, const VVF& p);
   void make_constraints(IP& ip);
   float solve(IP& ip, VU& ss);
   
 private:
-  float weight_;
   VF th_;
   VF alpha_;
   bool levelwise_;

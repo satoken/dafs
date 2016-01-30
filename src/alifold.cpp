@@ -21,6 +21,8 @@
 #include "config.h"
 #endif
 #include "alifold.h"
+#include <cmath>
+#include <cstdlib>
 
 namespace Vienna {
 extern "C" {
