@@ -27,6 +27,7 @@
 #include <vector>
 #include <queue>
 #include <stack>
+#include <algorithm>
 #include <iostream>
 //#include <fstream>
 #include "cmdline.h"
