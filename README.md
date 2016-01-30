@@ -8,12 +8,12 @@ Requirements
 * (optional)
   [GNU Linear Programming Kit](http://www.gnu.org/software/glpk/) (>=4.41)
   or [Gurobi Optimizer](http://www.gurobi.com/) (>=2.0)
-  or [ILOG CPLEX](http://http://www-01.ibm.com/software/integration/optimization/cplex/) (>=12.0)
+  or [ILOG CPLEX](http://www.ibm.com/software/products/ibmilogcple/) (>=12.0)
 
 Install
 -------
 
-	./configure --with-vienna-rna=/path/to/vienna-rna --with-glpk
+	./configure --with-vienna-rna=/path/to/vienna-rna
 	make
 	make install
 
@@ -30,8 +30,9 @@ For Gurobi,
 
 For CPLEX,
 
-	env CPPFLAGS='-I/path/to/cplex/include' LDFLAGS='-L/path/to/cplex/lib' \
-	./configure --with-vienna-rna=/path/to/vienna-rna --with-cplex
+	./configure --with-vienna-rna=/path/to/vienna-rna --with-cplex \
+	            --with-cplex-include=/path/to/cplex/include \
+		        --with-cplex-lib=/path/to/cplex/lib
 
 Usage
 -----
