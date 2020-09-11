@@ -450,6 +450,8 @@ make_variable(double coef)
   return 0;
 }
 
+int
+IP::
 make_variable(double coef, int lo, int hi)
 {
   throw "no IP solver is linked.";
