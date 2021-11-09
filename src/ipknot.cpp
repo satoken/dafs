@@ -37,9 +37,8 @@ std::string
 make_brackets(const VU& ss, const VU& plevel);
 
 IPknot::
-IPknot(float w, const VF& th, int n_th /*=1*/)
-  : weight_(w),
-    th_(th),
+IPknot(const VF& th, int n_th /*=1*/)
+  : th_(th),
     alpha_(th_.size(), 1.0),
     levelwise_(true),
     stacking_constraints_(true),
@@ -49,10 +48,10 @@ IPknot(float w, const VF& th, int n_th /*=1*/)
 
 float
 IPknot::
-decode(const VVF& p, const VVF& q, VU& ss)
+decode(float w, const VVF& p, const VVF& q, VU& ss)
 {
   IP ip(IP::MAX, n_th_);
-  make_objective(ip, p, q);
+  make_objective(ip, w, p, q);
   make_constraints(ip);
   return solve(ip, ss);
 }
@@ -80,7 +79,7 @@ make_brackets(const VU& ss, std::string& str) const
 
 void
 IPknot::
-make_objective(IP& ip, const VVF& p, const VVF& q) 
+make_objective(IP& ip, float w, const VVF& p, const VVF& q) 
 {
   const uint L=p.size();
   const uint P=th_.size();
@@ -95,7 +94,7 @@ make_objective(IP& ip, const VVF& p, const VVF& q)
     {
       for (uint lv=0; lv!=P; ++lv)
       {
-        float s=weight_*(p[i][j]-th_[lv])-q[i][j];
+        float s=w*(p[i][j]-th_[lv])-q[i][j];
         if (s>0.0)
         {
           v_[lv][i][j] = ip.make_variable(s*alpha_[lv]);

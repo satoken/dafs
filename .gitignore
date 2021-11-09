@@ -1,0 +1,12 @@
+*~
+*.o
+*.Po
+*.a
+data
+autom4te.cache
+Makefile
+config.h
+INSTALL
+config.log
+config.status
+src/dafs

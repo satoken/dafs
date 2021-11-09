@@ -31,7 +31,7 @@ make_brackets(const VU& ss);
 
 float
 Nussinov::
-decode(const VVF& p, const VVF& q, VU& ss)
+decode(float w, const VVF& p, const VVF& q, VU& ss)
 {
   uint L=p.size();
   assert(p[0].size()==L);
@@ -40,7 +40,7 @@ decode(const VVF& p, const VVF& q, VU& ss)
   VVF sm(L, VF(L, 0.0));
   for (uint i=0; i!=L-1; ++i)
     for (uint j=i+1; j!=L; ++j)
-      sm[i][j] = w_*(p[i][j]-th_)-q[i][j];
+      sm[i][j] = w*(p[i][j]-th_)-q[i][j];
 
   VVF dp(L, VF(L, 0.0));
   VVU tr(L, VU(L, 0));
@@ -206,7 +206,7 @@ make_brackets(const VU& ss, std::string& str) const
 
 float
 SparseNussinov::
-decode(const VVF& p, const VVF& q, VU& ss)
+decode(float w, const VVF& p, const VVF& q, VU& ss)
 {
   uint L=p.size();
   assert(p[0].size()==L);
@@ -233,7 +233,7 @@ decode(const VVF& p, const VVF& q, VU& ss)
       }
       if (i+1<j-1)
       {
-        float s=w_*(p[i][j]-th_)-q[i][j];
+        float s=w*(p[i][j]-th_)-q[i][j];
         if (s>0.0)
         {
           bp[j].push_back(std::make_pair(i,dp[i+1][j-1]+s));

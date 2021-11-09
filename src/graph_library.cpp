@@ -165,8 +165,10 @@ get_topological_order(uint node_num){
 
 
 //class: "Undirected_Graph"
+#if 0
 VVU
 Mixed_Graph::
 get_cycles(uint node_num){
 
 }
+#endif

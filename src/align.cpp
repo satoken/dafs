@@ -29,6 +29,8 @@
 #include <sstream>
 #include <iterator>
 #include <cstdio>
+#include <cassert>
+
 
 void
 Align::Model::

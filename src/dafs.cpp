@@ -21,12 +21,14 @@
 #include "config.h"
 #endif
 #include <cstring>
+#include <cassert>
+#include <cmath>
 #include <unistd.h>
 #include <vector>
 #include <queue>
 #include <stack>
 #include <algorithm>
-//#include <iostream>
+#include <iostream>
 //#include <fstream>
 #include "cmdline.h"
 #include "fa.h"
@@ -57,6 +59,8 @@ extern "C" {
 #define CUTOFF 0.01
 
 #define SPARSE_UPDATE
+//#define ADAGRAD
+//#define ADAM
 
 class DMSA
 {
@@ -644,6 +648,7 @@ update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& 
       for (uint i=0; i!=L; ++i)
       {
         if (ss[i]!=-1u && rev[i]!=-1u && rev[ss[i]]!=-1u)
+        {
           if (str[i]==Fold::Decoder::left_brackets[plv])
           {
             con[rev[i]]='('; con[rev[ss[i]]]=')';
@@ -652,6 +657,7 @@ update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& 
           {
             con[rev[i]]=con[rev[ss[i]]]='.';
           }
+        }
       }
 
       // calculate base-pairing probabilities under the constraint
@@ -673,6 +679,7 @@ update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& 
       for (uint i=0; i!=L; ++i)
       {
         if (ss[i]!=-1u)
+        {
           if (str[i]==Fold::Decoder::left_brackets[plv])
           {
             con[i]='('; con[ss[i]]=')';
@@ -681,6 +688,7 @@ update_basepairing_probability(VVF& posterior, const VU& ss, const std::string& 
           {
             con[i]=con[ss[i]]='.';
           }
+        }
       }
 
       // calculate base-pairing probabilities under the constraint
@@ -974,7 +982,32 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
 }
 */
 
-  /*
+#ifdef ADAGRAD
+float
+adagrad_update(float& g2, const float g, const float eta0)
+{
+  const float eps=1e-6;
+  g2 += g*g;
+  return eta0*g/std::sqrt(g2+eps);
+}
+#endif
+
+#ifdef ADAM
+float 
+adam_update(int t, float& m, float& v, const float g, float alpha=0.1)
+{
+  const float beta1=0.9;
+  const float beta2=0.999;
+  const float eps=1e-8;
+  m = beta1*m + (1-beta1)*g;
+  v = beta2*v + (1-beta2)*g*g;
+  const float m_hat = m/(1-std::pow(beta1, t));
+  const float v_hat = v/(1-std::pow(beta2, t));
+  return alpha*m_hat/(std::sqrt(v_hat)+eps);
+}
+#endif
+
+#if 0
 float
 DMSA::
 solve_by_dd(VU& x, VU& y, VU& z,
@@ -991,12 +1024,12 @@ solve_by_dd(VU& x, VU& y, VU& z,
   /*
   const uint L1=p_x.size();
   const uint L2=p_y.size();
+  const uint N1=aln1.size();
+  const uint N2=aln2.size();
 
   // enumerate the candidates of consensus base-pairs
   std::vector<CBP> cbp;         // consensus base-pairs
-  float min_th_s = th_s_[0];
-  for (VF::const_iterator it=th_s_.begin(); it!=th_s_.end(); ++it)
-    min_th_s = std::min(min_th_s, *it);
+  float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
 #ifdef SPARSE_UPDATE
   VVU c_x(L1), c_y(L2), c_z(L1); // project consensus base-pairs into each structure and alignment
 #endif
@@ -1010,7 +1043,7 @@ solve_by_dd(VU& x, VU& y, VU& z,
               {
                 assert(p_x[i][j]<=1.0);
                 assert(p_y[k][l]<=1.0);
-                float p=(p_x[i][j]+p_y[k][l])/2;
+                float p=(N1*p_x[i][j]+N2*p_y[k][l])/(N1+N2);
                 float q=(p_z[i][k]+p_z[j][l])/2;
                 if (p-min_th_s>0.0 && w_*(p-min_th_s)+(q-th_a_)>0.0)
                 {
@@ -1051,16 +1084,27 @@ solve_by_dd(VU& x, VU& y, VU& z,
 
   //uint c=0;
   float c=0.0;
-  float eta=eta0_, s_prev=0.0;
+#if defined ADAGRAD
+  VVF g_x(L1, VF(L1, 0.0));
+  VVF g_y(L2, VF(L2, 0.0));
+  VVF g_z(L1, VF(L2, 0.0));
+#elif defined ADAM
+  VVF m_x(L1, VF(L1, 0.0)), v_x(L1, VF(L1, 0.0));
+  VVF m_y(L2, VF(L2, 0.0)), v_y(L2, VF(L2, 0.0));
+  VVF m_z(L1, VF(L2, 0.0)), v_z(L1, VF(L2, 0.0));
+#else
+  float eta=eta0_;
+#endif
+  float s_prev=0.0;
   uint violated=0;
   uint t;
   for (t=0; t!=t_max_; ++t)
   {
     // solve the subproblems
     float s = 0.0;
-    s += s_decoder_->decode(p_x, q_x, x);
-    s += s_decoder_->decode(p_y, q_y, y);
-    s += a_decoder_->decode(p_z, lambda, z);
+    s += s_decoder_->decode(w_*2*N1/(N1+N2), p_x, q_x, x);
+    s += s_decoder_->decode(w_*2*N2/(N1+N2), p_y, q_y, y);
+    s += a_decoder_->decode(p_z, q_z, z);
 
     if (verbose_>=2) output_verbose(x, y, z, aln1, aln2);
 
@@ -1077,14 +1121,15 @@ solve_by_dd(VU& x, VU& y, VU& z,
       const int w_ijkl = s_w>0.0f ? 1 : 0;
       if (w_ijkl)
       {
-        s += s_w * w_ijkl;
-        t_x[i][j] += w_ijkl;
-        t_y[k][l] += w_ijkl;
-        t_z[i][k] += w_ijkl;
-        t_z[j][l] += w_ijkl;
+        s += s_w; /* * w_ijkl*/
+        t_x[i][j]++; // += w_ijkl;
+        t_y[k][l]++; // += w_ijkl;
+        t_z[i][k]++; // += w_ijkl;
+        t_z[j][l]++; // += w_ijkl;
       }
     }
 
+    // update Lagrangian for x (=q_x)
 #ifdef SPARSE_UPDATE // efficient implementation using sparsity
     for (uint i=0; i!=L1; ++i)
     {
@@ -1092,7 +1137,13 @@ solve_by_dd(VU& x, VU& y, VU& z,
       if (j!=-1u && t_x[i][j]!=1)
       {
         violated++;
+#if defined ADAGRAD
+        q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j]-1, eta0_);
+#elif defined ADAM
+        q_x[i][j] -= adam_update(t+1, m_x[i][j], v_x[i][j], t_x[i][j]-1, eta0_);
+#else
         q_x[i][j] -= eta*(t_x[i][j]-1);
+#endif
       }
       for (uint jj=0; jj!=c_x[i].size(); ++jj)
       {
@@ -1100,49 +1151,17 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (x[i]!=j && t_x[i][j]!=0)
         {
           violated++;
+#if defined ADAGRAD
+          q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j], eta0_);
+#elif defined ADAM
+          q_x[i][j] -= adam_update(t+1, m_x[i][j], v_x[i][j], t_x[i][j], eta0_);
+#else
           q_x[i][j] -= eta*t_x[i][j];
+#endif
         }
       }
     }
-
-    for (uint k=0; k!=L2; ++k)
-    {
-      const uint l = y[k];
-      if (l!=-1u && t_y[k][l]!=1)
-      {
-        violated++;
-        q_y[k][l] -= eta*(t_y[k][l]-1);
-      }
-      for (uint ll=0; ll!=c_y[k].size(); ++ll)
-      {
-        const uint l=c_y[k][ll];
-        if (y[k]!=l && t_y[k][l]!=0)
-        {
-          violated++;
-          q_y[k][l] -= eta*t_y[k][l];
-        }
-      }
-    }
-
-    for (uint i=0; i!=L1; ++i)
-    {
-      const uint k = z[i];
-      if (k!=-1u && t_z[i][k]>1)
-      {
-        violated++;
-        lambda[i][k] = std::max(0.0f, lambda[i][k]-eta*(1-t_z[i][k]));
-      }
-      for (uint kk=0; kk!=c_z[i].size(); ++kk)
-      {
-        const uint k=c_z[i][kk];
-        if (z[i]!=k && t_z[i][k]>0)
-        {
-          violated++;
-          lambda[i][k] = std::max(0.0f, lambda[i][k]+eta*t_z[i][k]);
-        }
-      }
-    }
-#else // naive implementation
+#else  // naive implementation
     for (uint i=0; i!=L1-1; ++i)
       for (uint j=i+1; j!=L1; ++j)
       {
@@ -1150,9 +1169,50 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (t_x[i][j]-x_ij!=0)
         {
           violated++;
+#if defined ADAGRAD
+          q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j]-x_ij, eta0_);
+#elif defined ADAM
+          q_x[i][j] -= adam_update(t+1, m_x[i][j], v_x[i][j], t_x[i][j]-x_ij, eta0_);
+#else
           q_x[i][j] -= eta*(t_x[i][j]-x_ij);
+#endif
         }
       }
+#endif
+
+    // update Lagrangian for y (=q_y)
+#ifdef SPARSE_UPDATE
+    for (uint k=0; k!=L2; ++k)
+    {
+      const uint l = y[k];
+      if (l!=-1u && t_y[k][l]!=1)
+      {
+        violated++;
+#if defined ADAGRAD
+        q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l]-1, eta0_);
+#elif defined ADAM
+        q_y[k][l] -= adam_update(t+1, m_y[k][l], v_y[k][l], t_y[k][l]-1, eta0_);
+#else
+        q_y[k][l] -= eta*(t_y[k][l]-1);
+#endif
+      }
+      for (uint ll=0; ll!=c_y[k].size(); ++ll)
+      {
+        const uint l=c_y[k][ll];
+        if (y[k]!=l && t_y[k][l]!=0)
+        {
+          violated++;
+#if defined ADAGRAD
+          q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l], eta0_);
+#elif defined ADAM
+          q_y[k][l] -= adam_update(t+1, m_y[k][l], v_y[k][l], t_y[k][l], eta0_);
+#else
+          q_y[k][l] -= eta*t_y[k][l];
+#endif
+        }
+      }
+    }
+#else  // naive implementation
     for (uint k=0; k!=L2-1; ++k)
       for (uint l=k+1; l!=L2; ++l)
       {
@@ -1160,43 +1220,92 @@ solve_by_dd(VU& x, VU& y, VU& z,
         if (t_y[k][l]-y_kl!=0)
         {
           violated++;
+#if defined ADAGRAD
+          q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l]-y_kl, eta0_);
+#elif defined ADAM
+          q_y[k][l] -= adam_update(t+1, m_y[k][l], v_y[k][l], t_y[k][l]-y_kl, eta0_);
+#else
           q_y[k][l] -= eta*(t_y[k][l]-y_kl);
+#endif
         }
       }
+#endif
+
+    // update Lagrangian for z (=q_z)
+#ifdef SPARSE_UPDATE
+    for (uint i=0; i!=L1; ++i)
+    {
+      const uint k = z[i];
+      if (k!=-1u)               // z_ik==1
+      {
+        if (t_z[i][k]>1) violated++;
+#if defined ADAGRAD
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], 1-t_z[i][k], eta0_));
+#elif defined ADAM
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-adam_update(t+1, m_z[i][k], v_z[i][k], 1-t_z[i][k], eta0_));
+#else
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(1-t_z[i][k]));
+#endif
+      }
+      for (uint kk=0; kk!=c_z[i].size(); ++kk)
+      {
+        const uint k=c_z[i][kk];
+        if (z[i]!=k)            // z_ik==0
+        {
+          if (t_z[i][k]>0) violated++;
+#if defined ADAGRAD
+          q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], -t_z[i][k], eta0_));
+#elif defined ADAM
+          q_z[i][k] = std::max(0.0f, q_z[i][k]-adam_update(t+1, m_z[i][k], v_z[i][k], -t_z[i][k], eta0_));
+#else
+          q_z[i][k] = std::max(0.0f, q_z[i][k]+eta*t_z[i][k]);
+#endif
+        }
+      }
+    }
+#else // naive implementation
     for (uint i=0; i!=L1; ++i)
       for (uint k=0; k!=L2; ++k)
       {
         const int z_ik = z[i]==k ? 1 : 0;
-        if (z_ik-t_z[i][k]<0)
-        {
-          violated++;
-          lambda[i][k] = std::max(0.0f, lambda[i][k]-eta*(z_ik-t_z[i][k]));
-        }
+        if (z_ik-t_z[i][k]<0) violated++;
+#if defined ADAGRAD
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-adagrad_update(g_z[i][k], z_ik-t_z[i][k], eta0_));
+#elif defined ADAM
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-adam_update(t+1, m_z[i][k], v_z[i][k], z_ik-t_z[i][k], eta0_));
+#else
+        q_z[i][k] = std::max(0.0f, q_z[i][k]-eta*(z_ik-t_z[i][k]));
+#endif          
       }
 #endif
 
     if (verbose_>=2)
       std::cout << "Step: " << t << std::endl
+#if !defined ADAGRAD && !defined ADAM
                 << "eta: " << eta << std::endl
+#endif
                 << "L: " << s << std::endl
                 << "Violated: " << violated << std::endl << std::endl;
 
     if (violated==0)  break;     // all constraints were satisfied.
 
     // update the step width
-    if (s<s_prev || t==0)
+#if !defined ADAGRAD && !defined ADAM
+    if (s>s_prev || t==0)
     {
       c += std::max(0.0f, 4.0f*cbp.size()-violated)/(4.0*cbp.size());
-      eta = eta0_/(1.0+sqrt(c));
+      //eta = eta0_/(1.0+sqrt(c));
+      eta = eta0_/(1.0+c);
     }
-    s_prev = s;
-  }
+#endif
+      s_prev = s;
+    }
   if (verbose_==1) std::cout << "Step: " << t << ", Violated: " << violated << std::endl;
 
   return s_prev;
   
 }
-  */
+#endif
 
 
 float
@@ -1661,13 +1770,13 @@ parse_options(int& argc, char**& argv)
 
   if (strcasecmp(args_info.fold_decoder_arg, "IPknot")==0 || args_info.ipknot_flag)
   {
-    s_decoder_ = new IPknot(w_, th_s_);
-    s_decoder1_ = new IPknot(w_, th_s1);
+    s_decoder_ = new IPknot(th_s_);
+    s_decoder1_ = new IPknot(th_s1);
   }
   else if (strcasecmp(args_info.fold_decoder_arg, "Nussinov")==0)
   {
-    s_decoder_ = new SparseNussinov(w_, th_s_[0]);
-    s_decoder1_ = new SparseNussinov(w_, th_s1[0]);
+    s_decoder_ = new SparseNussinov(th_s_[0]);
+    s_decoder1_ = new SparseNussinov(th_s1[0]);
   }
   assert(s_decoder_!=NULL);
 
