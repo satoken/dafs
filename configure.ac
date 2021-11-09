@@ -13,6 +13,7 @@ AC_PROG_CC
 AC_LANG(C++)
 AC_CXX_HAVE_STL
 AC_PROG_RANLIB
+AM_PROG_AR
 
 # debug option
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug], [turn on debugging (default: off)]))
@@ -25,7 +26,7 @@ else
 fi
 
 # boost libraries
-AX_BOOST_BASE(1.40, , AC_MSG_ERROR("the boost library is unavailable"))
+AX_BOOST_BASE([1.40], [], AC_MSG_ERROR("the boost library is unavailable"))
 if test "x$BOOST_CPPFLAGS" != x; then
   CPPFLAGS="$CPPFLAGS $BOOST_CPPFLAGS"
 fi
@@ -85,13 +86,24 @@ AC_ARG_WITH([gurobi], AS_HELP_STRING([--with-gurobi], [support Gurobi optimizer]
 )
 
 # Vienna RNA package
-AC_ARG_WITH([vienna-rna], AS_HELP_STRING([--with-vienna-rna], [support Vienna RNA package]),
+AC_ARG_WITH([vienna-rna], AS_HELP_STRING([--with-vienna-rna(=PATH)], [support Vienna RNA package]),
   if test "$with_vienna_rna" != "yes" && test "$with_vienna_rna" != "no" ; then
      CPPFLAGS="-I${with_vienna_rna}/include $CPPFLAGS"
      LDFLAGS="-L${with_vienna_rna}/lib $LDFLAGS"
   fi
 )
-AC_CHECK_LIB(RNA, pf_fold)
+AC_CHECK_LIB([RNA], [pf_fold], [],
+[
+  AC_MSG_NOTICE([try '-fopenmp'])
+  CXXFLAGS_BAK=${CXXFLAGS}
+  CXXFLAGS="-fopenmp ${CXXFLAGS}"
+  unset ac_cv_lib_RNA_pf_fold
+  AC_CHECK_LIB([RNA], [pf_fold], [], [ CXXFLAGS=${CXXFLAGS_BAK} ])
+])
+AC_CHECK_HEADER([ViennaRNA/ribo.h],
+                [AC_DEFINE([HAVE_VIENNA18], [], [have the Vienna RNA package version 1.8 or above])])
+AC_CHECK_FUNC(energy_of_structure,
+              [AC_DEFINE([HAVE_VIENNA20], [], [have the Vienna RNA package version 2.0 or above])])
 
 # getopt_long
 AX_FUNC_GETOPT_LONG
