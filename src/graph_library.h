@@ -19,34 +19,37 @@
 
 #include "typedefs.h"
 
-class Graph{
-  typedef std::pair<uint,uint> edge;
+class Graph
+{
+  typedef std::pair<uint, uint> edge;
   typedef std::vector<edge> VE;
- private:
- public:
-  VE  edge_list_;
+
+private:
+public:
+  VE edge_list_;
   void add_edge(uint n1, uint n2);
   void clear();
 };
 
-class Undirected_Graph : public Graph{
- private:
- public:
- VU get_components(uint node_num);
- VU get_shortestPath(uint n1, uint n2, uint node_num);
+class Undirected_Graph : public Graph
+{
+private:
+public:
+  VU get_components(uint node_num);
+  VU get_shortestPath(uint n1, uint n2, uint node_num);
 };
 
-
-class Directed_Graph : public Graph{
- private:
- public:
+class Directed_Graph : public Graph
+{
+private:
+public:
   VVU get_cycles(uint node_num);
   VU get_topological_order(uint node_num);
 };
 
-
-class Mixed_Graph : public Graph{
- private:
- public:
+class Mixed_Graph : public Graph
+{
+private:
+public:
   VVU get_cycles(uint node_num);
 };

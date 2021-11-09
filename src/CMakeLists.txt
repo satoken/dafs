@@ -39,6 +39,9 @@ elseif(ENABLE_GLPK)
   endif()
 endif()
 
+find_package(Boost 1.40 REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+
 add_executable(
     dafs
     alifold.cpp align.cpp boltzmann_param.c cmdline.c dafs.cpp fa.cpp fold.cpp

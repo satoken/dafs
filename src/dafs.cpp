@@ -27,6 +27,7 @@
 #include <vector>
 #include <queue>
 #include <stack>
+#include <memory>
 #include <algorithm>
 #include <iostream>
 //#include <fstream>
@@ -119,8 +120,8 @@ private:
     return solve_by_dd(p_z, z, aln);
 #endif
   }
-  float solve_by_dd(VVVVF& p_z, VVVU& z, ALN& aln) const;
-  float solve_by_ip(VVVVF& p_z, VVVU& z, ALN& aln) const;
+  float solve_by_dd(const VVVVF& p_z, VVVU& z, ALN& aln) const;
+  float solve_by_ip(const VVVVF& p_z, VVVU& z, ALN& aln) const;
   void unzip_mp(VVVVF& mp) const;
   float refine(VU& ss, ALN& aln) const;
   void output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN& aln2) const;
@@ -1021,7 +1022,6 @@ solve_by_dd(VU& x, VU& y, VU& z,
   a_decoder_->initialize(p_z);
   return a_decoder_->decode(p_z, lambda, z);
   
-  /*
   const uint L1=p_x.size();
   const uint L2=p_y.size();
   const uint N1=aln1.size();
@@ -1307,26 +1307,24 @@ solve_by_dd(VU& x, VU& y, VU& z,
 }
 #endif
 
-
 float
 DMSA::
-solve_by_dd(VVVVF& p_z, VVVU& z, ALN& aln) const
+solve_by_dd(const VVVVF& p_z, VVVU& z, ALN& aln) const
 { 
   //DEBUG: std::cout << "hello DD!" << std::endl;
   const bool detail_output = (verbose_>0) ? true : false;
   
   const uint M = fa_.size();
 
-  std::vector< std::vector<Align::Decoder*> > a_decoder(M);
+  std::vector<std::vector<std::unique_ptr<Align::Decoder>>> a_decoder(M);
   for(uint k1=0; k1<M-1; k1++){
     a_decoder[k1].resize(M);
     for(uint k2=k1+1; k2<M; k2++){
-      a_decoder[k1][k2] = new SparseNeedlemanWunsch(th_a_);
+      a_decoder[k1][k2] = std::unique_ptr<Align::Decoder>(new SparseNeedlemanWunsch(th_a_));
       a_decoder[k1][k2]->initialize(p_z[k1][k2]);
-      }
-    // */
+    }
   }
-			   
+
   //Initialization of Phi
   VVVVF phi(M, VVVF(M));
   for(uint k1=0; k1<M; k1++){
@@ -1342,12 +1340,11 @@ solve_by_dd(VVVVF& p_z, VVVU& z, ALN& aln) const
   for(uint k=0; k<M; k++) seqlen[k] = fa_[k].size();
   
   GradientMethod gm(eta0_);
-  
 
   // DMSA Algorithm
   uint violation_num=0;
   float score=0.0;
-  for(uint t=1; t<=t_max_; t++){
+  for(uint t=1; t<=t_max_; t++) {
     // 0.initialization
     violation_num = 0;
     Align_Graph g(seqlen);
@@ -1356,18 +1353,16 @@ solve_by_dd(VVVVF& p_z, VVVU& z, ALN& aln) const
     score=0.0;
     for(uint k1=0; k1<M-1; k1++)
       for(uint k2=k1+1; k2<M; k2++)
-	//SparseNeedlemanWunsch
-	score += a_decoder[k1][k2]->decode(p_z[k1][k2], phi[k1][k2], z[k1][k2]);
-    //OBSOLETE: NeedlemanWunsch: score+=a_decoder_->decode(...)
+        score += a_decoder[k1][k2]->decode(p_z[k1][k2], phi[k1][k2], z[k1][k2]);
 
     // 2.Check fulfillment of constraints
     for(uint k1=0; k1<M-1; k1++)
       for(uint k2=k1+1; k2<M; k2++)
-	for(uint i1=0; i1<z[k1][k2].size(); i1++){
-	  const uint i2 = z[k1][k2][i1];
-	  if(i2 != -1u)
-	    g.add_edge( node(k1,i1), node(k2,i2) );
-	}
+        for(uint i1=0; i1<z[k1][k2].size(); i1++){
+          const uint i2 = z[k1][k2][i1];
+          if(i2 != -1u)
+            g.add_edge( node(k1,i1), node(k2,i2) );
+        }
     g.configure();
     
     // 2.1 Keep consistency transformation
@@ -1383,22 +1378,22 @@ solve_by_dd(VVVVF& p_z, VVVU& z, ALN& aln) const
     //3. impose penalty score
     for(uint k1=0; k1<M; k1++)
       for(uint k2=k1+1; k2<M; k2++)
-	for(uint i1=0; i1<seqlen[k1]; i1++)
-	  util::fill(phi[k1][k2][i1], 0.0f);
+        for(uint i1=0; i1<seqlen[k1]; i1++)
+          util::fill(phi[k1][k2][i1], 0.0f);
 
     gm.add_cycle(cycles_1);
     gm.add_cycle(cycles_2);
     gm.add_clip(clips);
     gm.update(phi, g, t);
-   
+
     //DEBUG:
     if(detail_output){
       std::cout << "T=" << t << std::endl;
       //
       std::cout << " clip:" << g.clips.size() << std::endl
-		<< " COG_cycle:" << g.cog_cycle_num() <<std::endl
-		<< " cycle(MC-I): " << g.cycles_1.size() << std::endl
-		<< " cycle(MC-II):" << g.cycles_2.size() << std::endl;
+            << " COG_cycle:" << g.cog_cycle_num() <<std::endl
+            << " cycle(MC-I): " << g.cycles_1.size() << std::endl
+            << " cycle(MC-II):" << g.cycles_2.size() << std::endl;
       //
       std::cout << " violation_num:" << violation_num << std::endl;
     }
@@ -1416,8 +1411,8 @@ solve_by_dd(VVVVF& p_z, VVVU& z, ALN& aln) const
   for(uint k1=0; k1<M; k1++)
     for(uint k2=k1+1; k2<M; k2++)
       for(uint i1=0; i1<fa_[k1].size(); i1++){
-	const uint i2 = z[k1][k2][i1];
-	if(i2 != -1u) s += p_z[k1][k2][i1][i2];
+        const uint i2 = z[k1][k2][i1];
+        if(i2 != -1u) s += p_z[k1][k2][i1][i2];
       }
   if(detail_output){
     std::cout << "score:" << s << std::endl;
@@ -1429,10 +1424,9 @@ solve_by_dd(VVVVF& p_z, VVVU& z, ALN& aln) const
   return score;
 }
 
-
 float
 DMSA::
-solve_by_ip(VVVVF& p_z, VVVU& z, ALN& aln) const
+solve_by_ip(const VVVVF& p_z, VVVU& z, ALN& aln) const
 {
   std::cout << "hello IP!" << std::endl;
   const uint M = fa_.size();
@@ -1458,10 +1452,10 @@ solve_by_ip(VVVVF& p_z, VVVU& z, ALN& aln) const
     for(uint k2=k1+1; k2<M; k2++){
       const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();
       for(uint i1=0; i1<L1; i1++)
-	for(uint i2=0; i2<L2; i2++){
-	  if (p_z[k1][k2][i1][i2]>CUTOFF)
-	    v_z[k1][k2][i1][i2]=ip.make_variable(p_z[k1][k2][i1][i2]-th_a_);   
-	}
+        for(uint i2=0; i2<L2; i2++){
+          if (p_z[k1][k2][i1][i2]>CUTOFF)
+            v_z[k1][k2][i1][i2]=ip.make_variable(p_z[k1][k2][i1][i2]-th_a_);   
+        }
     }
   ip.update();
   
@@ -1470,19 +1464,19 @@ solve_by_ip(VVVVF& p_z, VVVU& z, ALN& aln) const
     for(uint k2=k1+1; k2<M; k2++){
       const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();     
       for (uint i1=0; i1<L1; i1++)
-	{
-	  int row = ip.make_constraint(IP::UP, 0, 1);
-	  for (uint i2=0; i2<L2; i2++)
-	    if (v_z[k1][k2][i1][i2]>0)
-	      ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
-	}
+      {
+        int row = ip.make_constraint(IP::UP, 0, 1);
+        for (uint i2=0; i2<L2; i2++)
+          if (v_z[k1][k2][i1][i2]>0)
+            ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
+      }
       for (uint i2=0; i2<L2; i2++)
-	{
-	  int row = ip.make_constraint(IP::UP, 0, 1);
-	  for (uint i1=0; i1<L1; i1++)
-	    if (v_z[k1][k2][i1][i2]>0)
-	      ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
-	}
+      {
+        int row = ip.make_constraint(IP::UP, 0, 1);
+        for (uint i1=0; i1<L1; i1++)
+          if (v_z[k1][k2][i1][i2]>0)
+            ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
+      }
     }
   
   // constraints: no crossing matches are allowed
@@ -1491,16 +1485,16 @@ solve_by_ip(VVVVF& p_z, VVVU& z, ALN& aln) const
       const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();     
       
       for (uint i1=0; i1<L1; i1++)
-	for (uint i2=0; i2<L2; i2++)
-	  if (v_z[k1][k2][i1][i2]>0)
-	    for (uint j1=i1+1; j1<L1; j1++)
-	      for (uint j2=0; j2<i2; j2++)
-		if (v_z[k1][k2][j1][j2]>0)
-		  {
-		    int row = ip.make_constraint(IP::UP, 0, 1);
-		    ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
-		    ip.add_constraint(row, v_z[k1][k2][j1][j2], 1);
-		  }
+        for (uint i2=0; i2<L2; i2++)
+          if (v_z[k1][k2][i1][i2]>0)
+            for (uint j1=i1+1; j1<L1; j1++)
+              for (uint j2=0; j2<i2; j2++)
+                if (v_z[k1][k2][j1][j2]>0)
+                  {
+                    int row = ip.make_constraint(IP::UP, 0, 1);
+                    ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
+                    ip.add_constraint(row, v_z[k1][k2][j1][j2], 1);
+                  }
     }
 
   // constraints: no mixed cycles are allowed
@@ -1514,29 +1508,29 @@ solve_by_ip(VVVVF& p_z, VVVU& z, ALN& aln) const
       const uint d_max = d.size();
       
       do{	
-	struct InnerFunction{
-	  static void
-	  function(IP& ip,VVVVI& v_z,uint m,VU& D,VU& I,VU& J,VU& L,uint k_){
-	    const uint d = D.at(k_);
-	    for(I.at(d)=0; I.at(d)<L.at(d); I.at(d)++)
-	      for(J.at(d)=I.at(d)+1; J.at(d)<L.at(d); J.at(d)++){
-		if(k_<D.size()-1){
-		  function(ip,v_z,m,D,I,J,L,k_+1);
-		}else if(k_==D.size()-1){
-		  int row = ip.make_constraint(IP::UP, 0, m-1);	
-		  for(uint k=0; k<D.size(); k++){
-		    uint d1=D.at(k),d2=D.at((k+1)%D.size());
-		    if(d1>d2) std::swap(d1,d2);
-		    const uint i1=J.at(d1),j2=I.at(d2);
-		    if(v_z.at(d1).at(d2).at(i1).at(j2)>0)
-		      ip.add_constraint(row, v_z.at(d1).at(d2).at(i1).at(j2), 1);
-		  }
-		}
-		
-	      }
-	  }
-	};
-	InnerFunction::function(ip,v_z,m,d,i,j,L, 0);
+        struct InnerFunction{
+          static void
+          function(IP& ip,VVVVI& v_z,uint m,VU& D,VU& I,VU& J,VU& L,uint k_)
+          {
+            const uint d = D.at(k_);
+            for(I.at(d)=0; I.at(d)<L.at(d); I.at(d)++)
+              for(J.at(d)=I.at(d)+1; J.at(d)<L.at(d); J.at(d)++){
+                if(k_<D.size()-1){
+                  function(ip,v_z,m,D,I,J,L,k_+1);
+                } else if(k_==D.size()-1) {
+                  int row = ip.make_constraint(IP::UP, 0, m-1);	
+                  for(uint k=0; k<D.size(); k++){
+                    uint d1=D.at(k),d2=D.at((k+1)%D.size());
+                    if(d1>d2) std::swap(d1,d2);
+                    const uint i1=J.at(d1),j2=I.at(d2);
+                    if(v_z.at(d1).at(d2).at(i1).at(j2)>0)
+                      ip.add_constraint(row, v_z.at(d1).at(d2).at(i1).at(j2), 1);
+                  }
+                }
+              }
+          }
+        };
+        InnerFunction::function(ip,v_z,m,d,i,j,L, 0);
 	
       } while( std::next_permutation(d.begin(), d.end() ) );
     } while( std::next_permutation(f.begin(), f.end() ) );
@@ -1552,13 +1546,14 @@ solve_by_ip(VVVVF& p_z, VVVU& z, ALN& aln) const
       z[k1][k2].resize(L1, -1u);
       //std::fill(z[k1][k2].begin(), z[k1][k2].end(), -1u);
       for (uint i1=0; i1<L1; i1++)
-	for (uint i2=0; i2<L2; i2++){
-	  if (v_z[k1][k2][i1][i2]>0 && ip.get_value(v_z[k1][k2][i1][i2])>0.5)
-	    {z[k1][k2][i1] = i2;
-	      //std::cout << "(" << k1 << "," << i1 << ")-"
-	      //	<< "(" << k2 << "," << i2 << ")" << std::endl;
-	    }
-	}
+        for (uint i2=0; i2<L2; i2++){
+          if (v_z[k1][k2][i1][i2]>0 && ip.get_value(v_z[k1][k2][i1][i2])>0.5)
+          {
+            z[k1][k2][i1] = i2;
+            //std::cout << "(" << k1 << "," << i1 << ")-"
+            //	<< "(" << k2 << "," << i2 << ")" << std::endl;
+          }
+        }
     }
 
   
