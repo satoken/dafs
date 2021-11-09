@@ -20,16 +20,16 @@
 #include "typedefs.h"
 #include "graph_library.h"
 
-typedef std::pair<uint,uint> node;
+typedef std::pair<uint, uint> node;
 typedef std::pair<node, node> edge;
 typedef std::vector<node> VN;
 typedef std::vector<edge> VE;
 typedef std::vector<VN> VVN;
 typedef std::vector<VE> VVE;
 
-
-class Align_Graph{
- private:
+class Align_Graph
+{
+private:
   uint M_;
   VU seqlen_;
   //
@@ -56,19 +56,19 @@ class Align_Graph{
   //
   void detect_clips();
   void detect_mixedCycles();
- 
- public:
+
+public:
   VVN clips;
   VVE cycles_1; //MC-I
   VVE cycles_2; //MC-II
   bool isAdjacent(node n1, node n2);
   VVE get_cycleAmongComponents(VU compo_cycles);
   VVE get_cycleInComponent(VU compo_nodes);
-  uint cog_cycle_num(){ return cog_cycles_.size(); }
+  uint cog_cycle_num() { return cog_cycles_.size(); }
   //
   void add_edge(node n1, node n2);
   void configure();
   ALN get_alignmentColumns();
   void destroy_wrongEdges();
-  Align_Graph(VU& seqlen);
+  Align_Graph(VU &seqlen);
 };
