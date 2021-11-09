@@ -17,7 +17,7 @@
  * along with DMSA.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <typedefs.h>
+#include "typedefs.h"
 
 class Graph{
   typedef std::pair<uint,uint> edge;

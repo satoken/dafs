@@ -17,7 +17,7 @@
  * along with DMSA.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <typedefs.h>
+#include "typedefs.h"
 #include "graph_library.h"
 
 typedef std::pair<uint,uint> node;
