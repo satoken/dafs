@@ -39,7 +39,7 @@
 void Graph::
     add_edge(uint n1, uint n2)
 {
-  edge_list_.push_back(edge(n1, n2));
+  edge_list_.emplace_back(n1, n2);
 }
 
 void Graph::
@@ -91,16 +91,18 @@ VU Undirected_Graph::
 }
 
 //class: "Directed_Graph"
-VU st;
 VVU list_cycle;
 
 struct detect_loops : public boost::dfs_visitor<>
 {
+  VU st;
+
   template <class Vertex, class Graph>
   void start_vertex(Vertex v, const Graph &g)
   {
     st.push_back(v);
   }
+
   template <class Edge, class Graph>
   void tree_edge(Edge e, const Graph &g)
   {
@@ -110,6 +112,7 @@ struct detect_loops : public boost::dfs_visitor<>
     }
     st.push_back(target(e, g));
   }
+
   template <class Edge, class Graph>
   void back_edge(Edge e, const Graph &g)
   {

@@ -62,7 +62,7 @@ public:
   VVE cycles_1; //MC-I
   VVE cycles_2; //MC-II
   bool isAdjacent(node n1, node n2);
-  VVE get_cycleAmongComponents(VU compo_cycles);
+  VVE get_cycleAmongComponents(const VU& compo_cycles);
   VVE get_cycleInComponent(VU compo_nodes);
   uint cog_cycle_num() { return cog_cycles_.size(); }
   //

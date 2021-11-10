@@ -50,7 +50,7 @@ add_executable(
 )
 target_link_libraries(dafs contrafold probcons contralign
   ${VIENNARNA_LDFLAGS} ${GLPK_LIBRARY} ${ZLIB_LIBRARY} ${GMP_LIBRARY} ${DL_LIBRARY} ${LTDL_LIBRARY} ${MPFR_LIBRARY}
-  ${CPLEX_LIBRARY} ${GUROBI_LIBRARY} ${GUROBI_CPP_LIBRARY})
+  ${CPLEX_LIBRARY} ${GUROBI_LIBRARY} ${GUROBI_CPP_LIBRARY} ${CMAKE_DL_LIBS})
 target_compile_features(dafs PUBLIC cxx_std_17)
 
 install(TARGETS dafs RUNTIME DESTINATION bin)

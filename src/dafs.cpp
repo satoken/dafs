@@ -1366,13 +1366,13 @@ solve_by_dd(const VVVVF& p_z, VVVU& z, ALN& aln) const
     g.configure();
     
     // 2.1 Keep consistency transformation
-    VVN clips = g.clips;
+    const VVN& clips = g.clips;
     violation_num += clips.size();
 
     // 2.2 Forbid mixed cycle
-    VVE cycles_1 = g.cycles_1;
+    const VVE& cycles_1 = g.cycles_1;
     violation_num += cycles_1.size();
-    VVE cycles_2 = g.cycles_2;
+    const VVE& cycles_2 = g.cycles_2;
     violation_num += cycles_2.size();
 
     //3. impose penalty score
