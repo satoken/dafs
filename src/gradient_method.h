@@ -17,11 +17,11 @@
  * along with DMSA.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __INC_GRADIENT_METHOD_H__
-#define __INC_GRADIENT_METHOD_H__
+#pragma once
 
 #include "typedefs.h"
 #include <cmath>
+#include <map>
 
 //Align_Graph
 #include "alignment_graph.h"
@@ -30,27 +30,15 @@ class GradientMethod
 {
 private:
   float eta_;
-  VVN clips_;
-  VVE cycles_;
-  // [Clip]
-  VF lagmul_clip_; // Lagrangian Multiplier
-  VF state1_clip_, state2_clip_;
-  // [Cycle]
-  VF lagmul_cycle_;
-  VF state1_cycle_, state2_cycle_;
+  std::map<VN, std::tuple<float,float,float>> clips_;
+  std::map<VE, std::tuple<float,float,float>> cycles_;
 
 public:
   void add_clip(const VVN &clips)
   {
     for (const auto &clip : clips)
     {
-      if (!util::include(clips_, clip)) // very slow
-      {
-        clips_.push_back(clip);
-        lagmul_clip_.push_back(0.0);
-        state1_clip_.push_back(0);
-        state2_clip_.push_back(0);
-      }
+      clips_.insert({clip, {0.0f, 0.0f, 0.0f}});
     }
   }
 
@@ -58,16 +46,69 @@ public:
   {
     for (const auto &cycle : cycles)
     {
-      if (!util::include(cycles_, cycle)) // very slow
+      cycles_.insert({cycle, {0.0f, 0.0f, 0.0f}});
+    }
+  }
+
+  void update(VVVVF &lambda, Align_Graph &g, uint t)
+  {
+    //DEBUG:
+    /*
+    std::cout << " clip(total): " << clips_.size() << std::endl
+	      << " cycle(total): " << cycles_.size() << std::endl;
+    */
+    for (auto& [clip, vals] : clips_)
+    {
+      const node& inner = clip[0];
+      const node& outer_1 = clip[1];
+      const node& outer_2 = clip[2];
+      // calculate gradient
+      const bool z01 = g.isAdjacent(inner, outer_1);
+      const bool z02 = g.isAdjacent(inner, outer_2);
+      const bool z12 = g.isAdjacent(outer_1, outer_2);
+      const int grad = (1 - z01 - z02 + z12);
+      // update lagmul
+      auto& [lagmul, state1, state2] = vals;
+      lagmul = std::max(0.0f, 
+                    //lagmul -adagrad(grad, state1) );
+                    lagmul -adam(grad, state1, state2, t) );
+                    //lagmul - 0.01f * grad); 
+      // update lambda
+      tie(lambda, edge(inner, outer_1)) -= lagmul;
+      tie(lambda, edge(inner, outer_2)) -= lagmul;
+      tie(lambda, edge(outer_1, outer_2)) += lagmul;
+    }
+
+    for (auto& [cycle, vals] : cycles_)
+    {
+      // calculate gradient
+      int grad = cycle.size() - 1;
+      for (uint j = 0; j < cycle.size(); j++)
       {
-        cycles_.push_back(cycle);
-        lagmul_cycle_.push_back(0.0);
-        state1_cycle_.push_back(0);
-        state2_cycle_.push_back(0);
+        const auto [n1, n2] = cycle[j];
+        grad -= g.isAdjacent(n1, n2);
+      }
+      // update lagmul
+      auto& [lagmul, state1, state2] = vals;
+      lagmul = std::max(0.0f, 
+                    //lagmul -adagrad(grad, state1) );
+                    lagmul -adam(grad, state1, state2, t) );
+                    //lagmul -0.01f * grad);
+
+      // update lambda
+      for (uint j = 0; j < cycle.size(); j++)
+      {
+        tie(lambda, cycle[j]) -= lagmul;
       }
     }
   }
 
+  GradientMethod(float eta)
+  {
+    eta_ = eta;
+  }
+
+private:
   float adagrad(float grad, float &state_1)
   {
     const float eps = 1e-8;
@@ -89,17 +130,6 @@ public:
     return alpha * m / (std::sqrt(v) + eps);
   }
 
-  void update(edge e, float lagmul, VVVVF &lambda, bool sgn)
-  {
-    node n1 = e.first, n2 = e.second;
-    if (n1.first > n2.first)
-      swap(n1, n2);
-    const uint k1 = n1.first, i1 = n1.second;
-    const uint k2 = n2.first, i2 = n2.second;
-    lambda[k1][k2][i1][i2] += lagmul * (sgn ? 1.0 : -1.0);
-    // lambda[k1][k2][i1][i2] -= 0.5;
-  }
-
   float& tie(VVVVF &lambda, const edge& e)
   {
     auto [n1, n2] = e;
@@ -109,66 +139,4 @@ public:
     const auto [k2, i2] = n2;
     return lambda[k1][k2][i1][i2];
   }
-
-  void update(VVVVF &lambda, Align_Graph &g, uint t)
-  {
-    //DEBUG:
-    /*
-    std::cout << " clip(total): " << clips_.size() << std::endl
-	      << " cycle(total): " << cycles_.size() << std::endl;
-    */
-    for (uint i = 0; i < clips_.size(); i++)
-    {
-      const VN& clip = clips_[i];
-      const node& inner = clip[0];
-      const node& outer_1 = clip[1];
-      const node& outer_2 = clip[2];
-      // calculate gradient
-      const bool z01 = g.isAdjacent(inner, outer_1);
-      const bool z02 = g.isAdjacent(inner, outer_2);
-      const bool z12 = g.isAdjacent(outer_1, outer_2);
-      const int grad = (1 - z01 - z02 + z12);
-      // update lagmul
-      lagmul_clip_[i] = std::max(0.0f, 
-                    //lagmul_clip_[i] -adagrad(grad, state1_clip_[i]) );
-                    lagmul_clip_[i] -adam(grad, state1_clip_[i], state2_clip_[i], t) );
-                    //lagmul_clip_[i] - 0.01f * grad); 
-      // update lambda
-      tie(lambda, edge(inner, outer_1)) -= lagmul_clip_[i];
-      tie(lambda, edge(inner, outer_2)) -= lagmul_clip_[i];
-      tie(lambda, edge(outer_1, outer_2)) += lagmul_clip_[i];
-      //
-    }
-
-    for (uint i = 0; i < cycles_.size(); i++)
-    {
-      const VE& cycle = cycles_[i];
-      // calculate gradient
-      int grad = cycle.size() - 1;
-      for (uint j = 0; j < cycle.size(); j++)
-      {
-        const auto [n1, n2] = cycle[j];
-        grad -= g.isAdjacent(n1, n2);
-      }
-      // update lagmul
-      lagmul_cycle_[i] = std::max(0.0f, 
-                    //lagmul_cycle_[i] -adagrad(grad, state1_cycle_[i]) );
-                    lagmul_cycle_[i] -adam(grad, state1_cycle_[i], state2_cycle_[i], t) );
-                    //lagmul_cycle_[i] -0.01f * grad);
-
-      // update lambda
-      for (uint j = 0; j < cycle.size(); j++)
-      {
-        tie(lambda, cycle[j]) -= lagmul_cycle_[i];
-      }
-      //
-    }
-  }
-
-  GradientMethod(float eta)
-  {
-    eta_ = eta;
-  }
 };
-
-#endif //  __INC_GRADIENT_METHOD_H__
