@@ -36,10 +36,10 @@ private:
   uint node_num_;
   VN node_list_;
   VVU node_id_;
-  uint get_node_id(node n);
+  uint get_node_id(node n) const;
   //
   VVU adjacency_list_;
-  bool isAdjacent(uint nid_1, uint nid_2);
+  bool isAdjacent(uint nid_1, uint nid_2) const;
   //
   Undirected_Graph g_; //Undirected edges
   void set_g();
@@ -52,7 +52,7 @@ private:
   void set_components();
   void set_cog();
   void set_cog_cycle();
-  VVN get_paths(node n1, node n2);
+  VVN get_paths(node n1, node n2) const;
   //
   void detect_clips();
   void detect_mixedCycles();
@@ -61,10 +61,10 @@ public:
   VVN clips;
   VVE cycles_1; //MC-I
   VVE cycles_2; //MC-II
-  bool isAdjacent(node n1, node n2);
+  bool isAdjacent(node n1, node n2) const;
   VVE get_cycleAmongComponents(const VU& compo_cycles);
-  VVE get_cycleInComponent(VU compo_nodes);
-  uint cog_cycle_num() { return cog_cycles_.size(); }
+  VVE get_cycleInComponent(const VU& compo_nodes);
+  uint cog_cycle_num() const { return cog_cycles_.size(); }
   //
   void add_edge(node n1, node n2);
   void configure();

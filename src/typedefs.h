@@ -76,21 +76,21 @@ namespace util{
 
   template <class X>
   const X accumulate(const std::vector<X>& v){
-    return accumulate(v.begin(), v.end(), 0);
+    return accumulate(v.cbegin(), v.cend(), 0);
   }
 
   template <class X>
-  uint max(std::vector<X>& v){
-    return max_element(v.begin(), v.end()) - v.begin();
+  uint max(const std::vector<X>& v){
+    return max_element(v.cbegin(), v.cend()) - v.cbegin();
   }
 
   template <class X>
-  uint min(std::vector<X>& v){
-    return min_element(v.begin(), v.end()) - v.begin();
+  uint min(const std::vector<X>& v){
+    return min_element(v.cbegin(), v.cend()) - v.cbegin();
   }
 
   template <class X>
-  void print(std::vector<X>& v){
+  void print(const std::vector<X>& v){
     for(uint i=0; i<v.size(); i++)
       std::cout << v[i] << ", ";
     std::cout << std::endl;
@@ -123,18 +123,18 @@ namespace util{
   }
   
   template <class X>
-  bool include(std::vector<X>& v, X value){
-    return (std::find(v.begin(), v.end(), value) != v.end());
+  bool include(const std::vector<X>& v, X value){
+    return (std::find(v.cbegin(), v.cend(), value) != v.cend());
   }
   
   template <class X>
-  uint find(std::vector<X>& v, X value){
-    return std::find(v.begin(), v.end(), value) - v.begin();
+  uint find(const std::vector<X>& v, X value){
+    return std::find(v.cbegin(), v.cend(), value) - v.cbegin();
   }
 
   template <class X>
-  uint rfind(std::vector<X>& v, X value){
-    return v.rend() - std::find(v.rbegin(), v.rend(), value) -1;
+  uint rfind(const std::vector<X>& v, X value){
+    return v.crend() - std::find(v.crbegin(), v.crend(), value) -1;
   }
 
   template <class X>
@@ -149,7 +149,7 @@ namespace util{
   }
   */
   template <class X1, class X2>
-  void print(std::pair<X1,X2>& p){
+  void print(const std::pair<X1,X2>& p){
     std::cout << '(' << p.first << ',' << p.second << ')';
   }
   

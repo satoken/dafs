@@ -28,20 +28,20 @@
 // class: Align_Graph
 
 uint Align_Graph::
-    get_node_id(node n)
+    get_node_id(node n) const
 {
   const uint k = n.first, i = n.second;
   return node_id_[k][i];
 }
 
 bool Align_Graph::
-    isAdjacent(uint nid_1, uint nid_2)
+    isAdjacent(uint nid_1, uint nid_2) const
 {
   return util::include(adjacency_list_[nid_1], nid_2);
 }
 
 bool Align_Graph::
-    isAdjacent(node n1, node n2)
+    isAdjacent(node n1, node n2) const
 {
   const uint nid_1 = get_node_id(n1);
   const uint nid_2 = get_node_id(n2);
@@ -54,7 +54,7 @@ void Align_Graph::
   g_.clear();
   for (uint nid_1 = 0; nid_1 < adjacency_list_.size(); nid_1++)
   {
-    for (auto nid_2: adjacency_list_[nid_1])
+    for (auto nid_2 : adjacency_list_[nid_1])
       g_.add_edge(nid_1, nid_2);
   }
 }
@@ -126,10 +126,10 @@ void Align_Graph::
   //VVN clips;
   for (uint nid = 0; nid < node_list_.size(); nid++)
   {
-    const node& n0 = node_list_[nid];
+    const node &n0 = node_list_[nid];
     const auto [k, i] = n0;
-    const VU& adj = adjacency_list_[nid];
-    if (adj.size()>=2)
+    const VU &adj = adjacency_list_[nid];
+    if (adj.size() >= 2)
     {
       for (auto ii1 = 0; ii1 != adj.size(); ii1++)
         for (auto ii2 = ii1 + 1; ii2 != adj.size(); ii2++)
@@ -137,11 +137,11 @@ void Align_Graph::
           const uint nid_1 = adj[ii1], nid_2 = adj[ii2];
           if (!util::include(adjacency_list_[nid_2], nid_1))
           {
-            const auto [k1, i1] = node_list_[nid_1]; 
+            const auto [k1, i1] = node_list_[nid_1];
             const auto [k2, i2] = node_list_[nid_2];
             VN clip;
             clip.emplace_back(k, i);
-            if (k1 < k2) 
+            if (k1 < k2)
             {
               clip.emplace_back(k1, i1);
               clip.emplace_back(k2, i2);
@@ -230,7 +230,7 @@ ALN Align_Graph::
 //
 
 VVE Align_Graph::
-    get_cycleAmongComponents(const VU& cog_cycle)
+    get_cycleAmongComponents(const VU &cog_cycle)
 {
   const uint compo_num = cog_cycle.size();
 
@@ -238,7 +238,7 @@ VVE Align_Graph::
   for (uint j = 0; j < cog_cycle.size(); j++)
   {
     const uint cid = cog_cycle[j];
-    for (auto nid: component_list_[cid])
+    for (auto nid : component_list_[cid])
     {
       const auto [k, i] = node_list_[nid];
       compo_list[j][k].push_back(i);
@@ -259,8 +259,8 @@ VVE Align_Graph::
         return;
       }
 
-      const VVU& compo_1 = compo_list[i];
-      const VVU& compo_2 = compo_list[i + 1];
+      const VVU &compo_1 = compo_list[i];
+      const VVU &compo_2 = compo_list[i + 1];
       const uint M = compo_1.size();
       for (uint k = 0; k < M; k++)
         for (uint j1 = 0; j1 < compo_1[k].size(); j1++)
@@ -294,21 +294,17 @@ VVE Align_Graph::
         c.emplace_back(n1, n2);
       else
       {
+#if 1
         c.clear();
-        /*
-	const uint nid_1 = get_node_id(n1), nid_2 = get_node_id(n2);
-	//OBSOLETE: VU path = get_shortestPath( nid_2, nid_1, node_num_ );
-	const node n1 = node_list_[nid_1], n2 = node_list_[nid_2];
-	VVN paths = get_paths(n1, n2);
-	for(uint i=0; i<paths.size(); i++){
-	  VN path = paths[i];
-	  VE cycle;
-	  for(uint j=0; j<path.size()-1; j++){
-	    const node m1 = path[j], m2 = path[j+1];
-	    c.push_back( edge(m1,m2) ); 
-	  }
-	}
-	*/
+#else
+        const uint nid_1 = get_node_id(n1), nid_2 = get_node_id(n2);
+        //OBSOLETE: VU path = get_shortestPath( nid_2, nid_1, node_num_ );
+        const node n1 = node_list_[nid_1], n2 = node_list_[nid_2];
+        VVN paths = get_paths(n1, n2);
+        for (const auto& path : paths)
+          for (uint j = 0; j < path.size() - 1; j++)
+            c.emplace_back(path[j], path[j+1]);
+#endif
       }
     }
     if (!c.empty())
@@ -324,16 +320,16 @@ VVE Align_Graph::
 }
 
 VVE Align_Graph::
-    get_cycleInComponent(VU compo_nodes)
+    get_cycleInComponent(const VU &compo_nodes)
 {
   VVE cycles;
 
   const uint M = node_id_.size();
   VVU x(M);
-  for (VU::iterator ii = compo_nodes.begin(); ii != compo_nodes.end(); ii++)
+  for (auto ii = compo_nodes.cbegin(); ii != compo_nodes.cend(); ii++)
   {
     const uint nid = *ii;
-    const node n = node_list_[nid];
+    const node &n = node_list_[nid];
     const uint k = n.first, i = n.second;
     x[k].push_back(nid);
   }
@@ -353,7 +349,7 @@ VVE Align_Graph::
         //DEBUG: util::print(path);
         for (uint i = 0; i < paths.size(); i++)
         {
-          VN path = paths[i];
+          const VN &path = paths[i];
           VE cycle;
           for (uint j = 0; j < path.size() - 1; j++)
           {
@@ -366,23 +362,20 @@ VVE Align_Graph::
   }
 
   // unique cycle_list
-  /*
-  for(uint i=0; i<cycles.size(); i++)
+  for (uint i = 0; i < cycles.size(); i++)
     util::cycle_sort(cycles[i]);
   util::unique(cycles);
-  */
 
   return cycles;
 }
 
 VVN Align_Graph::
-    get_paths(node n1, node n2)
+    get_paths(node n1, node n2) const
 {
-
   struct InnerFunction
   {
     static void
-    function(node m, node e, VB v, VN p, VVN &paths, Align_Graph &g)
+    function(node m, node e, VB v, VN p, VVN &paths, const Align_Graph &g)
     {
       p.push_back(m);
       if (m == e)
@@ -398,7 +391,7 @@ VVN Align_Graph::
       else
         v[k] = true;
 
-      const VU& l = g.adjacency_list_[g.get_node_id(m)];
+      const VU &l = g.adjacency_list_[g.get_node_id(m)];
       for (uint i = 0; i < l.size(); i++)
       {
         node l_i = g.node_list_[l[i]];

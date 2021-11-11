@@ -887,7 +887,7 @@ output_verbose(const VU& x, const VU& y, const VU& z, const ALN& aln1, const ALN
 }
 
 //OBSOLETE:
-/*
+#if 0
 void
 DMSA::
 align_alignments(ALN& aln, const ALN& aln1, const ALN& aln2) const
@@ -940,7 +940,6 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   // build the result
   project_alignment(aln, aln1, aln2, z);
   //OBSOLETE: 
-  /*
   VU xx, yy;
   project_secondary_structure(xx, yy, x, y, z);
   assert(xx.size()==yy.size());
@@ -978,10 +977,9 @@ align_alignments(VU& ss, ALN& aln, const ALN& aln1, const ALN& aln2) const
   return s; // this is the minimized upper bound of the exact score.
 #endif
   
-  
   return s;
 }
-*/
+#endif
 
 #ifdef ADAGRAD
 float
@@ -1307,19 +1305,20 @@ solve_by_dd(VU& x, VU& y, VU& z,
 }
 #endif
 
-float
-DMSA::
-solve_by_dd(const VVVVF& p_z, VVVU& z, ALN& aln) const
-{ 
+float DMSA::
+    solve_by_dd(const VVVVF &p_z, VVVU &z, ALN &aln) const
+{
   //DEBUG: std::cout << "hello DD!" << std::endl;
-  const bool detail_output = (verbose_>0) ? true : false;
-  
+  const bool detail_output = (verbose_ > 0) ? true : false;
+
   const uint M = fa_.size();
 
   std::vector<std::vector<std::unique_ptr<Align::Decoder>>> a_decoder(M);
-  for(uint k1=0; k1<M-1; k1++){
+  for (uint k1 = 0; k1 < M - 1; k1++)
+  {
     a_decoder[k1].resize(M);
-    for(uint k2=k1+1; k2<M; k2++){
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+    {
       a_decoder[k1][k2] = std::unique_ptr<Align::Decoder>(new SparseNeedlemanWunsch(th_a_));
       a_decoder[k1][k2]->initialize(p_z[k1][k2]);
     }
@@ -1327,58 +1326,64 @@ solve_by_dd(const VVVVF& p_z, VVVU& z, ALN& aln) const
 
   //Initialization of Phi
   VVVVF phi(M, VVVF(M));
-  for(uint k1=0; k1<M; k1++){
-    for(uint k2=0; k2<M; k2++){
+  for (uint k1 = 0; k1 < M; k1++)
+  {
+    for (uint k2 = 0; k2 < M; k2++)
+    {
       const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();
       phi[k1][k2].resize(L1);
-      for(uint i=0; i<L1; i++) phi[k1][k2][i].resize(L2);
+      for (uint i = 0; i < L1; i++)
+        phi[k1][k2][i].resize(L2);
     }
   }
-    
+
   // Alignment Graph
   VU seqlen(M);
-  for(uint k=0; k<M; k++) seqlen[k] = fa_[k].size();
-  
+  for (uint k = 0; k < M; k++)
+    seqlen[k] = fa_[k].size();
+
   GradientMethod gm(eta0_);
 
   // DMSA Algorithm
-  uint violation_num=0;
-  float score=0.0;
-  for(uint t=1; t<=t_max_; t++) {
+  uint violation_num = 0;
+  float score = 0.0;
+  for (uint t = 1; t <= t_max_; t++)
+  {
     // 0.initialization
     violation_num = 0;
     Align_Graph g(seqlen);
 
     // 1.Calculate all-to-all PSA
-    score=0.0;
-    for(uint k1=0; k1<M-1; k1++)
-      for(uint k2=k1+1; k2<M; k2++)
+    score = 0.0;
+    for (uint k1 = 0; k1 < M - 1; k1++)
+      for (uint k2 = k1 + 1; k2 < M; k2++)
         score += a_decoder[k1][k2]->decode(p_z[k1][k2], phi[k1][k2], z[k1][k2]);
 
     // 2.Check fulfillment of constraints
-    for(uint k1=0; k1<M-1; k1++)
-      for(uint k2=k1+1; k2<M; k2++)
-        for(uint i1=0; i1<z[k1][k2].size(); i1++){
+    for (uint k1 = 0; k1 < M - 1; k1++)
+      for (uint k2 = k1 + 1; k2 < M; k2++)
+        for (uint i1 = 0; i1 < z[k1][k2].size(); i1++)
+        {
           const uint i2 = z[k1][k2][i1];
-          if(i2 != -1u)
-            g.add_edge( node(k1,i1), node(k2,i2) );
+          if (i2 != -1u)
+            g.add_edge(node(k1, i1), node(k2, i2));
         }
     g.configure();
-    
+
     // 2.1 Keep consistency transformation
-    const VVN& clips = g.clips;
+    const VVN &clips = g.clips;
     violation_num += clips.size();
 
     // 2.2 Forbid mixed cycle
-    const VVE& cycles_1 = g.cycles_1;
+    const VVE &cycles_1 = g.cycles_1;
     violation_num += cycles_1.size();
-    const VVE& cycles_2 = g.cycles_2;
+    const VVE &cycles_2 = g.cycles_2;
     violation_num += cycles_2.size();
 
     //3. impose penalty score
-    for(uint k1=0; k1<M; k1++)
-      for(uint k2=k1+1; k2<M; k2++)
-        for(uint i1=0; i1<seqlen[k1]; i1++)
+    for (uint k1 = 0; k1 < M; k1++)
+      for (uint k2 = k1 + 1; k2 < M; k2++)
+        for (uint i1 = 0; i1 < seqlen[k1]; i1++)
           util::fill(phi[k1][k2][i1], 0.0f);
 
     gm.add_cycle(cycles_1);
@@ -1387,36 +1392,41 @@ solve_by_dd(const VVVVF& p_z, VVVU& z, ALN& aln) const
     gm.update(phi, g, t);
 
     //DEBUG:
-    if(detail_output){
+    if (detail_output)
+    {
       std::cout << "T=" << t << std::endl;
       //
       std::cout << " clip:" << g.clips.size() << std::endl
-            << " COG_cycle:" << g.cog_cycle_num() <<std::endl
-            << " cycle(MC-I): " << g.cycles_1.size() << std::endl
-            << " cycle(MC-II):" << g.cycles_2.size() << std::endl;
+                << " COG_cycle:" << g.cog_cycle_num() << std::endl
+                << " cycle(MC-I): " << g.cycles_1.size() << std::endl
+                << " cycle(MC-II):" << g.cycles_2.size() << std::endl;
       //
       std::cout << " violation_num:" << violation_num << std::endl;
     }
 
     // 4.Put alignment result into ALN
-    if(violation_num==0 || t==t_max_){
+    if (violation_num == 0 || t == t_max_)
+    {
       std::cout << "iteration:" << t << std::endl;
       aln = g.get_alignmentColumns();
       break; // all constraints are satisfied.
-    }   
+    }
   }
-  
+
   //DEBUG:
   float s = 0.0;
-  for(uint k1=0; k1<M; k1++)
-    for(uint k2=k1+1; k2<M; k2++)
-      for(uint i1=0; i1<fa_[k1].size(); i1++){
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+      for (uint i1 = 0; i1 < fa_[k1].size(); i1++)
+      {
         const uint i2 = z[k1][k2][i1];
-        if(i2 != -1u) s += p_z[k1][k2][i1][i2];
+        if (i2 != -1u)
+          s += p_z[k1][k2][i1][i2];
       }
-  if(detail_output){
+  if (detail_output)
+  {
     std::cout << "score:" << s << std::endl;
-    
+
     //DEBUG:
     std::cout << "score:" << score << std::endl;
   }
@@ -1424,130 +1434,152 @@ solve_by_dd(const VVVVF& p_z, VVVU& z, ALN& aln) const
   return score;
 }
 
-float
-DMSA::
-solve_by_ip(const VVVVF& p_z, VVVU& z, ALN& aln) const
+float DMSA::
+    solve_by_ip(const VVVVF &p_z, VVVU &z, ALN &aln) const
 {
   std::cout << "hello IP!" << std::endl;
   const uint M = fa_.size();
-  
+
   // integer programming
   IP ip(IP::MAX, 1);
 
   // variables
   VVVVI v_z(M, VVVI(M));
-  for(uint k1=0; k1<M; k1++)
-    for(uint k2=k1+1; k2<M; k2++){
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+    {
       const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();
       v_z[k1][k2].resize(L1, VI(L2));
       //v_z[k2][k1] = v_z[k1][k2];
     }
-  
+
   float min_th_s = th_s_[0];
-  for (VF::const_iterator it=th_s_.begin(); it!=th_s_.end(); ++it)
+  for (VF::const_iterator it = th_s_.begin(); it != th_s_.end(); ++it)
     min_th_s = std::min(min_th_s, *it);
-  
+
   // enumerate the candidates of aligned bases
-  for(uint k1=0; k1<M; k1++)
-    for(uint k2=k1+1; k2<M; k2++){
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+    {
       const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();
-      for(uint i1=0; i1<L1; i1++)
-        for(uint i2=0; i2<L2; i2++){
-          if (p_z[k1][k2][i1][i2]>CUTOFF)
-            v_z[k1][k2][i1][i2]=ip.make_variable(p_z[k1][k2][i1][i2]-th_a_);   
+      for (uint i1 = 0; i1 < L1; i1++)
+        for (uint i2 = 0; i2 < L2; i2++)
+        {
+          if (p_z[k1][k2][i1][i2] > CUTOFF)
+            v_z[k1][k2][i1][i2] = ip.make_variable(p_z[k1][k2][i1][i2] - th_a_);
         }
     }
   ip.update();
-  
+
   // constraints: each base is aligned with at most one base
-  for(uint k1=0; k1<M; k1++)
-    for(uint k2=k1+1; k2<M; k2++){
-      const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();     
-      for (uint i1=0; i1<L1; i1++)
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+    {
+      const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();
+      for (uint i1 = 0; i1 < L1; i1++)
       {
         int row = ip.make_constraint(IP::UP, 0, 1);
-        for (uint i2=0; i2<L2; i2++)
-          if (v_z[k1][k2][i1][i2]>0)
+        for (uint i2 = 0; i2 < L2; i2++)
+          if (v_z[k1][k2][i1][i2] > 0)
             ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
       }
-      for (uint i2=0; i2<L2; i2++)
+      for (uint i2 = 0; i2 < L2; i2++)
       {
         int row = ip.make_constraint(IP::UP, 0, 1);
-        for (uint i1=0; i1<L1; i1++)
-          if (v_z[k1][k2][i1][i2]>0)
+        for (uint i1 = 0; i1 < L1; i1++)
+          if (v_z[k1][k2][i1][i2] > 0)
             ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
       }
     }
-  
+
   // constraints: no crossing matches are allowed
-  for(uint k1=0; k1<M; k1++)
-    for(uint k2=k1+1; k2<M; k2++){
-      const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();     
-      
-      for (uint i1=0; i1<L1; i1++)
-        for (uint i2=0; i2<L2; i2++)
-          if (v_z[k1][k2][i1][i2]>0)
-            for (uint j1=i1+1; j1<L1; j1++)
-              for (uint j2=0; j2<i2; j2++)
-                if (v_z[k1][k2][j1][j2]>0)
-                  {
-                    int row = ip.make_constraint(IP::UP, 0, 1);
-                    ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
-                    ip.add_constraint(row, v_z[k1][k2][j1][j2], 1);
-                  }
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+    {
+      const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();
+
+      for (uint i1 = 0; i1 < L1; i1++)
+        for (uint i2 = 0; i2 < L2; i2++)
+          if (v_z[k1][k2][i1][i2] > 0)
+            for (uint j1 = i1 + 1; j1 < L1; j1++)
+              for (uint j2 = 0; j2 < i2; j2++)
+                if (v_z[k1][k2][j1][j2] > 0)
+                {
+                  int row = ip.make_constraint(IP::UP, 0, 1);
+                  ip.add_constraint(row, v_z[k1][k2][i1][i2], 1);
+                  ip.add_constraint(row, v_z[k1][k2][j1][j2], 1);
+                }
     }
 
   // constraints: no mixed cycles are allowed
-  for(uint m=3; m<=M; m++){
+  for (uint m = 3; m <= M; m++)
+  {
     std::vector<bool> f(M);
-    std::fill(f.begin()+M-m, f.end(), true);
-    do{      
-      VU i(M); VU j(M);
-      VU L(M); for(uint k=0; k<M; k++) L[k]=fa_[k].size();      
-      VU d; for(uint k=0; k<M; k++) if(f[k]) d.push_back(k);
+    std::fill(f.begin() + M - m, f.end(), true);
+    do
+    {
+      VU i(M);
+      VU j(M);
+      VU L(M);
+      for (uint k = 0; k < M; k++)
+        L[k] = fa_[k].size();
+      VU d;
+      for (uint k = 0; k < M; k++)
+        if (f[k])
+          d.push_back(k);
       const uint d_max = d.size();
-      
-      do{	
-        struct InnerFunction{
+
+      do
+      {
+        struct InnerFunction
+        {
           static void
-          function(IP& ip,VVVVI& v_z,uint m,VU& D,VU& I,VU& J,VU& L,uint k_)
+          function(IP &ip, VVVVI &v_z, uint m, VU &D, VU &I, VU &J, VU &L, uint k_)
           {
             const uint d = D.at(k_);
-            for(I.at(d)=0; I.at(d)<L.at(d); I.at(d)++)
-              for(J.at(d)=I.at(d)+1; J.at(d)<L.at(d); J.at(d)++){
-                if(k_<D.size()-1){
-                  function(ip,v_z,m,D,I,J,L,k_+1);
-                } else if(k_==D.size()-1) {
-                  int row = ip.make_constraint(IP::UP, 0, m-1);	
-                  for(uint k=0; k<D.size(); k++){
-                    uint d1=D.at(k),d2=D.at((k+1)%D.size());
-                    if(d1>d2) std::swap(d1,d2);
-                    const uint i1=J.at(d1),j2=I.at(d2);
-                    if(v_z.at(d1).at(d2).at(i1).at(j2)>0)
+            for (I.at(d) = 0; I.at(d) < L.at(d); I.at(d)++)
+              for (J.at(d) = I.at(d) + 1; J.at(d) < L.at(d); J.at(d)++)
+              {
+                if (k_ < D.size() - 1)
+                {
+                  function(ip, v_z, m, D, I, J, L, k_ + 1);
+                }
+                else if (k_ == D.size() - 1)
+                {
+                  int row = ip.make_constraint(IP::UP, 0, m - 1);
+                  for (uint k = 0; k < D.size(); k++)
+                  {
+                    uint d1 = D.at(k), d2 = D.at((k + 1) % D.size());
+                    if (d1 > d2)
+                      std::swap(d1, d2);
+                    const uint i1 = J.at(d1), j2 = I.at(d2);
+                    if (v_z.at(d1).at(d2).at(i1).at(j2) > 0)
                       ip.add_constraint(row, v_z.at(d1).at(d2).at(i1).at(j2), 1);
                   }
                 }
               }
           }
         };
-        InnerFunction::function(ip,v_z,m,d,i,j,L, 0);
-	
-      } while( std::next_permutation(d.begin(), d.end() ) );
-    } while( std::next_permutation(f.begin(), f.end() ) );
+        InnerFunction::function(ip, v_z, m, d, i, j, L, 0);
+
+      } while (std::next_permutation(d.begin(), d.end()));
+    } while (std::next_permutation(f.begin(), f.end()));
   }
-  
+
   // execute optimization
   float s = ip.solve();
-  
+
   // build the result
-  for(uint k1=0; k1<M; k1++)
-    for(uint k2=k1+1; k2<M; k2++){
-      const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();     
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+    {
+      const uint L1 = fa_[k1].size(), L2 = fa_[k2].size();
       z[k1][k2].resize(L1, -1u);
       //std::fill(z[k1][k2].begin(), z[k1][k2].end(), -1u);
-      for (uint i1=0; i1<L1; i1++)
-        for (uint i2=0; i2<L2; i2++){
-          if (v_z[k1][k2][i1][i2]>0 && ip.get_value(v_z[k1][k2][i1][i2])>0.5)
+      for (uint i1 = 0; i1 < L1; i1++)
+        for (uint i2 = 0; i2 < L2; i2++)
+        {
+          if (v_z[k1][k2][i1][i2] > 0 && ip.get_value(v_z[k1][k2][i1][i2]) > 0.5)
           {
             z[k1][k2][i1] = i2;
             //std::cout << "(" << k1 << "," << i1 << ")-"
@@ -1556,22 +1588,24 @@ solve_by_ip(const VVVVF& p_z, VVVU& z, ALN& aln) const
         }
     }
 
-  
   // result
   VU seqlen(M);
-  for(uint k=0; k<M; k++) seqlen[k] = fa_[k].size();
+  for (uint k = 0; k < M; k++)
+    seqlen[k] = fa_[k].size();
   Align_Graph g(seqlen);
 
-  for(uint k1=0; k1<M-1; k1++)
-    for(uint k2=k1+1; k2<M; k2++)
-      for(uint i1=0; i1<z[k1][k2].size(); i1++){
+  for (uint k1 = 0; k1 < M - 1; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+      for (uint i1 = 0; i1 < z[k1][k2].size(); i1++)
+      {
         uint i2 = z[k1][k2][i1];
-        if(i2 != -1u){
-          g.add_edge( node(k1,i1), node(k2,i2) );
+        if (i2 != -1u)
+        {
+          g.add_edge(node(k1, i1), node(k2, i2));
         }
       }
   aln = g.get_alignmentColumns();
-  
+
   return s;
 }
 
