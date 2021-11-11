@@ -31,9 +31,10 @@
 #include <boost/graph/topological_sort.hpp>
 #include <boost/range/algorithm/for_each.hpp>
 #include <boost/range/adaptor/reversed.hpp>
+#include <boost/graph/graphviz.hpp>
 #include <iterator>
 #include <utility>
-#include <boost/graph/graphviz.hpp>
+#include <cassert>
 
 //class: "Graph"
 void Graph::
@@ -50,7 +51,7 @@ void Graph::
 
 //class: "Undirected_Graph"
 VU Undirected_Graph::
-    get_components(uint node_num)
+    get_components(uint node_num) const
 {
   typedef boost::adjacency_list<boost::listS,
                                 boost::vecS,
@@ -64,7 +65,7 @@ VU Undirected_Graph::
 }
 
 VU Undirected_Graph::
-    get_shortestPath(uint n1, uint n2, uint node_num)
+    get_shortestPath(uint n1, uint n2, uint node_num) const
 {
   typedef boost::adjacency_list<boost::listS,
                                 boost::vecS,
@@ -90,45 +91,8 @@ VU Undirected_Graph::
   return path;
 }
 
-//class: "Directed_Graph"
-VVU list_cycle;
-
-struct detect_loops : public boost::dfs_visitor<>
-{
-  VU st;
-
-  template <class Vertex, class Graph>
-  void start_vertex(Vertex v, const Graph &g)
-  {
-    st.push_back(v);
-  }
-
-  template <class Edge, class Graph>
-  void tree_edge(Edge e, const Graph &g)
-  {
-    while (st.back() != source(e, g))
-    {
-      st.pop_back();
-    }
-    st.push_back(target(e, g));
-  }
-
-  template <class Edge, class Graph>
-  void back_edge(Edge e, const Graph &g)
-  {
-    while (st.back() != source(e, g))
-    {
-      st.pop_back();
-    }
-    const uint t = target(e, g);
-    const uint i = util::rfind(st, t);
-    VU cycle(st.begin() + i, st.end());
-    list_cycle.push_back(cycle);
-  }
-};
-
 VVU Directed_Graph::
-    get_cycles(uint node_num)
+    get_cycles(uint node_num) const
 {
   typedef boost::adjacency_list<boost::vecS,
                                 boost::vecS,
@@ -136,13 +100,47 @@ VVU Directed_Graph::
                                 boost::no_property,
                                 boost::property<boost::edge_color_t, boost::default_color_type>>
       Graph;
-  typedef boost::graph_traits<Graph>::vertex_descriptor vertex_t;
-  util::unique(edge_list_);
-  Graph g(edge_list_.begin(), edge_list_.end(), node_num);
-  detect_loops vis;
+  typedef boost::graph_traits<Graph>::vertex_descriptor Vertex;
+  typedef boost::graph_traits<Graph>::edge_descriptor Edge;
 
-  list_cycle.clear();
-  depth_first_search(g, boost::root_vertex(vertex_t(0)).visitor(vis).edge_color_map(get(boost::edge_color, g)));
+  Graph g(edge_list_.begin(), edge_list_.end(), node_num);
+  
+  VVU list_cycle;
+  struct detect_loops : public boost::dfs_visitor<>
+  {
+    VU st;
+    VVU& list_cycle;
+
+    detect_loops(VVU& lc) : list_cycle(lc) {}
+
+    void start_vertex(Vertex v, const Graph &g)
+    {
+      st.push_back(v);
+    }
+
+    void tree_edge(Edge e, const Graph &g)
+    {
+      while (st.back() != source(e, g))
+      {
+        st.pop_back();
+      }
+      st.push_back(target(e, g));
+    }
+
+    void back_edge(Edge e, const Graph &g)
+    {
+      while (st.back() != source(e, g))
+      {
+        st.pop_back();
+      }
+      const uint t = target(e, g);
+      const uint i = util::rfind(st, t);
+      VU cycle(st.begin() + i, st.end());
+      list_cycle.push_back(cycle);
+    }
+  } vis(list_cycle);
+
+  boost::depth_first_search(g, boost::visitor(vis));
 
   //DEBUG: boost::write_graphviz(std::cout, g);
 
@@ -150,7 +148,7 @@ VVU Directed_Graph::
 }
 
 VU Directed_Graph::
-    get_topological_order(uint node_num)
+    get_topological_order(uint node_num) const
 {
   typedef boost::adjacency_list<boost::vecS,
                                 boost::vecS,
@@ -158,7 +156,7 @@ VU Directed_Graph::
                                 boost::no_property,
                                 boost::property<boost::edge_color_t, boost::default_color_type>>
       Graph;
-  util::unique(edge_list_);
+
   Graph g(edge_list_.begin(), edge_list_.end(), node_num);
 
   VU result;

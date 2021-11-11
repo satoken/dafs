@@ -24,6 +24,7 @@
 #include "alignment_graph.h"
 
 #include <iostream> //DEBUG:
+#include <cassert>
 
 // class: Align_Graph
 
@@ -53,10 +54,8 @@ void Align_Graph::
 {
   g_.clear();
   for (uint nid_1 = 0; nid_1 < adjacency_list_.size(); nid_1++)
-  {
-    for (auto nid_2 : adjacency_list_[nid_1])
+    for (auto nid_2 : adjacency_list_[nid_1]) 
       g_.add_edge(nid_1, nid_2);
-  }
 }
 
 void Align_Graph::
@@ -87,10 +86,12 @@ void Align_Graph::
       {
         const uint nid_1 = node_id_[k][i1], nid_2 = node_id_[k][i2];
         const uint cid_1 = component_id_[nid_1], cid_2 = component_id_[nid_2];
-        //if(cid_1 != cid_2)
-        cog_.add_edge(cid_1, cid_2);
+        // if cid_1 == cid_2, then this is MC-I
+        //if (cid_1 != cid_2)
+          cog_.add_edge(cid_1, cid_2);
       }
   }
+  util::unique(cog_.edge_list_);
 }
 
 void Align_Graph::
@@ -201,8 +202,6 @@ ALN Align_Graph::
     VVU cog_cycles = cog_.get_cycles(component_num_);
     column_order = cog_.get_topological_order(component_num_);
   }
-  else
-    std::cout << "topo_success" << std::endl;
 
   // convert to ALN
   const uint M = node_id_.size();
@@ -417,21 +416,17 @@ void Align_Graph::
   */
 
   // Mixed Cycle
-  // /*
   VU components; //list of cid
   for (uint i = 0; i < cog_cycles_.size(); i++)
     util::insert(components, cog_cycles_[i]);
   util::unique(components);
 
-  for (uint i = 0; i < components.size(); i++)
+  for (auto cid : components)
   {
-    const uint cid = components[i];
-    const VU compo_list = component_list_[cid];
-    const uint compo_size = compo_list.size();
-    for (uint l1 = 0; l1 < compo_size; l1++)
-      for (uint l2 = 0; l2 < compo_size; l2++)
+    const VU &compo_list = component_list_[cid];
+    for (auto nid_1 : component_list_[cid])
+      for (auto nid_2 : component_list_[cid])
       {
-        const uint nid_1 = compo_list[l1], nid_2 = compo_list[l2];
         const uint k1 = node_list_[nid_1].first, k2 = node_list_[nid_2].first;
         if ((k1 - k2) * (k1 - k2) != 1)
         {
@@ -440,35 +435,39 @@ void Align_Graph::
         }
       }
   }
-  // */
 
-  /*
+#if 0
   VVE cycles;
   util::insert(cycles, cycles_1);
   util::insert(cycles, cycles_2);
-  for(uint i=0; i<cycles.size(); i++){
+  for (uint i = 0; i < cycles.size(); i++)
+  {
     VE cycle = cycles[i];
     VF vp;
-    for(uint j=0; j<cycle.size(); j++){
+    for (uint j = 0; j < cycle.size(); j++)
+    {
       const edge e = cycle[j];
       node n1 = e.first, n2 = e.second;
-      if(n1.first > n2.first) swap(n1,n2);
+      if (n1.first > n2.first)
+        swap(n1, n2);
       const uint k1 = n1.first, i1 = n1.second;
       const uint k2 = n2.first, i2 = n2.second;
-      vp.push_back( p[k1][k2][i1][i2] );
+      vp.push_back(p[k1][k2][i1][i2]);
     }
     const uint j = util::min(vp);
     const edge e = cycle[j];
     const node n1 = e.first, n2 = e.second;
     const uint nid_1 = get_node_id(n1), nid_2 = get_node_id(n2);
-    util::remove( adjacency_list_[nid_1], nid_2 );
-    util::remove( adjacency_list_[nid_2], nid_1 );
+    util::remove(adjacency_list_[nid_1], nid_2);
+    util::remove(adjacency_list_[nid_2], nid_1);
   }
 
-  //DEBUG:                                                                    
-  for(uint i=0; i<cycles.size(); i++){
+  //DEBUG:
+  for (uint i = 0; i < cycles.size(); i++)
+  {
     VE cycle = cycles[i];
-    for(uint j=0; j<cycle.size(); j++){
+    for (uint j = 0; j < cycle.size(); j++)
+    {
       edge e = cycle[j];
       node n1 = e.first, n2 = e.second;
       util::print(n1);
@@ -478,7 +477,7 @@ void Align_Graph::
     }
     std::cout << std::endl;
   }
-  */
+#endif
 
   configure();
   //std::cout << "DEBUG: COGcycle.size(): " << cog_cycles_.size() << std::endl;

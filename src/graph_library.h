@@ -35,21 +35,21 @@ class Undirected_Graph : public Graph
 {
 private:
 public:
-  VU get_components(uint node_num);
-  VU get_shortestPath(uint n1, uint n2, uint node_num);
+  VU get_components(uint node_num) const;
+  VU get_shortestPath(uint n1, uint n2, uint node_num) const;
 };
 
 class Directed_Graph : public Graph
 {
 private:
 public:
-  VVU get_cycles(uint node_num);
-  VU get_topological_order(uint node_num);
+  VVU get_cycles(uint node_num) const;
+  VU get_topological_order(uint node_num) const;
 };
 
 class Mixed_Graph : public Graph
 {
 private:
 public:
-  VVU get_cycles(uint node_num);
+  VVU get_cycles(uint node_num) const;
 };
