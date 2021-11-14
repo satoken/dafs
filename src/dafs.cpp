@@ -80,8 +80,10 @@ private:
 
 public:
   DMSA()
+#if 0  
     : use_alifold_(false),
       use_alifold1_(true)
+#endif
   {
   }
 
@@ -94,16 +96,16 @@ public:
 
 private:
   void relax_matching_probability();
-  void relax_basepairing_probability();
-  void relax_fourway_consistency();
+  // void relax_basepairing_probability();
+  // void relax_fourway_consistency();
   void build_tree();
   void print_tree(std::ostream &os, int i) const;
   void project_alignment(ALN &aln, const ALN &aln1, const ALN &aln2, const VU &z) const;
-  void project_secondary_structure(VU &xx, VU &yy, const VU &x, const VU &y, const VU &z) const;
+  // void project_secondary_structure(VU &xx, VU &yy, const VU &x, const VU &y, const VU &z) const;
   void average_matching_probability(VVF &posterior, ALN &aln, const uint k1, const uint k2) const;
-  void average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const;
-  void update_basepairing_probability(VVF &posterior, const VU &ss, const std::string &str,
-                                      const ALN &aln, bool use_alifold) const;
+  // void average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const;
+  // void update_basepairing_probability(VVF &posterior, const VU &ss, const std::string &str,
+  //                                     const ALN &aln, bool use_alifold) const;
   void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
   float align_alignments(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const;
   float solve(VVVVF &p_z, VVVU &z, ALN &aln) const
@@ -123,35 +125,35 @@ private:
   float solve_by_dd(const VVVVF &p_z, VVVU &z, ALN &aln) const;
   float solve_by_ip(const VVVVF &p_z, VVVU &z, ALN &aln) const;
   void unzip_mp(VVVVF &mp) const;
-  float refine(VU &ss, ALN &aln) const;
-  void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
+  // float refine(VU &ss, ALN &aln) const;
+  // void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
   void output(std::ostream &os, const ALN &aln) const;
   void output(std::ostream &os, ALN::const_iterator b, ALN::const_iterator e) const;
 
 private:
-  float w_pct_a_;                   // the weight of PCT for alignment matching probabilities
-  float w_pct_s_;                   // the weight of PCT for base-pairing probabilities
-  float w_pct_f_;                   // the weight of four-way PCT
-  uint n_refinement_;               // the number of the iterative refinement
-  uint t_max_;                      // the maximum number of the iteration of the subgradient update
-  float th_a_;                      // the threshold for base-pairing probabilities
-  VF th_s_;                         // the threshold for alignment matching probabilities
-  float w_;                         // the weight for base pairs in the objective function
-  float eta0_;                      // the initial step width of the subgradient update
-  std::unique_ptr<Align::Model> a_model_;           // alignment model
-  std::unique_ptr<Align::Decoder> a_decoder_;       // alignment decoder
-  std::unique_ptr<Fold::Model> s_model_;            // folding model
-  std::unique_ptr<Fold::Decoder> s_decoder_;        // folding decoder
-  std::unique_ptr<Fold::Decoder> s_decoder1_;       // folding decoder for the final folding
-  std::vector<Fasta> fa_;           // input sequences
-  std::vector<std::vector<MP>> mp_; // alignment matching probability matrices
-  std::vector<BP> bp_;              // base-pairing probability matrices
-  VVF sim_;                         // simalarity matrix between input sequences
-  std::vector<node_t> tree_;        // guide tree
-  bool use_alifold_;
-  bool use_alifold1_;
-  bool use_bp_update_;
-  bool use_bp_update1_;
+  float w_pct_a_;                             // the weight of PCT for alignment matching probabilities
+  // float w_pct_s_;                             // the weight of PCT for base-pairing probabilities
+  // float w_pct_f_;                             // the weight of four-way PCT
+  // uint n_refinement_;                         // the number of the iterative refinement
+  uint t_max_;                                // the maximum number of the iteration of the subgradient update
+  float th_a_;                                // the threshold for alignment matching probabilities
+  // VF th_s_;                                   // the threshold for base pairing probabilities
+  // float w_;                                   // the weight for base pairs in the objective function
+  float eta0_;                                // the initial step width of the subgradient update
+  std::unique_ptr<Align::Model> a_model_;     // alignment model
+  std::unique_ptr<Align::Decoder> a_decoder_; // alignment decoder
+  // std::unique_ptr<Fold::Model> s_model_;      // folding model
+  // std::unique_ptr<Fold::Decoder> s_decoder_;  // folding decoder
+  // std::unique_ptr<Fold::Decoder> s_decoder1_; // folding decoder for the final folding
+  std::vector<Fasta> fa_;                     // input sequences
+  std::vector<std::vector<MP>> mp_;           // alignment matching probability matrices
+  // std::vector<BP> bp_;                        // base-pairing probability matrices
+  VVF sim_;                                   // simalarity matrix between input sequences
+  std::vector<node_t> tree_;                  // guide tree
+  // bool use_alifold_;
+  // bool use_alifold1_;
+  // bool use_bp_update_;
+  // bool use_bp_update1_;
   // bool use_bpscore_;
   uint verbose_;
   //std::string solver_;          // method to solve alignment (IP or DP)
@@ -328,6 +330,7 @@ void DMSA::
   std::swap(mp_, mp);
 }
 
+#if 0
 void DMSA::
     relax_basepairing_probability()
 {
@@ -514,6 +517,7 @@ void DMSA::
     os << " ]";
   }
 }
+#endif
 
 void DMSA::
     average_matching_probability(VVF &posterior, ALN &aln, const uint k1, const uint k2) const
@@ -557,6 +561,7 @@ void DMSA::
   std::swap(posterior, p);
 }
 
+#if 0
 void DMSA::
     average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const
 {
@@ -708,6 +713,7 @@ void DMSA::
     }
   std::swap(p, posterior);
 }
+#endif
 
 static float
 calculate_similarity_score(const MP &mp, uint L1, uint L2)
@@ -823,6 +829,7 @@ void DMSA::
   }
 }
 
+#if 0
 void DMSA::
     project_secondary_structure(VU &xx, VU &yy, const VU &x, const VU &y, const VU &z) const
 {
@@ -870,7 +877,9 @@ void DMSA::
     if (y[k] != -1u)
       yy[idx2[k]] = idx2[y[k]];
 }
+#endif
 
+#if 0
 void DMSA::
     output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const
 {
@@ -891,6 +900,7 @@ void DMSA::
 
   std::cout << std::endl;
 }
+#endif
 
 //OBSOLETE:
 #if 0
@@ -1312,7 +1322,7 @@ float DMSA::
     a_decoder[k1].resize(M);
     for (uint k2 = k1 + 1; k2 < M; k2++)
     {
-      a_decoder[k1][k2] = std::unique_ptr<Align::Decoder>(new SparseNeedlemanWunsch(th_a_));
+      a_decoder[k1][k2] = std::make_unique<SparseNeedlemanWunsch>(th_a_);
       a_decoder[k1][k2]->initialize(p_z[k1][k2]);
     }
   }
@@ -1430,9 +1440,11 @@ float DMSA::
       //v_z[k2][k1] = v_z[k1][k2];
     }
 
+#if 0
   float min_th_s = th_s_[0];
   for (VF::const_iterator it = th_s_.begin(); it != th_s_.end(); ++it)
     min_th_s = std::min(min_th_s, *it);
+#endif
 
   // enumerate the candidates of aligned bases
   for (uint k1 = 0; k1 < M; k1++)
@@ -1617,14 +1629,13 @@ void DMSA::
   std::swap(mp, p_z);
 }
 
-//OBSOLETE:
-/*
-float
-DMSA::
-refine(VU& ss, ALN& aln) const
-{ 
- VU group[2];
-  do {
+#if 0
+float DMSA::
+    refine(VU &ss, ALN &aln) const
+{
+  VU group[2];
+  do
+  {
     group[0].clear();
     group[1].clear();
     for (uint i = 0; i != aln.size(); ++i)
@@ -1657,7 +1668,7 @@ refine(VU& ss, ALN& aln) const
   std::swap(r, aln);
   return s;
 }
-*/
+#endif
 
 void DMSA::
     output(std::ostream &os, const ALN &aln) const
@@ -1692,11 +1703,11 @@ parse_options(int& argc, char**& argv)
   options.add_options()
     ("h,help", "Print usage")
     ("input", "Input file", cxxopts::value<std::string>(), "FILE")
-    ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
-    ("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
+    //("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
+    //("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
     ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.5"))
     ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
-    ("f,fourway-pct", "Weight of four-way PCT", cxxopts::value<float>()->default_value("0.0"))
+    //("f,fourway-pct", "Weight of four-way PCT", cxxopts::value<float>()->default_value("0.0"))
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"));
 
   options.add_options("Aligning")
@@ -1706,6 +1717,7 @@ parse_options(int& argc, char**& argv)
     ("u,align-th", "Threshold for matching probabilities", cxxopts::value<float>()->default_value("0.01"))
     ("align-aux", "Load matching probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
 
+#if 0
   options.add_options("Folding")
     ("s,fold-model", "Folding model for calculating base-pairing probablities (value=Boltzmann, Vienna, CONTRAfold)",
       cxxopts::value<std::string>()->default_value("Boltzmann"))
@@ -1721,6 +1733,7 @@ parse_options(int& argc, char**& argv)
     ("bp-update", "Use the iterative update of BPs")
     ("bp-update1", "Use the iterative update of BPs for the final prediction")
     ("fold-aux", "Load base-pairing probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
+#endif
 
   options.parse_positional({"input"});
   options.positional_help("FILE").show_positional_help();
@@ -1730,15 +1743,16 @@ parse_options(int& argc, char**& argv)
     auto res = options.parse(argc, argv);
     if (res.count("help"))
     {
-      std::cout << options.help({"", "Aligning", "Folding"}) << std::endl;
+      //std::cout << options.help({"", "Aligning", "Folding"}) << std::endl;
+      std::cout << options.help({"", "Aligning"}) << std::endl;
       exit(0);
     }
     // general options
-    n_refinement_ = res["refinement"].as<int>();
-    w_ = res["weight"].as<float>();
+    //n_refinement_ = res["refinement"].as<int>();
+    //w_ = res["weight"].as<float>();
     eta0_ = res["eta"].as<float>();
     t_max_ = res["max-iter"].as<int>();
-    w_pct_f_ = res["fourway-pct"].as<float>();
+    //w_pct_f_ = res["fourway-pct"].as<float>();
     verbose_ = res["verbose"].as<int>();
     switch (verbose_)
     {
@@ -1769,6 +1783,7 @@ parse_options(int& argc, char**& argv)
     assert(a_model_);
     a_decoder_ = std::make_unique<SparseNeedlemanWunsch>(th_a_);
 
+#if 0
     // options for folding
     w_pct_s_ = res["fold-pct"].as<float>();
     use_alifold_ = res["no-alifold"].count() == 0;
@@ -1843,6 +1858,7 @@ parse_options(int& argc, char**& argv)
 
     use_bp_update_ = res["bp-update"].count() > 0;
     use_bp_update1_ = res["bp-update1"].count() > 0 ^ res["ipknot"].count() > 0;
+#endif
 
     // read sequences
     Fasta::load(fa_, res["input"].as<std::string>().c_str());
@@ -1861,8 +1877,10 @@ int DMSA::
 {
   const uint N = fa_.size();
 
+#if 0
   // calculate base-pairing probabilities
   s_model_->calculate(fa_, bp_);
+#endif
 #if 0
   {
     std::ofstream os("bp");
@@ -1883,8 +1901,10 @@ int DMSA::
 #endif
 
   // four-way probabilistic consistency tranformation
+#if 0
   if (w_pct_f_ != 0.0)
     relax_fourway_consistency();
+#endif
 
   // calculate probabilistic similarity scores
   // which are used for building guide trees and PCTs
@@ -1897,8 +1917,10 @@ int DMSA::
   }
 
   // probabilistic consistency tranformation for base-pairing probabilitiy matrix
+#if 0
   if (w_pct_s_ != 0.0)
     relax_basepairing_probability();
+#endif
 
   // probabilistic consistency tranformation for matching probability matrix
   if (w_pct_a_ != 0.0)
