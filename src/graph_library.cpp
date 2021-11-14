@@ -35,6 +35,7 @@
 #include <iterator>
 #include <utility>
 #include <cassert>
+#include "spdlog/spdlog.h"
 
 //class: "Graph"
 void Graph::
@@ -79,13 +80,20 @@ VU Undirected_Graph::
   const Vertex from = n1;
   const Vertex to = n2;
 
-  std::vector<Vertex> parents(num_vertices(g));
+  std::vector<Vertex> parents(num_vertices(g), -1u); // initialized by unreachable flags
   boost::static_property_map<int> weight(1);
-  boost::dijkstra_shortest_paths(g, from, boost::predecessor_map(&parents[0]).weight_map(weight));
+  boost::dijkstra_shortest_paths(g, from, 
+    boost::visitor(
+      boost::make_dijkstra_visitor(
+        boost::record_predecessors(&parents[0], boost::on_edge_relaxed())))
+    .weight_map(weight));
 
   VU path;
   for (Vertex v = to; v != from; v = parents[v])
+  {
+    assert(v != -1u);
     path.push_back(v);
+  }
   path.push_back(from);
   util::reverse(path);
   return path;

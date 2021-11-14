@@ -25,6 +25,7 @@
 
 #include <iostream> //DEBUG:
 #include <cassert>
+#include "spdlog/spdlog.h"
 
 // class: Align_Graph
 
@@ -171,13 +172,22 @@ void Align_Graph::
   {
     VU cog_cycle = cog_cycles_[i];
     const uint size = cog_cycle.size();
+
     // MC-I
-    /*
-    if(size==1){
-      VVE part_of_cycles = get_cycleInComponent( component_list_[i] );
-      util::insert( cycles_1, part_of_cycles);
+#if 0
+    if (size == 1)
+    {
+      VVE part_of_cycles = get_cycleInComponent(component_list_[i]); // TODO: is this here?
+      util::insert(cycles_1, part_of_cycles);
     }
-    */
+#endif
+
+#if 0
+    std::cout << i << ": ";
+    for (auto c: cog_cycle) std::cout << c << ", ";
+    std::cout << std::endl;
+#endif
+
     // MC-II
     if (size >= 2 && size <= M_)
     {
@@ -232,11 +242,10 @@ VVE Align_Graph::
     get_cycleAmongComponents(const VU &cog_cycle)
 {
   const uint compo_num = cog_cycle.size();
-
-  VVVU compo_list(compo_num, VVU(M_));
-  for (uint j = 0; j < cog_cycle.size(); j++)
+  VVVU compo_list(compo_num + 1, VVU(M_));
+  for (uint j = 0; j < compo_list.size(); j++)
   {
-    const uint cid = cog_cycle[j];
+    const uint cid = cog_cycle[j % cog_cycle.size()];
     for (auto nid : component_list_[cid])
     {
       const auto [k, i] = node_list_[nid];
@@ -249,7 +258,7 @@ VVE Align_Graph::
   struct InnerFunction
   {
     static void
-    function(const VVVU &compo_list, uint i, VE mc, VVE &mixed_cycles)
+    function(const VVVU &compo_list, uint i, VE mc, VVE &mixed_cycles, const Align_Graph& g)
     {
       if (i == compo_list.size() - 1)
       {
@@ -262,6 +271,7 @@ VVE Align_Graph::
       const VVU &compo_2 = compo_list[i + 1];
       const uint M = compo_1.size();
       for (uint k = 0; k < M; k++)
+      {
         for (uint j1 = 0; j1 < compo_1[k].size(); j1++)
           for (uint j2 = 0; j2 < compo_2[k].size(); j2++)
           {
@@ -271,24 +281,49 @@ VVE Align_Graph::
             const uint i2 = compo_2[k][j2];
             if (i1 < i2)
             {
+#if 0
+              auto nid_1 = g.node_id_[k][i1];
+              auto nid_2 = g.node_id_[k][i2];
+              auto cid_1 = g.component_id_[nid_1];
+              auto cid_2 = g.component_id_[nid_2];
+              spdlog::debug("make graph: {}: nid={}, cid={}, ({},{}) -> nid={}, cid={}, ({},{})", i, nid_1, cid_1, k, i1, nid_2, cid_2, k, i2);
+#endif
               mc.emplace_back(node(k, i1), node(k, i2));
-              function(compo_list, i + 1, mc, mixed_cycles);
+              function(compo_list, i + 1, mc, mixed_cycles, g);
+              mc.pop_back();
             }
           }
+      }
     }
   };
+  //spdlog::debug("get cycle: size={}", cog_cycle.size());
   VE mc;
-  InnerFunction::function(compo_list, 0, mc, cycles_axis);
+  InnerFunction::function(compo_list, 0, mc, cycles_axis, *this);
+  //spdlog::debug("cycles_axis size={}", cycles_axis.size());
 
   VVE cycles;
   for (uint i = 0; i < cycles_axis.size(); i++)
   {
     VE a = cycles_axis[i], c;
-    a.push_back(a.front());
+
+#if 0
+    spdlog::debug("path size={}", a.size());
+    for (uint j = 0; j < a.size() - 1; j++)
+    {
+      node n1 = a[j].second, n2 = a[j + 1].first;
+      auto nid_1 = get_node_id(n1);
+      auto nid_2 = get_node_id(n2);
+      auto cid_1 = component_id_[nid_1];
+      auto cid_2 = component_id_[nid_2];
+      spdlog::debug("path: {}, {}: nid={}, cid={}, ({},{}) -> nid={}, cid={}, ({},{}), adjacent={}", i, j, nid_1, cid_1, n1.first, n1.second, nid_2, cid_2, n2.first, n2.second, isAdjacent(n1, n2));
+    }
+#endif
 
     for (uint j = 0; j < a.size() - 1; j++)
     {
       node n1 = a[j].second, n2 = a[j + 1].first;
+      if (n1==n2)
+        continue;
       if (isAdjacent(n1, n2))
         c.emplace_back(n1, n2);
       else
@@ -296,13 +331,22 @@ VVE Align_Graph::
 #if 1
         c.clear();
 #else
+        c.clear();
         const uint nid_1 = get_node_id(n1), nid_2 = get_node_id(n2);
-        //OBSOLETE: VU path = get_shortestPath( nid_2, nid_1, node_num_ );
+        spdlog::debug("nid={}, cid={}: ({},{})-> nid={}, cid={}: ({},{})", nid_1, component_id_[nid_1], n1.first, n1.second, nid_2, component_id_[nid_2], n2.first, n2.second);
+        assert(component_id_[nid_1]==component_id_[nid_2]);
+        VU path = g_.get_shortestPath(nid_2, nid_1, node_num_);
+        for (uint j=0; j<path.size()-1; j++)
+        {
+          spdlog::debug("shortest path: ({},{})->({},{}): ({},{})->", n1.first, n1.second, n2.first, n2.second, node_list_[path[j]].first, node_list_[path[j]].second);
+        }
+#if 0
         const node n1 = node_list_[nid_1], n2 = node_list_[nid_2];
         VVN paths = get_paths(n1, n2);
         for (const auto& path : paths)
           for (uint j = 0; j < path.size() - 1; j++)
             c.emplace_back(path[j], path[j+1]);
+#endif
 #endif
       }
     }

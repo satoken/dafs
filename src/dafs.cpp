@@ -1308,9 +1308,6 @@ solve_by_dd(VU& x, VU& y, VU& z,
 float DMSA::
     solve_by_dd(const VVVVF &p_z, VVVU &z, ALN &aln) const
 {
-  //DEBUG: std::cout << "hello DD!" << std::endl;
-  const bool detail_output = (verbose_ > 0) ? true : false;
-
   const uint M = fa_.size();
 
   std::vector<std::vector<std::unique_ptr<Align::Decoder>>> a_decoder(M);
@@ -1391,23 +1388,13 @@ float DMSA::
     gm.add_clip(clips);
     gm.update(phi, g, t);
 
-    //DEBUG:
-    if (detail_output)
-    {
-      std::cout << "T=" << t << std::endl;
-      //
-      std::cout << " clip:" << g.clips.size() << std::endl
-                << " COG_cycle:" << g.cog_cycle_num() << std::endl
-                << " cycle(MC-I): " << g.cycles_1.size() << std::endl
-                << " cycle(MC-II):" << g.cycles_2.size() << std::endl;
-      //
-      std::cout << " violation_num:" << violation_num << std::endl;
-    }
+    spdlog::debug("T={}, clip={}, COG_clcle={}, MC-I={}, MC-II={}, violation={}",
+                  t, g.clips.size(), g.cog_cycle_num(), g.cycles_1.size(), g.cycles_2.size(), violation_num);
 
     // 4.Put alignment result into ALN
     if (violation_num == 0 || t == t_max_)
     {
-      std::cout << "iteration:" << t << std::endl;
+      spdlog::debug("iteration: {}", t);
       aln = g.get_alignmentColumns();
       break; // all constraints are satisfied.
     }
@@ -1423,13 +1410,7 @@ float DMSA::
         if (i2 != -1u)
           s += p_z[k1][k2][i1][i2];
       }
-  if (detail_output)
-  {
-    std::cout << "score:" << s << std::endl;
-
-    //DEBUG:
-    std::cout << "score:" << score << std::endl;
-  }
+  spdlog::debug("sum_p={}, score={}", s, score);
 
   return score;
 }
@@ -1437,7 +1418,7 @@ float DMSA::
 float DMSA::
     solve_by_ip(const VVVVF &p_z, VVVU &z, ALN &aln) const
 {
-  std::cout << "hello IP!" << std::endl;
+  spdlog::debug("run IP solver");
   const uint M = fa_.size();
 
   // integer programming
@@ -1832,14 +1813,20 @@ run()
 {
   switch (verbose_)
   {
-    default:
-    case 0: spdlog::set_level(spdlog::level::warn); break;
-    case 1: spdlog::set_level(spdlog::level::info); break;
-    case 2: spdlog::set_level(spdlog::level::debug); break;
+  default:
+  case 0:
+    spdlog::set_level(spdlog::level::warn);
+    break;
+  case 1:
+    spdlog::set_level(spdlog::level::info);
+    break;
+  case 2:
+    spdlog::set_level(spdlog::level::debug);
+    break;
   }
 
-  const uint N=fa_.size();
-  
+  const uint N = fa_.size();
+
   // calculate base-pairing probabilities
   s_model_->calculate(fa_, bp_);
 #if 0
@@ -1851,8 +1838,8 @@ run()
 
   // calculate matching probabilities
   a_model_->calculate(fa_, mp_);
-  for (uint i=0; i!=N; ++i)
-    for (uint j=i+1; j!=N; ++j)
+  for (uint i = 0; i != N; ++i)
+    for (uint j = i + 1; j != N; ++j)
       transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
 #if 0
   {
@@ -1862,66 +1849,78 @@ run()
 #endif
 
   // four-way probabilistic consistency tranformation
-  if (w_pct_f_!=0.0)
+  if (w_pct_f_ != 0.0)
     relax_fourway_consistency();
 
   // calculate probabilistic similarity scores
   // which are used for building guide trees and PCTs
   sim_.resize(N, VF(N));
-  for (uint i=0; i!=N; ++i)
+  for (uint i = 0; i != N; ++i)
   {
     sim_[i][i] = 1.0;
-    for (uint j=i+1; j!=N; ++j)
+    for (uint j = i + 1; j != N; ++j)
       sim_[i][j] = sim_[j][i] = calculate_similarity_score(mp_[i][j], fa_[i].size(), fa_[j].size());
   }
 
   // probabilistic consistency tranformation for base-pairing probabilitiy matrix
-  if (w_pct_s_!=0.0)
+  if (w_pct_s_ != 0.0)
     relax_basepairing_probability();
 
   // probabilistic consistency tranformation for matching probability matrix
-  if (w_pct_a_!=0.0)
+  if (w_pct_a_ != 0.0)
     relax_matching_probability();
-  
- 
+
   // compute multiple sequence alignment via dual decomposition
-  VVVVF p_z; unzip_mp(p_z);
+  VVVVF p_z;
+  unzip_mp(p_z);
   const uint M = fa_.size();
   ALN aln(M);
-  for(uint k=0; k<M; k++){
+  for (uint k = 0; k < M; k++)
+  {
     aln[k].first = k;
     aln[k].second.resize(fa_[k].size(), true);
   }
   VVVU z(M, VVU(M));
-    for(uint k1=0; k1<M; k1++)
-      for(uint k2=k1+1; k2<M; k2++)
-	z[k1][k2].resize(fa_[k1].size(), -1u);
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+      z[k1][k2].resize(fa_[k1].size(), -1u);
   // solve alignment
   solve(p_z, z, aln);
 
-
   //OBSOLETE: print the score of the objective function
-  // /*
-  // calculate score                                                           
+#if 0
+  // calculate score
   float score = 0.0;
   //const uint M = fa_.size();
   //VVVVF p_z; unzip_mp(p_z);
   std::vector<uint> i(M);
-  for(uint c=0; c<aln.front().second.size(); c++){
-    for(uint k1=0; k1<M; k1++){
-      std::vector<bool> aln1 = aln[k1].second; uint i1 = i[k1];
-      for(uint k2=k1+1; k2<M; k2++){
-	std::vector<bool> aln2 = aln[k2].second; uint i2 = i[k2];
-        if(aln1.at(c) && aln2.at(c)){
+  for (uint c = 0; c < aln.front().second.size(); c++)
+  {
+    for (uint k1 = 0; k1 < M; k1++)
+    {
+      std::vector<bool> aln1 = aln[k1].second;
+      uint i1 = i[k1];
+      for (uint k2 = k1 + 1; k2 < M; k2++)
+      {
+        std::vector<bool> aln2 = aln[k2].second;
+        uint i2 = i[k2];
+        if (aln1.at(c) && aln2.at(c))
+        {
           score += p_z[k1][k2][i1][i2];
         }
       }
     }
-    for(uint k=0; k<M; k++){ if(i[k]){ i[k]++; } }
+    for (uint k = 0; k < M; k++)
+    {
+      if (i[k])
+      {
+        i[k]++;
+      }
+    }
   }
-  if(verbose_>0)
+  if (verbose_ > 0)
     std::cout << "score:" << score << std::endl;
-  // */
+#endif
 
   // output the alignment
   std::sort(aln.begin(), aln.end());
@@ -1937,13 +1936,15 @@ run()
   return 0;
 }
 
-int
-main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-  try {
+  try
+  {
     DMSA dmsa;
     return dmsa.parse_options(argc, argv).run();
-  } catch (const char* str) {
+  }
+  catch (const char *str)
+  {
     std::cerr << str << std::endl;
   }
 }
