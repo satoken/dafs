@@ -8,5 +8,6 @@ set(CMAKE_CXX_STANDARD 17)
 project(DAFS CXX C)
 
 include_directories("spdlog/include")
+include_directories("cxxopts/include")
 
 add_subdirectory(src)

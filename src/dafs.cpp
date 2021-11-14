@@ -31,7 +31,6 @@
 #include <algorithm>
 #include <iostream>
 //#include <fstream>
-#include "cmdline.h"
 #include "fa.h"
 #include "fold.h"
 #include "nussinov.h"
@@ -56,6 +55,7 @@ extern "C" {
 };
 };
 
+#include "cxxopts.hpp"
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/stopwatch.h"
@@ -1688,122 +1688,162 @@ DMSA&
 DMSA::
 parse_options(int& argc, char**& argv)
 {
-  gengetopt_args_info args_info;
-  if (cmdline_parser(argc, argv, &args_info)!=0) exit(1);
+  cxxopts::Options options(argv[0], "DAFS: dual decomposition for simultaneous aligning and folding RNA sequences.");
+  options.add_options()
+    ("h,help", "Print usage")
+    ("input", "Input file", cxxopts::value<std::string>(), "FILE")
+    ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
+    ("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
+    ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.5"))
+    ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
+    ("f,fourway-pct", "Weight of four-way PCT", cxxopts::value<float>()->default_value("0.0"))
+    ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"));
 
-  // general options
-  n_refinement_ = args_info.refinement_arg;
-  w_ = args_info.weight_arg;
-  eta0_ = args_info.eta_arg;
-  t_max_ = args_info.max_iter_arg;
-  w_pct_f_ = args_info.fourway_pct_arg;
-  verbose_ = args_info.verbose_arg;
+  options.add_options("Aligning")
+    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, ProbCons)", 
+      cxxopts::value<std::string>()->default_value("ProbCons"))
+    ("p,align-pct", "Weight of PCT for matching probabilities", cxxopts::value<float>()->default_value("0.25"))
+    ("u,align-th", "Threshold for matching probabilities", cxxopts::value<float>()->default_value("0.01"))
+    ("align-aux", "Load matching probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
 
-  // options for alignments
-  th_a_ = args_info.align_th_arg;
-  w_pct_a_ = args_info.align_pct_arg;
-  // use_bpscore_ = args_info.use_bpscore_flag!=0;
-  // std::string arg_x;
-  // if (args_info.extra_given) arg_x = std::string(args_info.extra_arg);
-  if (args_info.align_aux_given)
-    a_model_ = new AUXAlign(std::string(args_info.align_aux_arg), CUTOFF);
-  else if (strcasecmp(args_info.align_model_arg, "CONTRAlign")==0)
-    a_model_ = new CONTRAlign(th_a_);
-  else if (strcasecmp(args_info.align_model_arg, "ProbCons")==0)
-    a_model_ = new ProbCons(th_a_);
-#if 0
-  else if (strcasecmp(args_info.align_model_arg, "PartAlign")==0)
-    a_model_ = new PartAlign(th_a_, arg_x);
-#endif
-  assert(a_model_!=NULL);
-  //a_decoder_ = new SparseNeedlemanWunsch(th_a_);
-  //a_decoder_ = new NeedlemanWunsch(th_a_);
+  options.add_options("Folding")
+    ("s,fold-model", "Folding model for calculating base-pairing probablities (value=Boltzmann, Vienna, CONTRAfold)",
+      cxxopts::value<std::string>()->default_value("Boltzmann"))
+    ("fold-decoder", "Decoder for common secondary structure prediction (value=Nussinov, IPknot)",
+      cxxopts::value<std::string>()->default_value("Nussinov"))
+    ("q,fold-pct", "Weight of PCT for base-pairing probabilities", cxxopts::value<float>()->default_value("0.25"))
+    ("t,fold-th", "Threshold for base-pairing probabilities", cxxopts::value<std::vector<float>>()->default_value("0.2"))
+    ("g,gamma", "Specify the threshold for base-pairing probabilities by 1/(gamma+1))", cxxopts::value<std::vector<float>>())
+    ("no-alifold", "No use of RNAalifold for calculating base-pairing probabilities")
+    ("T,fold-th1", "Threshold for base-pairing probabilities of the conclusive common secondary structures", cxxopts::value<std::vector<float>>())
+    ("G,gamma1", "Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))", cxxopts::value<std::vector<float>>())
+    ("ipknot", "Set optimized parameters for IPknot decoding (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)")
+    ("bp-update", "Use the iterative update of BPs")
+    ("bp-update1", "Use the iterative update of BPs for the final prediction")
+    ("fold-aux", "Load base-pairing probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
 
-  // options for folding
-  w_pct_s_ = args_info.fold_pct_arg;
-  use_alifold_ = args_info.no_alifold_flag==0;
-  if (args_info.fold_aux_given)
-    s_model_ = new AUXFold(std::string(args_info.fold_aux_arg), CUTOFF);
-  else if (strcasecmp(args_info.fold_model_arg, "Boltzmann")==0)
-    s_model_ = new RNAfold(true, NULL, CUTOFF);
-  else if (strcasecmp(args_info.fold_model_arg, "Vienna")==0)
-    s_model_ = new RNAfold(false, NULL, CUTOFF);
-  else if (strcasecmp(args_info.fold_model_arg, "CONTRAfold")==0)
-    s_model_ = new CONTRAfold(CUTOFF);
-  assert(s_model_!=NULL);
+  options.parse_positional({"input"});
+  options.positional_help("FILE").show_positional_help();
 
-  VF th_s1;
-  if (args_info.fold_th_given)
-  {
-    th_s_.resize(args_info.fold_th_given);
-    std::copy(args_info.fold_th_arg, args_info.fold_th_arg+th_s_.size(), th_s_.begin());
-  }
-  else if (args_info.gamma_given)
-  {
-    th_s_.resize(args_info.gamma_given);
-    for (uint i=0; i!=th_s_.size(); ++i)
-      th_s_[i] = 1.0/(1.0+args_info.gamma_arg[i]);
-  }
-  else if (args_info.ipknot_flag)
-  {
-    th_s_.resize(2);
-    th_s_[0] = 1.0/(1.0+4.0);
-    th_s_[1] = 1.0/(1.0+8.0);
-  }
-  else
-  {
-    th_s_.resize(1);
-    th_s_[0] = args_info.fold_th_arg[0];
+  try {
+    auto res = options.parse(argc, argv);
+    if (res.count("help")) {
+      std::cout << options.help({"", "Aligning", "Folding"}) << std::endl;
+      exit(0);
+    }
+    // general options
+    n_refinement_ = res["refinement"].as<int>();
+    w_ = res["weight"].as<float>();
+    eta0_ = res["eta"].as<float>();
+    t_max_ = res["max-iter"].as<int>();
+    w_pct_f_ = res["fourway-pct"].as<float>(); 
+    verbose_ = res["verbose"].as<int>(); 
+    switch (verbose_)
+    {
+      default:
+      case 0: spdlog::set_level(spdlog::level::warn); break;
+      case 1: spdlog::set_level(spdlog::level::info); break;
+      case 2: spdlog::set_level(spdlog::level::debug); break;
+    }
+
+    // options for alignments
+    w_pct_a_ = res["align-pct"].as<float>();
+    th_a_ = res["align-th"].as<float>();
+
+    if (res["align-aux"].count())
+      a_model_ = new AUXAlign(res["align-aux"].as<std::string>(), CUTOFF);
+    else if (res["align-model"].as<std::string>()=="CONTRAlign")
+      a_model_ = new CONTRAlign(th_a_);
+    else if (res["align-model"].as<std::string>()=="ProbCons")
+      a_model_ = new ProbCons(th_a_);
+    else
+      throw "Unknown alignment model: "+res["align-model"].as<std::string>();
+    assert(a_model_!=NULL);
+    a_decoder_ = new SparseNeedlemanWunsch(th_a_);
+
+    // options for folding
+    w_pct_s_ = res["fold-pct"].as<float>(); 
+    use_alifold_ = res["no-alifold"].count()==0;
+    if (res["fold-aux"].count())
+      s_model_ = new AUXFold(res["fold-aux"].as<std::string>(), CUTOFF);
+    else if (res["fold-model"].as<std::string>()=="Boltzmann")
+      s_model_ = new RNAfold(true, NULL, CUTOFF);
+    else if (res["fold-model"].as<std::string>()=="Vienna")
+      s_model_ = new RNAfold(false, NULL, CUTOFF);
+    else if (res["fold-model"].as<std::string>()=="CONTRAfold")
+      s_model_ = new CONTRAfold(CUTOFF);
+    else
+      throw "Unknown folding model: "+res["fold-model"].as<std::string>();
+    assert(s_model_!=NULL);
+
+    if (res["fold-th"].count())
+    {
+      th_s_ = res["fold-th"].as<std::vector<float>>();
+    }
+    else if (res["gamma"].count())
+    {
+      th_s_ = res["gamma"].as<std::vector<float>>();
+      for (uint i=0; i!=th_s_.size(); ++i)
+        th_s_[i] = 1.0/(1.0+th_s_[i]);
+    }
+    else if (res["ipknot"].count())
+    {
+      th_s_.resize(2);
+      th_s_[0] = 1.0/(1.0+4.0);
+      th_s_[1] = 1.0/(1.0+8.0);
+    }
+    else
+    {
+      th_s_ = res["fold-th"].as<std::vector<float>>();
+    }
+
+    VF th_s1;
+    if (res["fold-th1"].count())
+    {
+      th_s1 = res["fold-th1"].as<std::vector<float>>();
+    }
+    else if (res["gamma1"].count())
+    {
+      th_s1 = res["gamma1"].as<std::vector<float>>();
+      for (uint i=0; i!=th_s1.size(); ++i)
+        th_s1[i] = 1.0/(1.0+th_s1[i]);
+    }
+    else if (res["ipknot"].count())
+    {
+      th_s1.resize(2);
+      th_s1[0] = 1.0/(1.0+2.0);
+      th_s1[1] = 1.0/(1.0+4.0);
+    }
+    else
+    {
+      th_s1=th_s_;
+    }
+
+    if (res["fold-decoder"].as<std::string>()=="IPknot" || res["ipknot"].count())
+    {
+      s_decoder_ = new IPknot(th_s_);
+      s_decoder1_ = new IPknot(th_s1);
+    }
+    else if (res["fold-decoder"].as<std::string>()=="Nussinov")
+    {
+      s_decoder_ = new SparseNussinov(th_s_[0]);
+      s_decoder1_ = new SparseNussinov(th_s1[0]);
+    }
+    else
+      throw "Unknown folding decoder: "+res["fold-decoder"].as<std::string>();
+    assert(s_decoder_!=NULL);
+
+    use_bp_update_ = res["bp-update"].count()>0; 
+    use_bp_update1_ = res["bp-update1"].count()>0 ^ res["ipknot"].count()>0;
+
+    // read sequences
+    Fasta::load(fa_, res["input"].as<std::string>().c_str());
+
+  } catch (cxxopts::option_has_no_value_exception e) {
+    std::cout << options.help() << std::endl;
+    exit(0);
   }
 
-  if (args_info.fold_th1_given)
-  {
-    th_s1.resize(args_info.fold_th1_given);
-    std::copy(args_info.fold_th1_arg, args_info.fold_th1_arg+args_info.fold_th1_given, th_s1.begin());
-  }
-  else if (args_info.gamma1_given)
-  {
-    th_s1.resize(args_info.gamma1_given);
-    for (uint i=0; i!=th_s1.size(); ++i)
-      th_s1[i] = 1.0/(1.0+args_info.gamma1_arg[i]);
-  }
-  else if (args_info.ipknot_flag)
-  {
-    th_s1.resize(2);
-    th_s1[0] = 1.0/(1.0+2.0);
-    th_s1[1] = 1.0/(1.0+4.0);
-  }
-  else
-  {
-    th_s1=th_s_;
-  }
-
-  if (strcasecmp(args_info.fold_decoder_arg, "IPknot")==0 || args_info.ipknot_flag)
-  {
-    s_decoder_ = new IPknot(th_s_);
-    s_decoder1_ = new IPknot(th_s1);
-  }
-  else if (strcasecmp(args_info.fold_decoder_arg, "Nussinov")==0)
-  {
-    s_decoder_ = new SparseNussinov(th_s_[0]);
-    s_decoder1_ = new SparseNussinov(th_s1[0]);
-  }
-  assert(s_decoder_!=NULL);
-
-  use_bp_update_ = args_info.bp_update_flag!=0;
-  use_bp_update1_ = args_info.bp_update1_flag!=0 ^ args_info.ipknot_flag!=0;
-
-  if (args_info.inputs_num==0)
-  {
-    cmdline_parser_print_help();
-    cmdline_parser_free(&args_info);
-    exit(1);
-  }
-
-  // read sequences
-  Fasta::load(fa_, args_info.inputs[0]);
-
-  cmdline_parser_free(&args_info);
   return *this;
 }
 
@@ -1811,22 +1851,8 @@ int
 DMSA::
 run()
 {
-  switch (verbose_)
-  {
-  default:
-  case 0:
-    spdlog::set_level(spdlog::level::warn);
-    break;
-  case 1:
-    spdlog::set_level(spdlog::level::info);
-    break;
-  case 2:
-    spdlog::set_level(spdlog::level::debug);
-    break;
-  }
-
-  const uint N = fa_.size();
-
+  const uint N=fa_.size();
+  
   // calculate base-pairing probabilities
   s_model_->calculate(fa_, bp_);
 #if 0
@@ -1945,6 +1971,8 @@ int main(int argc, char *argv[])
   }
   catch (const char *str)
   {
+    std::cerr << str << std::endl;
+  } catch (std::string str) {
     std::cerr << str << std::endl;
   }
 }

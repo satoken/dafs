@@ -44,7 +44,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(
     dafs
-    alifold.cpp align.cpp boltzmann_param.c cmdline.c dafs.cpp fa.cpp fold.cpp
+    alifold.cpp align.cpp boltzmann_param.c dafs.cpp fa.cpp fold.cpp
     ip.cpp ipknot.cpp needleman_wunsch.cpp nussinov.cpp tree.cpp
     alignment_graph.cpp gradient_method.cpp graph_library.cpp
 )
