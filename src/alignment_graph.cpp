@@ -25,6 +25,10 @@
 
 #include <iostream> //DEBUG:
 #include <cassert>
+
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/bellman_ford_shortest_paths.hpp>
+
 #include "spdlog/spdlog.h"
 
 // class: Align_Graph
@@ -200,7 +204,7 @@ void Align_Graph::
 }
 
 ALN Align_Graph::
-    get_alignmentColumns()
+    get_alignmentColumns(const VVVVF& p_z)
 {
   // Topological_sort
   VU column_order = cog_.get_topological_order(component_num_);
@@ -208,7 +212,7 @@ ALN Align_Graph::
   if (column_order.empty())
   {
     std::cout << "modifying alignment graph .." << std::endl;
-    destroy_wrongEdges();
+    destroy_wrongEdges(p_z);
     VVU cog_cycles = cog_.get_cycles(component_num_);
     column_order = cog_.get_topological_order(component_num_);
   }
@@ -451,14 +455,121 @@ VVN Align_Graph::
 }
 
 void Align_Graph::
-    destroy_wrongEdges()
+    destroy_wrongEdges(const VVVVF &p_z)
 {
   //DEBUG:
-  /*
+#if 0
   for(uint i=0; i<cog_cycles_.size(); i++)
     util::print(cog_cycles_[i]);
-  */
+#endif
 
+  assert(node_num_ == node_list_.size());
+
+  struct EdgeProperties
+  {
+    int weight;
+  };
+  typedef boost::adjacency_list<boost::vecS,
+                                boost::vecS,
+                                boost::directedS,
+                                boost::no_property,
+                                EdgeProperties>
+      Graph;
+
+  for (uint t=0; t<100; ++t)
+  {
+    spdlog::debug("remove loops: {}", t);
+    assert(node_list_.size() == adjacency_list_.size());
+    const auto start_node_id = node_list_.size(); // nid of start node = node_list_.size()
+    Graph g(node_list_.size() + 1);
+    const auto N = boost::num_vertices(g);
+
+    const auto K = node_id_.size(); // # of sequences
+    for (auto k = 0; k < K; ++k)
+    {
+      boost::add_edge(start_node_id, node_id_[k][0], g);
+      for (auto i = 1; i < node_id_[k].size(); ++i)
+        boost::add_edge(node_id_[k][i - 1], node_id_[k][i], g);
+    }
+
+    for (auto nid_1 = 0; nid_1 < adjacency_list_.size(); nid_1++)
+      for (auto nid_2 : adjacency_list_[nid_1])
+        boost::add_edge(nid_1, nid_2, g);
+
+    auto weight_pmap = boost::get(&EdgeProperties::weight, g);
+    for (auto [ei, ei_end] = boost::edges(g); ei != ei_end; ++ei)
+    {
+      auto s = boost::source(*ei, g);
+      auto t = boost::target(*ei, g);
+      weight_pmap[*ei] = s == start_node_id || node_list_[s].first == node_list_[t].first ? -(K + 1) : 1;
+    }
+
+    std::vector<int> distance(N, std::numeric_limits<short>::max());
+    distance[start_node_id] = 0;
+    std::vector<std::size_t> parent(N);
+    for (auto i = 0; i < parent.size(); ++i)
+      parent[i] = i;
+
+    spdlog::debug("start bellman_ford");
+    bool r = boost::bellman_ford_shortest_paths(g, N,
+                                                boost::weight_map(weight_pmap)
+                                                    .distance_map(&distance[0])
+                                                    .predecessor_map(&parent[0]));
+
+    spdlog::debug("finish bellman_ford: {}", r);
+    if (r) break; // success for breaking all loops
+
+    std::vector<bool> finished(parent.size(), false);
+    finished[start_node_id] = true;
+    for (auto i=0; i<parent.size()-1; ++i) 
+    {
+      std::vector<uint> visited;
+      for (auto j = i; !finished[j]; j = parent[j])
+      {
+        auto x = std::find(std::begin(visited), std::end(visited), j) - std::begin(visited);
+        if (x>=std::size(visited))
+        {
+          visited.push_back(j);
+        }
+        else
+        {
+          spdlog::debug("loop size={}", visited.size()-x);
+          visited.push_back(j);
+          // loop detected
+          float min_p = 1.;
+          auto min_p_idx = visited.size();
+          for (auto v = x; v+1 < std::size(visited); ++v)
+          {
+            const auto [k1, i1] = node_list_[visited[v]];
+            const auto [k2, i2] = node_list_[visited[v+1]];
+            if (k1 != k2) 
+            {
+              auto p = p_z[k1][k2][i1][i2];
+              spdlog::debug("p(({},{})-({},{}))={}", k1, i1, k2, i2, p);
+              if (min_p_idx == visited.size() || min_p > p) 
+              {
+                min_p_idx = v;
+                min_p = p;
+              }
+            }
+
+          }
+          assert(min_p_idx < visited.size());
+          const auto [k1, i1] = node_list_[visited[min_p_idx]];
+          const auto [k2, i2] = node_list_[visited[min_p_idx+1]];
+          spdlog::debug("remove ({},{})-({},{})", k1, i1, k2, i2);
+          util::remove(adjacency_list_[visited[min_p_idx]], visited[min_p_idx+1]);
+          util::remove(adjacency_list_[visited[min_p_idx+1]], visited[min_p_idx]);
+          
+          break;
+        }
+      }
+      for (auto k: visited) 
+        finished[k] = true;
+    }
+  }
+
+#if 0
   // Mixed Cycle
   VU components; //list of cid
   for (uint i = 0; i < cog_cycles_.size(); i++)
@@ -479,6 +590,7 @@ void Align_Graph::
         }
       }
   }
+#endif
 
 #if 0
   VVE cycles;

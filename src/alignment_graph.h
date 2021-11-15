@@ -68,7 +68,7 @@ public:
   //
   void add_edge(node n1, node n2);
   void configure();
-  ALN get_alignmentColumns();
-  void destroy_wrongEdges();
+  ALN get_alignmentColumns(const VVVVF &p_z);
+  void destroy_wrongEdges(const VVVVF &p_z);
   Align_Graph(VU &seqlen);
 };
