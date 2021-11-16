@@ -67,6 +67,7 @@ public:
   uint cog_cycle_num() const { return cog_cycles_.size(); }
   //
   void add_edge(node n1, node n2);
+  VVVU get_all_edges() const;
   void configure();
   ALN get_alignmentColumns(const VVVVF &p_z);
   void destroy_wrongEdges(const VVVVF &p_z);

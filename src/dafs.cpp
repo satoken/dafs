@@ -33,6 +33,7 @@
 //#include <fstream>
 #include <sstream>
 #include <memory>
+#include <limits>
 #include "fa.h"
 #include "fold.h"
 #include "nussinov.h"
@@ -105,27 +106,31 @@ private:
   void project_alignment(ALN &aln, const ALN &aln1, const ALN &aln2, const VU &z) const;
   // void project_secondary_structure(VU &xx, VU &yy, const VU &x, const VU &y, const VU &z) const;
   void average_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2) const;
+  void sum_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2) const;
+  void sum_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2, const VVVU &z) const;
   // void average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const;
   // void update_basepairing_probability(VVF &posterior, const VU &ss, const std::string &str,
   //                                     const ALN &aln, bool use_alifold) const;
   void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
-  float solve(VVVVF &p_z, VVVU &z, ALN &aln) const
+  void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z) const;
+  float solve(VVVVF &p_z, ALN &aln) const
   {
 #if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
     switch (t_max_)
     {
     case 0:
-      return solve_by_ip(p_z, z, aln);
+      return solve_by_ip(p_z, aln);
     default:
-      return solve_by_dd(p_z, z, aln);
+      return solve_by_dd(p_z, aln);
     }
 #else
-    return solve_by_dd(p_z, z, aln);
+    return solve_by_dd(p_z, aln);
 #endif
   }
-  float solve_by_dd(const VVVVF &p_z, VVVU &z, ALN &aln) const;
-  float solve_by_ip(const VVVVF &p_z, VVVU &z, ALN &aln) const;
+  float solve_by_dd(const VVVVF &p_z, ALN &aln) const;
+  float solve_by_ip(const VVVVF &p_z, ALN &aln) const;
   void align(ALN &aln, int ch) const;
+  void align(ALN &aln, int ch, const VVVU &z) const;
   void unzip_mp(VVVVF &mp) const;
   void refine(ALN &aln) const;
   // void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
@@ -569,6 +574,97 @@ void DMSA::
   std::swap(posterior, p);
 }
 
+void DMSA::
+    sum_matching_probability(VVF &sps, const ALN &aln1, const ALN &aln2) const
+{
+  const uint L1 = aln1.front().second.size();
+  const uint L2 = aln2.front().second.size();
+  const uint N1 = aln1.size();
+  const uint N2 = aln2.size();
+  VVF p(L1, VF(L2, std::numeric_limits<float>::lowest()));
+  for (const auto &[s1, v1] : aln1)
+  {
+    assert(L1 == v1.size());
+    for (const auto &[s2, v2] : aln2)
+    {
+      assert(L2 == v2.size());
+      const MP &m = mp_[s1][s2];
+      for (uint i = 0, ii = 0; i != L1; ++i)
+      {
+        if (!v1[i])
+          continue;
+        assert(ii < m.size());
+        auto x = m[ii].cbegin();
+        for (uint j = 0, jj = 0; j != L2 && x != m[ii].cend(); ++j)
+        {
+          if (!v2[j])
+            continue;
+          if (jj == x->first)
+          {
+            p[i][j] = std::max(0.0f, p[i][j]) + x->second; // p^{s1,s2}_{ii,jj}
+            ++x;
+          }
+          ++jj;
+        }
+        ++ii;
+      }
+    }
+  }
+  for (uint i = 0; i != p.size(); ++i)
+    for (uint j = 0; j != p[i].size(); ++j)
+    {
+      if (p[i][j] <= CUTOFF)
+        p[i][j] = 0.0;
+    }
+  std::swap(sps, p);
+}
+
+void DMSA::
+    sum_matching_probability(VVF &sps, const ALN &aln1, const ALN &aln2, const VVVU &z) const
+{
+  const uint L1 = aln1.front().second.size();
+  const uint L2 = aln2.front().second.size();
+  const uint N1 = aln1.size();
+  const uint N2 = aln2.size();
+  VVF p(L1, VF(L2, std::numeric_limits<float>::lowest()));
+  for (const auto &[s1, v1] : aln1)
+  {
+    assert(L1 == v1.size());
+    for (const auto &[s2, v2] : aln2)
+    {
+      assert(L2 == v2.size());
+      const MP &m = mp_[s1][s2];
+      for (uint i = 0, ii = 0; i != L1; ++i)
+      {
+        if (!v1[i])
+          continue;
+        assert(ii < m.size());
+        auto x = m[ii].cbegin();
+        for (uint j = 0, jj = 0; j != L2 && x != m[ii].cend(); ++j)
+        {
+          if (!v2[j])
+            continue;
+          if (jj == x->first)
+          {
+            if (z[s1][s2][ii] == jj)
+              p[i][j] = std::max(0.0f, p[i][j]) + x->second; // p^{s1,s2}_{ii,jj}
+            ++x;
+          }
+          ++jj;
+        }
+        ++ii;
+      }
+    }
+  }
+  for (uint i = 0; i != p.size(); ++i)
+    for (uint j = 0; j != p[i].size(); ++j)
+    {
+      if (p[i][j] <= CUTOFF)
+        p[i][j] = 0.0;
+    }
+  std::swap(sps, p);
+}
+
 #if 0
 void DMSA::
     average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const
@@ -949,17 +1045,33 @@ void DMSA::
 void DMSA::
     align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const
 {
-  // calculate posteriors
+  // calculate sum-of-pairs scores
   VVF p_z;
-  average_matching_probability(p_z, aln1, aln2);
+  sum_matching_probability(p_z, aln1, aln2);
 
   // solve the problem
-  VU z;
+  VU zz;
   a_decoder_->initialize(p_z);
-  a_decoder_->decode(p_z, z);
+  a_decoder_->decode(p_z, zz);
 
   // build the result
-  project_alignment(aln, aln1, aln2, z);
+  project_alignment(aln, aln1, aln2, zz);
+}
+
+void DMSA::
+    align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z) const
+{
+  // calculate sum-of-pairs scores
+  VVF p_z;
+  sum_matching_probability(p_z, aln1, aln2, z);
+
+  // solve the problem
+  VU zz;
+  a_decoder_->initialize(p_z);
+  a_decoder_->decode(p_z, zz);
+
+  // build the result
+  project_alignment(aln, aln1, aln2, zz);
 }
 
 #ifdef ADAGRAD
@@ -1279,9 +1391,14 @@ float DMSA::
 #endif
 
 float DMSA::
-    solve_by_dd(const VVVVF &p_z, VVVU &z, ALN &aln) const
+    solve_by_dd(const VVVVF &p_z, ALN &aln) const
 {
   const uint M = fa_.size();
+
+  VVVU z(M, VVU(M));
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+      z[k1][k2].resize(fa_[k1].size(), -1u);
 
   std::vector<std::vector<std::unique_ptr<Align::Decoder>>> a_decoder(M);
   for (uint k1 = 0; k1 < M - 1; k1++)
@@ -1365,31 +1482,27 @@ float DMSA::
                   t, g.clips.size(), g.cog_cycle_num(), g.cycles_1.size(), g.cycles_2.size(), violation_num);
 
     // 4.Put alignment result into ALN
-    if (violation_num == 0 || t == t_max_)
+    if (violation_num == 0)
     {
-      spdlog::debug("iteration: {}", t);
+      // all constraints are satisfied.
       aln = g.get_alignmentColumns(p_z);
-      break; // all constraints are satisfied.
+      break;
+    }
+
+    if (t == t_max_)
+    {
+      // some constraints are not satisfied.
+      const auto z = g.get_all_edges();
+      align(aln, tree_.size() - 1, z);
+      break;
     }
   }
-
-  //DEBUG:
-  float s = 0.0;
-  for (uint k1 = 0; k1 < M; k1++)
-    for (uint k2 = k1 + 1; k2 < M; k2++)
-      for (uint i1 = 0; i1 < fa_[k1].size(); i1++)
-      {
-        const uint i2 = z[k1][k2][i1];
-        if (i2 != -1u)
-          s += p_z[k1][k2][i1][i2];
-      }
-  spdlog::debug("sum_p={}, score={}", s, score);
 
   return score;
 }
 
 float DMSA::
-    solve_by_ip(const VVVVF &p_z, VVVU &z, ALN &aln) const
+    solve_by_ip(const VVVVF &p_z, ALN &aln) const
 {
   spdlog::debug("run IP solver");
   const uint M = fa_.size();
@@ -1406,12 +1519,6 @@ float DMSA::
       v_z[k1][k2].resize(L1, VI(L2));
       //v_z[k2][k1] = v_z[k1][k2];
     }
-
-#if 0
-  float min_th_s = th_s_[0];
-  for (VF::const_iterator it = th_s_.begin(); it != th_s_.end(); ++it)
-    min_th_s = std::min(min_th_s, *it);
-#endif
 
   // enumerate the candidates of aligned bases
   for (uint k1 = 0; k1 < M; k1++)
@@ -1526,6 +1633,10 @@ float DMSA::
   float s = ip.solve();
 
   // build the result
+  VVVU z(M, VVU(M));
+  for (uint k1 = 0; k1 < M; k1++)
+    for (uint k2 = k1 + 1; k2 < M; k2++)
+      z[k1][k2].resize(fa_[k1].size(), -1u);
   for (uint k1 = 0; k1 < M; k1++)
     for (uint k2 = k1 + 1; k2 < M; k2++)
     {
@@ -1581,6 +1692,25 @@ void DMSA::
     align(aln1, tree_[ch].second.first);
     align(aln2, tree_[ch].second.second);
     align_alignments(aln, aln1, aln2);
+  }
+}
+
+void DMSA::
+    align(ALN &aln, int ch, const VVVU &z) const
+{
+  if (tree_[ch].second.first == -1u)
+  {
+    assert(tree_[ch].second.second == -1u);
+    aln.resize(1);
+    aln[0].first = ch;
+    aln[0].second = std::vector<bool>(fa_[ch].size(), true);
+  }
+  else
+  {
+    ALN aln1, aln2;
+    align(aln1, tree_[ch].second.first, z);
+    align(aln2, tree_[ch].second.second, z);
+    align_alignments(aln, aln1, aln2, z);
   }
 }
 
@@ -1953,13 +2083,10 @@ int DMSA::
     aln[k].first = k;
     aln[k].second.resize(fa_[k].size(), true);
   }
-  VVVU z(M, VVU(M));
-  for (uint k1 = 0; k1 < M; k1++)
-    for (uint k2 = k1 + 1; k2 < M; k2++)
-      z[k1][k2].resize(fa_[k1].size(), -1u);
+
   // solve alignment
-  solve(p_z, z, aln);
-  spdlog::info("alignment score: {}", calculate_alignment_score(aln));
+  solve(p_z, aln);
+  spdlog::info("final alignment score: {}", calculate_alignment_score(aln));
 
   // output the alignment
   std::sort(aln.begin(), aln.end());

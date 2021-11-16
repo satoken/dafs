@@ -23,7 +23,7 @@
 
 #include "alignment_graph.h"
 
-#include <iostream> //DEBUG:
+#include <set>
 #include <cassert>
 
 #include <boost/graph/adjacency_list.hpp>
@@ -113,6 +113,28 @@ void Align_Graph::
   adjacency_list_[nid_1].push_back(nid_2);
   adjacency_list_[nid_2].push_back(nid_1);
 }
+
+VVVU Align_Graph::
+    get_all_edges() const
+{
+  VVVU z(M_, VVU(M_));
+  for (uint k1 = 0; k1 != node_id_.size(); ++k1)
+    for (uint k2 = 0; k2 != node_id_.size(); ++k2)
+      z[k1][k2].resize(node_id_[k1].size(), -1u);
+
+  for (auto nid_1 = 0; nid_1 != adjacency_list_.size(); nid_1++)
+  {
+    const auto [k1, i1] = node_list_[nid_1];
+    for (auto nid_2 : adjacency_list_[nid_1])
+    {
+      const auto [k2, i2] = node_list_[nid_2];
+      z[k1][k2][i1] = i2;
+    }
+  }
+
+  return z;
+}
+
 
 void Align_Graph::
     configure()
@@ -211,7 +233,7 @@ ALN Align_Graph::
 
   if (column_order.empty())
   {
-    std::cout << "modifying alignment graph .." << std::endl;
+    spdlog::warn("Cycles are detected. Modifying alignment graph.");
     destroy_wrongEdges(p_z);
     VVU cog_cycles = cog_.get_cycles(component_num_);
     column_order = cog_.get_topological_order(component_num_);
@@ -228,11 +250,9 @@ ALN Align_Graph::
   for (uint aln_col = 0; aln_col < column_order.size(); aln_col++)
   {
     const uint cid = column_order[aln_col];
-    VU c = component_list_[cid];
-    for (VU::iterator jj = c.begin(); jj != c.end(); jj++)
+    for (auto nid : component_list_[cid])
     {
-      const node n = node_list_[*jj];
-      const uint k = n.first, i = n.second;
+      const auto [k, i] = node_list_[nid];
       aln[k].second[aln_col] = true;
     }
   }
@@ -476,7 +496,7 @@ void Align_Graph::
                                 EdgeProperties>
       Graph;
 
-  for (uint t=0; t<100; ++t)
+  for (uint t=0; t<1000; ++t)
   {
     spdlog::debug("remove loops: {}", t);
     assert(node_list_.size() == adjacency_list_.size());
@@ -519,22 +539,31 @@ void Align_Graph::
     spdlog::debug("finish bellman_ford: {}", r);
     if (r) break; // success for breaking all loops
 
-    std::vector<bool> finished(parent.size(), false);
-    finished[start_node_id] = true;
-    for (auto i=0; i<parent.size()-1; ++i) 
+    std::set<std::pair<uint,uint>> finished;
+    for (auto i=0; i<parent.size(); ++i) 
     {
       std::vector<uint> visited;
-      for (auto j = i; !finished[j]; j = parent[j])
+      visited.push_back(i);
+      for (auto j = i; j != start_node_id; j = parent[j])
       {
-        auto x = std::find(std::begin(visited), std::end(visited), j) - std::begin(visited);
+        const uint nid_1 = j;         // target
+        const uint nid_2 = parent[j]; // source
+        if (node_list_[nid_1].first != node_list_[nid_2].first) // alignment edge
+        {
+          auto r = finished.insert(std::minmax(nid_1, nid_2));
+          if (!r.second) // finished edge
+            break;
+        }
+
+        auto x = std::find(std::begin(visited), std::end(visited), nid_2) - std::begin(visited);
         if (x>=std::size(visited))
         {
-          visited.push_back(j);
+          visited.push_back(nid_2);
         }
         else
         {
           spdlog::debug("loop size={}", visited.size()-x);
-          visited.push_back(j);
+          visited.push_back(nid_2);
           // loop detected
           float min_p = 1.;
           auto min_p_idx = visited.size();
@@ -560,12 +589,9 @@ void Align_Graph::
           spdlog::debug("remove ({},{})-({},{})", k1, i1, k2, i2);
           util::remove(adjacency_list_[visited[min_p_idx]], visited[min_p_idx+1]);
           util::remove(adjacency_list_[visited[min_p_idx+1]], visited[min_p_idx]);
-          
           break;
         }
       }
-      for (auto k: visited) 
-        finished[k] = true;
     }
   }
 
