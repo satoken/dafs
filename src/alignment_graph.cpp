@@ -143,15 +143,15 @@ void Align_Graph::
   set_components();
   set_cog();
   set_cog_cycle();
-  detect_clips();
-  detect_mixedCycles();
+  // clips = detect_clips();
+  // detect_mixedCycles();
+  // cycles_2 = detect_cycles();
 }
 
-void Align_Graph::
-    detect_clips()
+VVN Align_Graph::
+    detect_clips() const
 {
-  clips.clear();
-  //VVN clips;
+  VVN clips;
   for (uint nid = 0; nid < node_list_.size(); nid++)
   {
     const node &n0 = node_list_[nid];
@@ -184,7 +184,7 @@ void Align_Graph::
         }
     }
   }
-  //return clips;
+  return clips;
 }
 
 void Align_Graph::
@@ -203,7 +203,7 @@ void Align_Graph::
 #if 0
     if (size == 1)
     {
-      VVE part_of_cycles = get_cycleInComponent(component_list_[i]); // TODO: is this here?
+      VVE part_of_cycles = get_cycleInComponent(component_list_[i]);
       util::insert(cycles_1, part_of_cycles);
     }
 #endif
@@ -472,6 +472,109 @@ VVN Align_Graph::
   InnerFunction::function(n1, n2, v, p, paths, *this);
 
   return paths;
+}
+
+VVE Align_Graph::
+    detect_cycles() const
+{
+  struct EdgeProperties
+  {
+    int weight;
+  };
+  typedef boost::adjacency_list<boost::vecS,
+                                boost::vecS,
+                                boost::directedS,
+                                boost::no_property,
+                                EdgeProperties>
+      Graph;
+
+  assert(node_num_ == node_list_.size());
+  assert(node_list_.size() == adjacency_list_.size());
+  const auto start_node_id = node_list_.size(); // nid of start node = node_list_.size()
+  Graph g(node_list_.size() + 1);
+  const auto N = boost::num_vertices(g); // # of nodes
+
+  const auto K = node_id_.size(); // # of sequences
+  for (auto k = 0; k < K; ++k)
+  {
+    boost::add_edge(start_node_id, node_id_[k][0], g);
+    for (auto i = 1; i < node_id_[k].size(); ++i)
+      boost::add_edge(node_id_[k][i - 1], node_id_[k][i], g);
+  }
+
+  for (auto nid_1 = 0; nid_1 < adjacency_list_.size(); nid_1++)
+    for (auto nid_2 : adjacency_list_[nid_1])
+      boost::add_edge(nid_1, nid_2, g);
+
+  auto weight_pmap = boost::get(&EdgeProperties::weight, g);
+  for (auto [ei, ei_end] = boost::edges(g); ei != ei_end; ++ei)
+  {
+    auto s = boost::source(*ei, g);
+    auto t = boost::target(*ei, g);
+    weight_pmap[*ei] = s == start_node_id || node_list_[s].first == node_list_[t].first ? -(K + 1) : 1;
+  }
+
+  std::vector<int> distance(N, std::numeric_limits<short>::max());
+  distance[start_node_id] = 0;
+  std::vector<std::size_t> parent(N);
+  for (auto i = 0; i < parent.size(); ++i)
+    parent[i] = i;
+
+  // spdlog::debug("start bellman_ford");
+  bool r = boost::bellman_ford_shortest_paths(g, N,
+                                              boost::weight_map(weight_pmap)
+                                                  .distance_map(&distance[0])
+                                                  .predecessor_map(&parent[0]));
+  // spdlog::debug("finish bellman_ford: {}", r);
+
+  VVE cycles;
+  if (r) return cycles; // success for breaking all loops
+
+  std::set<std::pair<uint,uint>> finished;
+  for (auto i=0; i<parent.size(); ++i) 
+  {
+    std::vector<uint> visited;
+    visited.push_back(i);
+    for (auto j = i; j != start_node_id; j = parent[j])
+    {
+      const uint nid_1 = j;         // target
+      const uint nid_2 = parent[j]; // source
+      if (node_list_[nid_1].first != node_list_[nid_2].first) // alignment edge
+      {
+        auto r = finished.insert(std::minmax(nid_1, nid_2));
+        if (!r.second) // finished edge
+          break;
+      }
+
+      auto x = std::find(std::begin(visited), std::end(visited), nid_2) - std::begin(visited);
+      if (x>=std::size(visited))
+      {
+        visited.push_back(nid_2);
+      }
+      else
+      {
+        // loop detected
+        // spdlog::debug("loop size={}", visited.size()-x);
+        visited.push_back(nid_2);
+        VE cycle;
+        for (auto v = x; v+1 < std::size(visited); ++v)
+        {
+          const auto [k1, i1] = node_list_[visited[v]];
+          const auto [k2, i2] = node_list_[visited[v+1]];
+          if (k1 != k2) 
+          {
+            // spdlog::debug("({},{})-({},{})", k1, i1, k2, i2);
+            cycle.emplace_back(node(k1, i1), node(k2, i2));
+          }
+        }
+        cycles.push_back(cycle);
+        break;
+      }
+    }
+  }
+  std::sort(std::begin(cycles), std::end(cycles));
+
+  return cycles;
 }
 
 void Align_Graph::

@@ -25,7 +25,6 @@
 #include <vector>
 //#include "rna.h"
 
-
 class Fasta
 {
 public:
@@ -69,7 +68,3 @@ private:
 };
 
 #endif //  __INC_FA_H__
-
-// Local Variables:
-// mode: C++
-// End:

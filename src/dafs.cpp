@@ -34,6 +34,7 @@
 #include <sstream>
 #include <memory>
 #include <limits>
+#include <system_error>
 #include "fa.h"
 #include "fold.h"
 #include "nussinov.h"
@@ -133,6 +134,7 @@ private:
   void align(ALN &aln, int ch, const VVVU &z) const;
   void unzip_mp(VVVVF &mp) const;
   void refine(ALN &aln) const;
+  void refine(ALN &aln, const VVVU &z) const;
   // void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
   void output(std::ostream &os, const ALN &aln) const;
   void output(std::ostream &os, ALN::const_iterator b, ALN::const_iterator e) const;
@@ -1458,14 +1460,16 @@ float DMSA::
     g.configure();
 
     // 2.1 Keep consistency transformation
-    const VVN &clips = g.clips;
+    auto clips = g.detect_clips();
     violation_num += clips.size();
 
     // 2.2 Forbid mixed cycle
-    const VVE &cycles_1 = g.cycles_1;
-    violation_num += cycles_1.size();
-    const VVE &cycles_2 = g.cycles_2;
-    violation_num += cycles_2.size();
+    // const VVE &cycles_1 = g.cycles_1;
+    // violation_num += cycles_1.size();
+    // const VVE &cycles_2 = g.cycles_2;
+    // violation_num += cycles_2.size();
+    auto cycles = g.detect_cycles();
+    violation_num += cycles.size();
 
     //3. impose penalty score
     for (uint k1 = 0; k1 < M; k1++)
@@ -1473,19 +1477,22 @@ float DMSA::
         for (uint i1 = 0; i1 < seqlen[k1]; i1++)
           util::fill(phi[k1][k2][i1], 0.0f);
 
-    gm.add_cycle(cycles_1);
-    gm.add_cycle(cycles_2);
     gm.add_clip(clips);
+    // gm.add_cycle(cycles_1);
+    // gm.add_cycle(cycles_2);
+    gm.add_cycle(cycles);
     gm.update(phi, g, t);
 
-    spdlog::debug("T={}, clip={}, COG_clcle={}, MC-I={}, MC-II={}, violation={}",
-                  t, g.clips.size(), g.cog_cycle_num(), g.cycles_1.size(), g.cycles_2.size(), violation_num);
+    spdlog::debug("T={}, new clips={}, known clips={}, new cycles={}, known cycles={}",
+                  t, clips.size(), gm.num_clips(), cycles.size(), gm.num_cycles());
 
     // 4.Put alignment result into ALN
     if (violation_num == 0)
     {
       // all constraints are satisfied.
-      aln = g.get_alignmentColumns(p_z);
+      const auto z = g.get_all_edges();
+      align(aln, tree_.size() - 1, z);
+      // aln = g.get_alignmentColumns(p_z);
       break;
     }
 
@@ -1780,6 +1787,44 @@ void DMSA::
 
   ALN r;
   align_alignments(r, a[0], a[1]);
+  std::swap(r, aln);
+}
+
+void DMSA::
+    refine(ALN &aln, const VVVU &z) const
+{
+  VU group[2];
+  do
+  {
+    group[0].clear();
+    group[1].clear();
+    for (uint i = 0; i != aln.size(); ++i)
+      group[rand() % 2].push_back(i);
+  } while (group[0].empty() || group[1].empty());
+
+  ALN a[2];
+  for (uint i = 0; i != 2; ++i)
+  {
+    uint N = group[i].size();
+    a[i].resize(N);
+    uint L = aln[group[i][0]].second.size();
+    for (uint j = 0; j != N; ++j)
+      a[i][j].first = aln[group[i][j]].first;
+    for (uint k = 0; k != L; ++k)
+    {
+      bool gap = true;
+      for (uint j = 0; j != N; ++j)
+        gap &= !aln[group[i][j]].second[k];
+      if (!gap)
+      {
+        for (uint j = 0; j != N; ++j)
+          a[i][j].second.push_back(aln[group[i][j]].second[k]);
+      }
+    }
+  }
+
+  ALN r;
+  align_alignments(r, a[0], a[1], z);
   std::swap(r, aln);
 }
 
@@ -2117,4 +2162,9 @@ int main(int argc, char *argv[])
   {
     std::cerr << str << std::endl;
   }
+  catch (std::system_error e)
+  {
+    std::cerr << e.what() << std::endl;
+  }
+  return EXIT_FAILURE;
 }

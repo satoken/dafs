@@ -36,31 +36,32 @@ private:
   uint node_num_;
   VN node_list_;
   VVU node_id_;
-  uint get_node_id(node n) const;
-  //
   VVU adjacency_list_;
-  bool isAdjacent(uint nid_1, uint nid_2) const;
-  //
   Undirected_Graph g_; //Undirected edges
-  void set_g();
-  //
   uint component_num_;
   VU component_id_;
   VVU component_list_;
   Directed_Graph cog_; //Component Order Graph
   VVU cog_cycles_;
+  VVN clips;
+  VVE cycles_1; //MC-I
+  VVE cycles_2; //MC-II
+
+  uint get_node_id(node n) const;
+  bool isAdjacent(uint nid_1, uint nid_2) const;
+  void set_g();
   void set_components();
   void set_cog();
   void set_cog_cycle();
   VVN get_paths(node n1, node n2) const;
-  //
-  void detect_clips();
   void detect_mixedCycles();
 
 public:
-  VVN clips;
-  VVE cycles_1; //MC-I
-  VVE cycles_2; //MC-II
+  Align_Graph(VU &seqlen);
+
+  VVN detect_clips() const;
+  VVE detect_cycles() const;
+
   bool isAdjacent(node n1, node n2) const;
   VVE get_cycleAmongComponents(const VU& compo_cycles);
   VVE get_cycleInComponent(const VU& compo_nodes);
@@ -71,5 +72,4 @@ public:
   void configure();
   ALN get_alignmentColumns(const VVVVF &p_z);
   void destroy_wrongEdges(const VVVVF &p_z);
-  Align_Graph(VU &seqlen);
 };

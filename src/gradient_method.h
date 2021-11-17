@@ -50,6 +50,16 @@ public:
     }
   }
 
+  auto num_clips() const 
+  {
+    return clips_.size();
+  }
+
+  auto num_cycles() const
+  {
+    return cycles_.size();
+  }
+
   void update(VVVVF &lambda, Align_Graph &g, uint t)
   {
     for (auto &[clip, vals] : clips_)
