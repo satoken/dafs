@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <system_error>
 //#include <fstream>
 #include "fa.h"
 #include "fold.h"
@@ -1896,4 +1897,9 @@ int main(int argc, char *argv[])
   {
     std::cerr << str << std::endl;
   }
+  catch (std::system_error e)
+  {
+    std::cerr << e.what() << std::endl;
+  }
+  return EXIT_FAILURE;
 }

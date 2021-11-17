@@ -29,6 +29,7 @@
 #include <cctype>
 #include <cstring>
 #include <cassert>
+#include <system_error>
 
 typedef unsigned int uint;
 
@@ -39,6 +40,9 @@ load(std::vector<Fasta>& data, const char* file)
 {
   std::string line, name, seq, str;
   std::ifstream ifs(file);
+  if (ifs.fail())
+    throw std::system_error(errno, std::system_category(), file);
+
   while (std::getline(ifs, line)) {
     if (line[0]=='>') {         // header
       if (!name.empty()) {
