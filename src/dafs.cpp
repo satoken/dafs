@@ -80,9 +80,10 @@ private:
   typedef std::pair<float, std::pair<uint, uint>> node_t;
   // indices for consensus base pairs
   typedef std::pair<std::pair<uint, uint>, std::pair<uint, uint>> CBP;
+  float lb_;
 
 public:
-  DMSA()
+  DMSA() : lb_(0.0)
 #if 0  
     : use_alifold_(false),
       use_alifold1_(true)
@@ -112,8 +113,8 @@ private:
   // void average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const;
   // void update_basepairing_probability(VVF &posterior, const VU &ss, const std::string &str,
   //                                     const ALN &aln, bool use_alifold) const;
-  void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
-  void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z) const;
+  float align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
+  float align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z) const;
   float solve(VVVVF &p_z, ALN &aln) const
   {
 #if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
@@ -130,8 +131,8 @@ private:
   }
   float solve_by_dd(const VVVVF &p_z, ALN &aln) const;
   float solve_by_ip(const VVVVF &p_z, ALN &aln) const;
-  void align(ALN &aln, int ch) const;
-  void align(ALN &aln, int ch, const VVVU &z) const;
+  float align(ALN &aln, int ch) const;
+  float align(ALN &aln, int ch, const VVVU &z) const;
   void unzip_mp(VVVVF &mp) const;
   void refine(ALN &aln) const;
   void refine(ALN &aln, const VVVU &z) const;
@@ -603,7 +604,7 @@ void DMSA::
             continue;
           if (jj == x->first)
           {
-            p[i][j] = std::max(0.0f, p[i][j]) + x->second; // p^{s1,s2}_{ii,jj}
+            p[i][j] = std::max(th_a_, p[i][j]) + (x->second - th_a_); // p^{s1,s2}_{ii,jj}-th_a_
             ++x;
           }
           ++jj;
@@ -649,7 +650,7 @@ void DMSA::
           if (jj == x->first)
           {
             if (z[s1][s2][ii] == jj)
-              p[i][j] = std::max(0.0f, p[i][j]) + x->second; // p^{s1,s2}_{ii,jj}
+              p[i][j] = std::max(th_a_, p[i][j]) + (x->second - th_a_); // p^{s1,s2}_{ii,jj}-th_a_
             ++x;
           }
           ++jj;
@@ -894,7 +895,7 @@ float DMSA::
         uint i2 = i[k2];
         if (aln1.at(c) && aln2.at(c))
         {
-          score += p_z[k1][k2][i1][i2];
+          score += p_z[k1][k2][i1][i2]-th_a_;
         }
       }
     }
@@ -1044,7 +1045,7 @@ void DMSA::
 }
 #endif
 
-void DMSA::
+float DMSA::
     align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const
 {
   // calculate sum-of-pairs scores
@@ -1054,13 +1055,15 @@ void DMSA::
   // solve the problem
   VU zz;
   a_decoder_->initialize(p_z);
-  a_decoder_->decode(p_z, zz);
+  auto s = a_decoder_->decode(p_z, zz);
 
   // build the result
   project_alignment(aln, aln1, aln2, zz);
+
+  return s;
 }
 
-void DMSA::
+float DMSA::
     align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z) const
 {
   // calculate sum-of-pairs scores
@@ -1070,10 +1073,12 @@ void DMSA::
   // solve the problem
   VU zz;
   a_decoder_->initialize(p_z);
-  a_decoder_->decode(p_z, zz);
+  auto f = a_decoder_->decode(p_z, zz);
 
   // build the result
   project_alignment(aln, aln1, aln2, zz);
+
+  return f;
 }
 
 #ifdef ADAGRAD
@@ -1431,7 +1436,7 @@ float DMSA::
   for (uint k = 0; k < M; k++)
     seqlen[k] = fa_[k].size();
 
-  GradientMethod gm(eta0_);
+  GradientMethod gm(eta0_, 0.0 /*lb_*/);
 
   // DMSA Algorithm
   uint violation_num = 0;
@@ -1464,10 +1469,6 @@ float DMSA::
     violation_num += clips.size();
 
     // 2.2 Forbid mixed cycle
-    // const VVE &cycles_1 = g.cycles_1;
-    // violation_num += cycles_1.size();
-    // const VVE &cycles_2 = g.cycles_2;
-    // violation_num += cycles_2.size();
     auto cycles = g.detect_cycles();
     violation_num += cycles.size();
 
@@ -1475,13 +1476,11 @@ float DMSA::
     for (uint k1 = 0; k1 < M; k1++)
       for (uint k2 = k1 + 1; k2 < M; k2++)
         for (uint i1 = 0; i1 < seqlen[k1]; i1++)
-          util::fill(phi[k1][k2][i1], 0.0f);
+          std::fill(std::begin(phi[k1][k2][i1]), std::end(phi[k1][k2][i1]), 0.0f);
 
     gm.add_clip(clips);
-    // gm.add_cycle(cycles_1);
-    // gm.add_cycle(cycles_2);
     gm.add_cycle(cycles);
-    gm.update(phi, g, t);
+    gm.update(phi, g, score, t);
 
     spdlog::debug("T={}, new clips={}, known clips={}, new cycles={}, known cycles={}",
                   t, clips.size(), gm.num_clips(), cycles.size(), gm.num_cycles());
@@ -1491,7 +1490,7 @@ float DMSA::
     {
       // all constraints are satisfied.
       const auto z = g.get_all_edges();
-      align(aln, tree_.size() - 1, z);
+      score = align(aln, tree_.size() - 1, z);
       // aln = g.get_alignmentColumns(p_z);
       break;
     }
@@ -1500,7 +1499,7 @@ float DMSA::
     {
       // some constraints are not satisfied.
       const auto z = g.get_all_edges();
-      align(aln, tree_.size() - 1, z);
+      score = align(aln, tree_.size() - 1, z);
       break;
     }
   }
@@ -1683,7 +1682,7 @@ float DMSA::
   return s;
 }
 
-void DMSA::
+float DMSA::
     align(ALN &aln, int ch) const
 {
   if (tree_[ch].second.first == -1u)
@@ -1692,17 +1691,18 @@ void DMSA::
     aln.resize(1);
     aln[0].first = ch;
     aln[0].second = std::vector<bool>(fa_[ch].size(), true);
+    return 0.0;
   }
   else
   {
     ALN aln1, aln2;
-    align(aln1, tree_[ch].second.first);
-    align(aln2, tree_[ch].second.second);
-    align_alignments(aln, aln1, aln2);
+    auto s1 = align(aln1, tree_[ch].second.first);
+    auto s2 = align(aln2, tree_[ch].second.second);
+    return align_alignments(aln, aln1, aln2) + s1 + s2;
   }
 }
 
-void DMSA::
+float DMSA::
     align(ALN &aln, int ch, const VVVU &z) const
 {
   if (tree_[ch].second.first == -1u)
@@ -1711,13 +1711,14 @@ void DMSA::
     aln.resize(1);
     aln[0].first = ch;
     aln[0].second = std::vector<bool>(fa_[ch].size(), true);
+    return 0.0;
   }
   else
   {
     ALN aln1, aln2;
-    align(aln1, tree_[ch].second.first, z);
-    align(aln2, tree_[ch].second.second, z);
-    align_alignments(aln, aln1, aln2, z);
+    auto s1 = align(aln1, tree_[ch].second.first, z);
+    auto s2 = align(aln2, tree_[ch].second.second, z);
+    return align_alignments(aln, aln1, aln2, z) + s1 + s2;
   }
 }
 
@@ -2096,11 +2097,12 @@ int DMSA::
 
     // compute progressive alignments along with the guide tree
     ALN aln;
-    align(aln, tree_.size() - 1);
+    float s = align(aln, tree_.size() - 1);
 
     // iterative refinement
-    float s = calculate_alignment_score(aln);
+    //float s = calculate_alignment_score(aln);
     spdlog::info("lower bound of alignment score: {}", s);
+#if 0
     for (uint i = 0; i != n_refinement_; ++i)
     {
       ALN aln_temp = aln;
@@ -2115,8 +2117,10 @@ int DMSA::
       }
       spdlog::debug("iterative refinement: {}, s={}", i, s);
     }
+#endif
     lower_bound = s;
   }
+  lb_ = lower_bound;
 
   // compute multiple sequence alignment via dual decomposition
   VVVVF p_z;
@@ -2130,8 +2134,9 @@ int DMSA::
   }
 
   // solve alignment
-  solve(p_z, aln);
-  spdlog::info("final alignment score: {}", calculate_alignment_score(aln));
+  float s = solve(p_z, aln);
+  //spdlog::info("final alignment score: {}", calculate_alignment_score(aln));
+  spdlog::info("final alignment score: {}", s);
 
   // output the alignment
   std::sort(aln.begin(), aln.end());

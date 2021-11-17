@@ -172,21 +172,11 @@ VU Directed_Graph::
   {
     boost::topological_sort(g, std::back_inserter(result));
   }
-  catch (boost::not_a_dag &e)
+  catch (boost::not_a_dag e)
   {
-    std::cout << "This alignment graph isn't DAG." << std::endl;
-    //std::cout << e.what() << std::endl;
-    //boost::write_graphviz(std::cout, g);
+    spdlog::critical("This alignment graph isn't DAG.");
+    throw e;
   }
   util::reverse(result);
   return result;
 }
-
-//class: "Undirected_Graph"
-#if 0
-VVU
-Mixed_Graph::
-get_cycles(uint node_num){
-
-}
-#endif

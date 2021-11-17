@@ -25,11 +25,13 @@
 
 //Align_Graph
 #include "alignment_graph.h"
+#include "spdlog/spdlog.h"
 
 class GradientMethod
 {
 private:
   float eta_;
+  float lb_;
   std::map<VN, std::tuple<float, float, float>> clips_;
   std::map<VE, std::tuple<float, float, float>> cycles_;
 
@@ -60,8 +62,39 @@ public:
     return cycles_.size();
   }
 
-  void update(VVVVF &lambda, Align_Graph &g, uint t)
+  void update(VVVVF &lambda, Align_Graph &g, float lr, uint t)
   {
+#if 0
+    float g2 = 0.0;
+    for (auto &[clip, vals] : clips_)
+    {
+      const node &inner = clip[0];
+      const node &outer_1 = clip[1];
+      const node &outer_2 = clip[2];
+      // calculate gradient
+      const bool z01 = g.isAdjacent(inner, outer_1);
+      const bool z02 = g.isAdjacent(inner, outer_2);
+      const bool z12 = g.isAdjacent(outer_1, outer_2);
+      const int grad = (1 - z01 - z02 + z12);
+      g2 += grad * grad;
+    }
+
+    for (auto &[cycle, vals] : cycles_)
+    {
+      // calculate gradient
+      int grad = cycle.size() - 1;
+      for (uint j = 0; j < cycle.size(); j++)
+      {
+        const auto [n1, n2] = cycle[j];
+        grad -= g.isAdjacent(n1, n2);
+      }
+      g2 += grad * grad;
+    }
+
+    auto eta = eta_ * (lr - lb_) / std::sqrt(g2);
+    spdlog::debug("LR={}, LB={}, eta={}", lr, lb_, eta);
+#endif
+
     for (auto &[clip, vals] : clips_)
     {
       const node &inner = clip[0];
@@ -77,7 +110,7 @@ public:
       auto &[lagmul, state1, state2] = vals;
       //auto delta = adagrad(grad, state1);
       auto delta = adam(grad, state1, state2, t);
-      //auto delta = 0.01f * grad;
+      //auto delta = eta * grad;
       lagmul = std::max(0.0f, lagmul - delta);
       // update lambda
       tie(lambda, edge(inner, outer_1)) -= lagmul;
@@ -98,7 +131,7 @@ public:
       auto &[lagmul, state1, state2] = vals;
       //auto delta = adagrad(grad, state1);
       auto delta = adam(grad, state1, state2, t);
-      //auto delta = 0.01f * grad;
+      //auto delta = eta * grad;
       lagmul = std::max(0.0f, lagmul - delta);
 
       // update lambda
@@ -109,9 +142,8 @@ public:
     }
   }
 
-  GradientMethod(float eta)
+  GradientMethod(float eta, float lb=0.0) : eta_(eta), lb_(lb)
   {
-    eta_ = eta;
   }
 
 private:
