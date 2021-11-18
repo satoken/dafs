@@ -115,22 +115,22 @@ private:
   //                                     const ALN &aln, bool use_alifold) const;
   float align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
   float align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z) const;
-  float solve(VVVVF &p_z, ALN &aln) const
+  float solve(VVVVF &p_z, VVVU &z) const
   {
 #if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
     switch (t_max_)
     {
     case 0:
-      return solve_by_ip(p_z, aln);
+      return solve_by_ip(p_z, z);
     default:
-      return solve_by_dd(p_z, aln);
+      return solve_by_dd(p_z, z);
     }
 #else
     return solve_by_dd(p_z, aln);
 #endif
   }
-  float solve_by_dd(const VVVVF &p_z, ALN &aln) const;
-  float solve_by_ip(const VVVVF &p_z, ALN &aln) const;
+  float solve_by_dd(const VVVVF &p_z, VVVU &z) const;
+  float solve_by_ip(const VVVVF &p_z, VVVU &z) const;
   float align(ALN &aln, int ch) const;
   float align(ALN &aln, int ch, const VVVU &z) const;
   void unzip_mp(VVVVF &mp) const;
@@ -878,20 +878,21 @@ calculate_similarity_score(const MP &mp, uint L1, uint L2)
 float DMSA::
     calculate_alignment_score(const ALN &aln) const
 {
+  // aln should be sorted by the seq id (aln.first)
   // calculate score
   float score = 0.0;
   const uint M = aln.size();
   VVVVF p_z; unzip_mp(p_z);
-  std::vector<uint> i(M);
+  std::vector<uint> i(M, 0);
   for (uint c = 0; c < aln.front().second.size(); c++)
   {
-    for (uint k1 = 0; k1 < M; k1++)
+    for (uint k1 = 0; k1 < M - 1; k1++)
     {
-      std::vector<bool> aln1 = aln[k1].second;
+      const auto &aln1 = aln[k1].second;
       uint i1 = i[k1];
       for (uint k2 = k1 + 1; k2 < M; k2++)
       {
-        std::vector<bool> aln2 = aln[k2].second;
+        const auto &aln2 = aln[k2].second;
         uint i2 = i[k2];
         if (aln1.at(c) && aln2.at(c))
         {
@@ -901,7 +902,7 @@ float DMSA::
     }
     for (uint k = 0; k < M; k++)
     {
-      if (i[k])
+      if (aln[k].second.at(c))
       {
         i[k]++;
       }
@@ -1398,11 +1399,11 @@ float DMSA::
 #endif
 
 float DMSA::
-    solve_by_dd(const VVVVF &p_z, ALN &aln) const
+    solve_by_dd(const VVVVF &p_z, VVVU &z) const
 {
   const uint M = fa_.size();
 
-  VVVU z(M, VVU(M));
+  z.resize(M, VVU(M));
   for (uint k1 = 0; k1 < M; k1++)
     for (uint k2 = k1 + 1; k2 < M; k2++)
       z[k1][k2].resize(fa_[k1].size(), -1u);
@@ -1436,15 +1437,13 @@ float DMSA::
   for (uint k = 0; k < M; k++)
     seqlen[k] = fa_[k].size();
 
-  GradientMethod gm(eta0_, 0.0 /*lb_*/);
+  GradientMethod gm(eta0_, lb_);
 
   // DMSA Algorithm
-  uint violation_num = 0;
   float score = 0.0;
   for (uint t = 1; t <= t_max_; t++)
   {
     // 0.initialization
-    violation_num = 0;
     Align_Graph g(seqlen);
 
     // 1.Calculate all-to-all PSA
@@ -1460,17 +1459,17 @@ float DMSA::
         {
           const uint i2 = z[k1][k2][i1];
           if (i2 != -1u)
+          {
             g.add_edge(node(k1, i1), node(k2, i2));
+          }
         }
     g.configure();
 
     // 2.1 Keep consistency transformation
     auto clips = g.detect_clips();
-    violation_num += clips.size();
 
     // 2.2 Forbid mixed cycle
     auto cycles = g.detect_cycles();
-    violation_num += cycles.size();
 
     //3. impose penalty score
     for (uint k1 = 0; k1 < M; k1++)
@@ -1480,27 +1479,20 @@ float DMSA::
 
     gm.add_clip(clips);
     gm.add_cycle(cycles);
-    gm.update(phi, g, score, t);
+    auto [n_violated_clips, n_violated_cycles] = gm.update(phi, g, score, t);
+    auto violation_num = n_violated_clips + n_violated_cycles;
 
-    spdlog::debug("T={}, new clips={}, known clips={}, new cycles={}, known cycles={}",
-                  t, clips.size(), gm.num_clips(), cycles.size(), gm.num_cycles());
+    spdlog::debug("T={}, new clips={}, new cycles={}, violated clips={}, violated cycles={}",
+                  t, clips.size(), cycles.size(), n_violated_clips, n_violated_cycles);
 
-    // 4.Put alignment result into ALN
-    if (violation_num == 0)
+    // 4.get a solution from the alignment graph
+    if (violation_num == 0 || t == t_max_)
     {
       // all constraints are satisfied.
-      const auto z = g.get_all_edges();
-      score = align(aln, tree_.size() - 1, z);
+      z = g.get_all_edges();
+      // score = align(aln, tree_.size() - 1, z);
       // aln = g.get_alignmentColumns(p_z);
-      break;
-    }
-
-    if (t == t_max_)
-    {
-      // some constraints are not satisfied.
-      const auto z = g.get_all_edges();
-      score = align(aln, tree_.size() - 1, z);
-      break;
+      return score;
     }
   }
 
@@ -1508,7 +1500,7 @@ float DMSA::
 }
 
 float DMSA::
-    solve_by_ip(const VVVVF &p_z, ALN &aln) const
+    solve_by_ip(const VVVVF &p_z, VVVU& z) const
 {
   spdlog::debug("run IP solver");
   const uint M = fa_.size();
@@ -1639,7 +1631,7 @@ float DMSA::
   float s = ip.solve();
 
   // build the result
-  VVVU z(M, VVU(M));
+  z.resize(M, VVU(M));
   for (uint k1 = 0; k1 < M; k1++)
     for (uint k2 = k1 + 1; k2 < M; k2++)
       z[k1][k2].resize(fa_[k1].size(), -1u);
@@ -1660,24 +1652,6 @@ float DMSA::
           }
         }
     }
-
-  // result
-  VU seqlen(M);
-  for (uint k = 0; k < M; k++)
-    seqlen[k] = fa_[k].size();
-  Align_Graph g(seqlen);
-
-  for (uint k1 = 0; k1 < M - 1; k1++)
-    for (uint k2 = k1 + 1; k2 < M; k2++)
-      for (uint i1 = 0; i1 < z[k1][k2].size(); i1++)
-      {
-        uint i2 = z[k1][k2][i1];
-        if (i2 != -1u)
-        {
-          g.add_edge(node(k1, i1), node(k2, i2));
-        }
-      }
-  aln = g.get_alignmentColumns(p_z);
 
   return s;
 }
@@ -2098,17 +2072,18 @@ int DMSA::
     // compute progressive alignments along with the guide tree
     ALN aln;
     float s = align(aln, tree_.size() - 1);
+    std::sort(aln.begin(), aln.end());
 
     // iterative refinement
-    //float s = calculate_alignment_score(aln);
-    spdlog::info("lower bound of alignment score: {}", s);
-#if 0
+    s = calculate_alignment_score(aln);
+    spdlog::info("progressive alignment score: {}", s);
     for (uint i = 0; i != n_refinement_; ++i)
     {
       ALN aln_temp = aln;
       float s_temp;
 
       refine(aln_temp);
+      std::sort(aln_temp.begin(), aln_temp.end());
       s_temp = calculate_alignment_score(aln_temp);
       if (s_temp > s)
       {
@@ -2116,8 +2091,9 @@ int DMSA::
         std::swap(aln, aln_temp);
       }
       spdlog::debug("iterative refinement: {}, s={}", i, s);
+      if (i == n_refinement_ -1)
+        spdlog::info("iterative refinement: {}", s);
     }
-#endif
     lower_bound = s;
   }
   lb_ = lower_bound;
@@ -2125,29 +2101,54 @@ int DMSA::
   // compute multiple sequence alignment via dual decomposition
   VVVVF p_z;
   unzip_mp(p_z);
-  const uint M = fa_.size();
-  ALN aln(M);
-  for (uint k = 0; k < M; k++)
-  {
-    aln[k].first = k;
-    aln[k].second.resize(fa_[k].size(), true);
-  }
 
   // solve alignment
-  float s = solve(p_z, aln);
-  //spdlog::info("final alignment score: {}", calculate_alignment_score(aln));
+  VVVU z;
+  ALN aln;
+  float s = solve(p_z, z);
+  auto score = align(aln, tree_.size() - 1, z);
+  std::sort(aln.begin(), aln.end());
+  s = calculate_alignment_score(aln);
   spdlog::info("final alignment score: {}", s);
 
-  // output the alignment
-  std::sort(aln.begin(), aln.end());
-  output(std::cout, aln);
+  for (uint i = 0; i != n_refinement_; ++i)
+  {
+    ALN aln_temp = aln;
+    float s_temp;
 
-#if 0
-  Alifold ali(0.0);
-  float cv;
-  std::cout << ali.energy_of_struct(aln, fa_, str, cv) << std::endl
-            << cv << std::endl;
-#endif
+    refine(aln_temp, z);
+    std::sort(aln_temp.begin(), aln_temp.end());
+    s_temp = calculate_alignment_score(aln_temp);
+    if (s_temp > s)
+    {
+      s = s_temp;
+      std::swap(aln, aln_temp);
+    }
+    spdlog::debug("final iterative refinement: {}, s={}", i, s);
+    if (i == n_refinement_ - 1)
+      spdlog::info("final iterative refinement: {}", s);
+  }
+
+  for (uint i = 0; i != n_refinement_; ++i)
+  {
+    ALN aln_temp = aln;
+    float s_temp;
+
+    refine(aln_temp);
+    std::sort(aln_temp.begin(), aln_temp.end());
+    s_temp = calculate_alignment_score(aln_temp);
+    if (s_temp > s)
+    {
+      s = s_temp;
+      std::swap(aln, aln_temp);
+    }
+    spdlog::debug("final iterative refinement: {}, s={}", i, s);
+    if (i == n_refinement_ - 1)
+      spdlog::info("final iterative refinement: {}", s);
+  }
+  // output the alignment
+  //std::sort(aln.begin(), aln.end());
+  output(std::cout, aln);
 
   return 0;
 }

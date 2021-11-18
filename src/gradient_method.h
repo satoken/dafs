@@ -22,6 +22,7 @@
 #include "typedefs.h"
 #include <cmath>
 #include <map>
+#include <set>
 
 //Align_Graph
 #include "alignment_graph.h"
@@ -62,10 +63,10 @@ public:
     return cycles_.size();
   }
 
-  void update(VVVVF &lambda, Align_Graph &g, float lr, uint t)
+  std::pair<uint,uint> update(VVVVF &lambda, Align_Graph &g, float lr, uint t)
   {
-#if 0
     float g2 = 0.0;
+    uint n_violated_clips = 0, n_violated_cycles = 0;
     for (auto &[clip, vals] : clips_)
     {
       const node &inner = clip[0];
@@ -77,24 +78,25 @@ public:
       const bool z12 = g.isAdjacent(outer_1, outer_2);
       const int grad = (1 - z01 - z02 + z12);
       g2 += grad * grad;
+      if (grad < 0)
+        n_violated_clips++;
     }
 
     for (auto &[cycle, vals] : cycles_)
     {
       // calculate gradient
       int grad = cycle.size() - 1;
-      for (uint j = 0; j < cycle.size(); j++)
-      {
-        const auto [n1, n2] = cycle[j];
+      for (const auto [n1, n2] : cycle)
         grad -= g.isAdjacent(n1, n2);
-      }
       g2 += grad * grad;
+      if (grad < 0)
+        n_violated_cycles++;
     }
 
-    auto eta = eta_ * (lr - lb_) / std::sqrt(g2);
+    auto eta = eta_ * (lr - lb_) / g2;
     spdlog::debug("LR={}, LB={}, eta={}", lr, lb_, eta);
-#endif
 
+    std::set<VN> rm_clips;
     for (auto &[clip, vals] : clips_)
     {
       const node &inner = clip[0];
@@ -108,38 +110,42 @@ public:
 
       // update lagmul
       auto &[lagmul, state1, state2] = vals;
-      //auto delta = adagrad(grad, state1);
-      auto delta = adam(grad, state1, state2, t);
-      //auto delta = eta * grad;
+      auto delta = 0.05f * eta * grad;
       lagmul = std::max(0.0f, lagmul - delta);
       // update lambda
       tie(lambda, edge(inner, outer_1)) -= lagmul;
       tie(lambda, edge(inner, outer_2)) -= lagmul;
       tie(lambda, edge(outer_1, outer_2)) += lagmul;
-    }
 
+      if (lagmul == 0.0f)
+        rm_clips.insert(clip);
+    }
+    for (const auto clip : rm_clips)
+      clips_.erase(clip);
+
+    std::set<VE> rm_cycles;
     for (auto &[cycle, vals] : cycles_)
     {
       // calculate gradient
       int grad = cycle.size() - 1;
-      for (uint j = 0; j < cycle.size(); j++)
-      {
-        const auto [n1, n2] = cycle[j];
+      for (const auto [n1, n2] : cycle)
         grad -= g.isAdjacent(n1, n2);
-      }
       // update lagmul
       auto &[lagmul, state1, state2] = vals;
-      //auto delta = adagrad(grad, state1);
-      auto delta = adam(grad, state1, state2, t);
-      //auto delta = eta * grad;
+      auto delta = eta * grad;
       lagmul = std::max(0.0f, lagmul - delta);
 
       // update lambda
-      for (uint j = 0; j < cycle.size(); j++)
-      {
-        tie(lambda, cycle[j]) -= lagmul;
-      }
+      for (const auto &e : cycle)
+        tie(lambda, e) -= lagmul;
+
+      if (lagmul == 0.0)
+        rm_cycles.insert(cycle);
     }
+    for (const auto &cycle : rm_cycles)
+      cycles_.erase(cycle);
+
+    return { n_violated_clips, n_violated_cycles };
   }
 
   GradientMethod(float eta, float lb=0.0) : eta_(eta), lb_(lb)
@@ -147,32 +153,9 @@ public:
   }
 
 private:
-  float adagrad(float grad, float &state_1)
-  {
-    const float eps = 1e-8;
-    state_1 += grad * grad;
-    const float eta = eta_ / (sqrt(state_1) + eps);
-    return eta * grad;
-  }
-
-  float adam(float grad, float &state_1, float &state_2, uint t)
-  {
-    const float alpha = (eta_ == 0.5) ? 0.001 : eta_;
-    const float beta = 0.9;
-    const float gamma = 0.999;
-    const float eps = 1e-8;
-    state_1 += (1 - beta) * (grad - state_1);
-    state_2 += (1 - gamma) * (grad * grad - state_2);
-    const float m = state_1 / (1 - std::pow(beta, t));
-    const float v = state_2 / (1 - std::pow(gamma, t));
-    return alpha * m / (std::sqrt(v) + eps);
-  }
-
   float &tie(VVVVF &lambda, const edge &e)
   {
-    auto [n1, n2] = e;
-    if (n1.first > n2.first)
-      swap(n1, n2);
+    const auto [n1, n2] = std::minmax(e.first, e.second);
     const auto [k1, i1] = n1;
     const auto [k2, i2] = n2;
     return lambda[k1][k2][i1][i2];
