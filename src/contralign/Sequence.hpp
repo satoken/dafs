@@ -2,8 +2,7 @@
 // Sequence.hpp
 /////////////////////////////////////////////////////////////////
 
-#ifndef SEQUENCE_HPP
-#define SEQUENCE_HPP
+#pragma once
 
 #include <cstdlib>
 #include <cstring>
@@ -12,7 +11,12 @@
 /////////////////////////////////////////////////////////////////
 // class Sequence
 /////////////////////////////////////////////////////////////////
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 class Sequence {
     std::string data;
     std::string name;
@@ -45,4 +49,3 @@ public:
     int GetID() const { return id; } 
 };
 }
-#endif

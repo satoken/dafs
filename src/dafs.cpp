@@ -1844,7 +1844,7 @@ DMSA::
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"));
 
   options.add_options("Aligning")
-    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, ProbConsRNA, ProbCons)", 
+    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, CONTRAlignRNA, ProbCons, ProbConsRNA)", 
       cxxopts::value<std::string>()->default_value("ProbConsRNA"))
     ("p,align-pct", "Weight of PCT for matching probabilities", cxxopts::value<float>()->default_value("0.25"))
     ("u,align-th", "Threshold for matching probabilities", cxxopts::value<float>()->default_value("0.01"))
@@ -1907,6 +1907,8 @@ DMSA::
 
     if (res["align-aux"].count())
       a_model_ = std::make_unique<AUXAlign>(res["align-aux"].as<std::string>(), CUTOFF);
+    else if (res["align-model"].as<std::string>() == "CONTRAlignRNA")
+      a_model_ = std::make_unique<CONTRAlignRNA>(th_a_);
     else if (res["align-model"].as<std::string>() == "CONTRAlign")
       a_model_ = std::make_unique<CONTRAlign>(th_a_);
     else if (res["align-model"].as<std::string>() == "ProbConsRNA")

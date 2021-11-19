@@ -2,8 +2,7 @@
 // MultiSequence.hpp
 /////////////////////////////////////////////////////////////////
 
-#ifndef MULTISEQUENCE_HPP
-#define MULTISEQUENCE_HPP
+#pragma once
 
 #include <cstdio>
 #include <cctype>
@@ -20,7 +19,12 @@
 /////////////////////////////////////////////////////////////////
 // class MultiSequence
 /////////////////////////////////////////////////////////////////
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 class MultiSequence {
     std::vector<Sequence *> sequences;
     std::vector<double> weights;
@@ -106,4 +110,3 @@ public:
     double GetPairWeight(int i, int j) const;
 };
 }
-#endif

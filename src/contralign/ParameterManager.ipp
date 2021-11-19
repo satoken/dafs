@@ -10,7 +10,12 @@
 // 
 // Constructors and assignment operator.
 //////////////////////////////////////////////////////////////////////
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 ParameterGroup::ParameterGroup() {}
 
 ParameterGroup::ParameterGroup(const std::string &name, int begin, int end) :

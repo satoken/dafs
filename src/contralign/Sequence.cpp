@@ -4,7 +4,12 @@
 
 #include "Sequence.hpp"
 
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 const int Sequence::UNKNOWN = -1;
 const int Sequence::UNALIGNED = 0;
 

@@ -1,5 +1,10 @@
 #include <vector>
-namespace CONTRALIGN{
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 /////////////////////////////////////////////////////////////////
 // GetDefaultProteinValues()
 //

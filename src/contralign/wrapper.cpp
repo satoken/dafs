@@ -5,7 +5,11 @@
 #include "ParameterManager.hpp"
 #include "contralign.h" // wrapper's header
 
+#if RNA
+namespace CONTRALIGN_RNA
+#else
 namespace CONTRALIGN
+#endif
 {
   template<class T>
   struct CONTRAlign<T>::Impl
@@ -55,7 +59,11 @@ namespace CONTRALIGN
   Impl () 
   {
     ParameterManager<T> parameter_manager;
+#if RNA
     std::vector<T> w = GetDefaultRNAValues<T>();
+#else
+    std::vector<T> w = GetDefaultProteinValues<T>();
+#endif
     inference_engine.RegisterParameters (parameter_manager);
     inference_engine.LoadValues(w);    
   }

@@ -1,24 +1,17 @@
-add_subdirectory(contrafold)
 add_subdirectory(probconsRNA)
+add_subdirectory(probcons)
+add_subdirectory(contralignRNA)
 add_subdirectory(contralign)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
-add_definitions(-DPACKAGE="dafs")
-add_definitions(-DPACKAGE_VERSION="0.0.4")
-add_definitions(-DVERSION="0.0.4")
-
-find_package(PkgConfig REQUIRED)
-
-pkg_check_modules(VIENNARNA REQUIRED RNAlib2)
-include_directories(${VIENNARNA_INCLUDE_DIRS})
-add_definitions(-DHAVE_VIENNA18)
-add_definitions(-DHAVE_VIENNA20)
+add_compile_definitions(PACKAGE="dafs" PACKAGE_VERSION="0.0.4" VERSION="0.0.4")
 
 if(ENABLE_CPLEX)
   find_package(CPLEX)
   if (CPLEX_FOUND)
     add_definitions(-DWITH_CPLEX)
     include_directories(${CPLEX_INCLUDE_DIR})
+    find_package(Threads REQUIRED)
   endif()
 elseif(ENABLE_GUROBI)
   find_package(GUROBI)
@@ -44,13 +37,13 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(
     dafs
-    alifold.cpp align.cpp boltzmann_param.c dafs.cpp fa.cpp fold.cpp
-    ip.cpp ipknot.cpp needleman_wunsch.cpp nussinov.cpp tree.cpp
+    align.cpp dafs.cpp fa.cpp
+    ip.cpp needleman_wunsch.cpp tree.cpp
     alignment_graph.cpp gradient_method.cpp graph_library.cpp
 )
-target_link_libraries(dafs contrafold probcons contralign
-  ${VIENNARNA_LDFLAGS} ${GLPK_LIBRARY} ${ZLIB_LIBRARY} ${GMP_LIBRARY} ${DL_LIBRARY} ${LTDL_LIBRARY} ${MPFR_LIBRARY}
-  ${CPLEX_LIBRARY} ${GUROBI_LIBRARY} ${GUROBI_CPP_LIBRARY} ${CMAKE_DL_LIBS})
+target_link_libraries(dafs probconsRNA probcons contralign contralignRNA
+  ${GLPK_LIBRARY} ${ZLIB_LIBRARY} ${GMP_LIBRARY} ${DL_LIBRARY} ${LTDL_LIBRARY} ${MPFR_LIBRARY}
+  ${CPLEX_LIBRARY} ${GUROBI_LIBRARY} ${GUROBI_CPP_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS})
 target_compile_features(dafs PUBLIC cxx_std_17)
 
 install(TARGETS dafs RUNTIME DESTINATION bin)

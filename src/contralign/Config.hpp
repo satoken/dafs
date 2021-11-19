@@ -4,13 +4,18 @@
 // Global configuration file.
 //////////////////////////////////////////////////////////////////////
 
-#ifndef CONFIG_HPP
-#define CONFIG_HPP
+#pragma once
 
 #include <string>
 
 #define COMMENT                                    0
-namespace CONTRALIGN {
+
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 //////////////////////////////////////////////////////////////////////
 // Miscellaneous options
 //////////////////////////////////////////////////////////////////////
@@ -168,4 +173,3 @@ const std::string compressed_alphabet[COMPRESSED_M] = {"AGPST", "C", "DENQ", "FW
 #define BMRM_AVAILABLE                              0
 // #define DAIFLETCHER
 }
-#endif

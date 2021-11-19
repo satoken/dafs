@@ -3,13 +3,16 @@
 //
 // Routines for dealing with numbers in log space.
 //////////////////////////////////////////////////////////////////////
-
-#ifndef LOGSPACE_HPP
-#define LOGSPACE_HPP
+#pragma once
 
 #include "Utilities.hpp"
 
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 #define NEG_INF -2e20
 
 //////////////////////////////////////////////////////////////////////
@@ -278,4 +281,3 @@ inline void Fast_LogMinusEquals (float &x, float y)
         x = Fast_LogExpMinusOne(x-y) + y;
 }
 }
-#endif

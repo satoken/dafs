@@ -1,7 +1,12 @@
 //////////////////////////////////////////////////////////////////////
 // Utilities.ipp
 //////////////////////////////////////////////////////////////////////
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 template<typename T1, typename T2, typename T3>
 inline triple<T1,T2,T3>::triple() :
     first(), second(), third() 

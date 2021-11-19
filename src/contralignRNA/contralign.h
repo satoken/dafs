@@ -1,10 +1,6 @@
 #pragma once
 
-#if RNA
 namespace CONTRALIGN_RNA
-#else
-namespace CONTRALIGN
-#endif
 {
   template <class T>
   class CONTRAlign {

@@ -2,8 +2,7 @@
 // InferenceEngine.hpp
 /////////////////////////////////////////////////////////////////
 
-#ifndef INFERENCEENGINE_HPP
-#define INFERENCEENGINE_HPP
+#pragma once
 
 #include <queue>
 #include <vector>
@@ -17,7 +16,13 @@
 /////////////////////////////////////////////////////////////////
 // class InferenceEngine
 /////////////////////////////////////////////////////////////////
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
+
 template<class RealT>
 class InferenceEngine
 {
@@ -156,5 +161,3 @@ public:
 };
 }
 #include "InferenceEngine.ipp"
-
-#endif

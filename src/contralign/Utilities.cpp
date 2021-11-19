@@ -5,7 +5,12 @@
 #include "Utilities.hpp"
 #include <climits>
 
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 bool toggle_error = false;
 
 //////////////////////////////////////////////////////////////////////

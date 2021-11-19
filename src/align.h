@@ -27,6 +27,7 @@
 #include "fa.h"
 #include "probconsRNA/probcons.h"
 #include "probcons/probcons.h"
+#include "contralignRNA/contralign.h"
 #include "contralign/contralign.h"
 #if 0
 #include "partalign/partalign.h"
@@ -79,6 +80,14 @@ class ProbCons : public Align::Model, PROBCONS::Probcons
 public:
   ProbCons(float th);
   ~ProbCons() { }
+  void calculate(const std::string& seq1, const std::string& seq2, MP& mp);
+};
+
+class CONTRAlignRNA : public Align::Model, CONTRALIGN_RNA::CONTRAlign<float>
+{
+public:
+  CONTRAlignRNA(float th);
+  ~CONTRAlignRNA() { }
   void calculate(const std::string& seq1, const std::string& seq2, MP& mp);
 };
 

@@ -105,6 +105,33 @@ calculate(const std::string& seq1, const std::string& seq2, MP& mp)
   }
 }
 
+CONTRAlignRNA::
+CONTRAlignRNA(float th)
+  : Align::Model(th), CONTRALIGN_RNA::CONTRAlign<float>()
+{
+}
+
+void
+CONTRAlignRNA::
+calculate(const std::string& seq1, const std::string& seq2, MP& mp)
+{
+  std::vector<float> posterior;
+  ComputePosterior(seq1, seq2, posterior, threshold());
+  const uint L1 = seq1.size();
+  const uint L2 = seq2.size();
+
+  mp.resize(L1);
+  for (uint i=0; i!=L1; ++i)
+  {
+    for (uint j=0; j!=L2; ++j)
+    {
+      const float& p=posterior[(L2+1)*(i+1)+(j+1)];
+      if (p>threshold())
+        mp[i].push_back(std::make_pair(j,p));
+    }
+  }
+}
+
 CONTRAlign::
 CONTRAlign(float th)
   : Align::Model(th), CONTRALIGN::CONTRAlign<float>()

@@ -2,8 +2,7 @@
 // Utilities.hpp
 //////////////////////////////////////////////////////////////////////
 
-#ifndef UTILITIES_HPP
-#define UTILITIES_HPP
+#pragma once
 
 #include <algorithm>
 #include <cerrno>
@@ -25,7 +24,12 @@
 #include <sys/time.h>
 #include <vector>
 
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 typedef unsigned char BYTE;
 const char DIR_SEPARATOR_CHAR = '/';
 
@@ -214,4 +218,3 @@ std::string GetBaseName(const std::string &path);
 
 #include "Utilities.ipp"
 
-#endif

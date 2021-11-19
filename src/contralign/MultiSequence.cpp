@@ -4,7 +4,12 @@
 
 #include "MultiSequence.hpp"
 
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 /////////////////////////////////////////////////////////////////
 // MultiSequence::MultiSequence()
 //

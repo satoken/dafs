@@ -42,8 +42,7 @@
 //       
 //////////////////////////////////////////////////////////////////////
 
-#ifndef PARAMETERMANAGER_HPP
-#define PARAMETERMANAGER_HPP
+#pragma once
 
 #include "Utilities.hpp"
 
@@ -56,7 +55,12 @@
 // and "end" is the index of the element *after* the last parameter
 // belonging to the group.
 //////////////////////////////////////////////////////////////////////
-namespace CONTRALIGN {
+#if RNA
+namespace CONTRALIGN_RNA
+#else
+namespace CONTRALIGN
+#endif
+{
 struct ParameterGroup
 {
     std::string name;
@@ -116,5 +120,3 @@ public:
 };
 }
 #include "ParameterManager.ipp"
-
-#endif
