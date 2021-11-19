@@ -4,7 +4,7 @@ add_subdirectory(contralignRNA)
 add_subdirectory(contralign)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
-add_compile_definitions(PACKAGE="dafs" PACKAGE_VERSION="0.0.4" VERSION="0.0.4")
+add_compile_definitions(PACKAGE="dmsa" PACKAGE_VERSION="0.0.4" VERSION="0.0.4")
 
 if(ENABLE_CPLEX)
   find_package(CPLEX)
@@ -36,14 +36,14 @@ find_package(Boost 1.40 REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(
-    dafs
-    align.cpp dafs.cpp fa.cpp
+    dmsa
+    align.cpp dmsa.cpp fa.cpp
     ip.cpp needleman_wunsch.cpp tree.cpp
     alignment_graph.cpp gradient_method.cpp graph_library.cpp
 )
-target_link_libraries(dafs probconsRNA probcons contralign contralignRNA
+target_link_libraries(dmsa probconsRNA probcons contralign contralignRNA
   ${GLPK_LIBRARY} ${ZLIB_LIBRARY} ${GMP_LIBRARY} ${DL_LIBRARY} ${LTDL_LIBRARY} ${MPFR_LIBRARY}
   ${CPLEX_LIBRARY} ${GUROBI_LIBRARY} ${GUROBI_CPP_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS})
-target_compile_features(dafs PUBLIC cxx_std_17)
+target_compile_features(dmsa PUBLIC cxx_std_17)
 
-install(TARGETS dafs RUNTIME DESTINATION bin)
+install(TARGETS dmsa RUNTIME DESTINATION bin)
