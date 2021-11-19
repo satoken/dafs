@@ -4,9 +4,7 @@
 // Buffered file reading.
 /////////////////////////////////////////////////////////////////
 
-
-#ifndef FILEBUFFER_H
-#define FILEBUFFER_H
+#pragma once
 
 #include <string>
 #include <fstream>
@@ -14,7 +12,7 @@
 
 using namespace std;
 
-namespace PROBCONS {
+namespace PROBCONS_RNA {
   const int BufferSize = 1000;
 
   /////////////////////////////////////////////////////////////////
@@ -102,4 +100,3 @@ namespace PROBCONS {
 
   };
 }
-#endif

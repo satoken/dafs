@@ -4,15 +4,14 @@
 // Routines for doing math operations in PROBCONS.
 /////////////////////////////////////////////////////////////////
 
-#ifndef SCORETYPE_H
-#define SCORETYPE_H
+#pragma once
 
 #include <cassert>
 #include <cmath>
 #include <algorithm>
 #include <cfloat>
 
-namespace PROBCONS { 
+namespace PROBCONS_RNA { 
   typedef float ScoreType;
 
   const float LOG_ZERO = -2e20;
@@ -339,4 +338,3 @@ return (((0.006349841068584 * x + 0.080775412572352) * x + 0.397982026296272) * 
     *b = b3;
   }
 }
-#endif

@@ -4,14 +4,12 @@
 // STL vector with array bounds checking.  To enable bounds
 // checking, #define ENABLE_CHECKS.
 /////////////////////////////////////////////////////////////////
-
-#ifndef SAFEVECTOR_H
-#define SAFEVECTOR_H
+#pragma once
 
 #include <cassert>
 #include <vector>
 
-namespace PROBCONS {
+namespace PROBCONS_RNA {
   /////////////////////////////////////////////////////////////////
   // SafeVector
   //
@@ -54,4 +52,3 @@ namespace PROBCONS {
   typedef SafeVector<VF> VVF;
   typedef SafeVector<VVF> VVVF;
 }
-#endif

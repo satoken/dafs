@@ -1,6 +1,5 @@
-add_library(probcons
+add_library(probconsRNA
     STATIC
     wrapper.cpp
 )
-add_definitions(-DNumInsertStates=1)
-add_definitions(-DVERSION="1.10")
+add_compile_definitions(NumInsertStates=1 VERSION="1.10")

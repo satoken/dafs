@@ -7,15 +7,13 @@
 // parameters were obtained via unsupervised EM training on the
 // BALIBASE 2.0 benchmark alignment database.
 /////////////////////////////////////////////////////////////////
-
-#ifndef DEFAULTS_H
-#define DEFAULTS_H
+#pragma once
 
 #include <string>
 
 using namespace std;
 
-namespace PROBCONS {
+namespace PROBCONS_RNA {
 float initDistrib1Default[] = { 0.9588437676f, 0.0205782652f, 0.0205782652f };
 float gapOpen1Default[] = { 0.0190259293f, 0.0190259293f };
 float gapExtend1Default[] = { 0.3269913495f, 0.3269913495f };
@@ -38,4 +36,3 @@ float emitPairsDefault[6][6] = {
   { 0.0000375308f, 0.0000815823f, 0.0000824765f, 0.0000743985f, 0.0000743985f, 0.0000263252f }
 };
 }
-#endif

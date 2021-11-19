@@ -6,8 +6,7 @@
 //              (3) maximum weight trace alignment
 /////////////////////////////////////////////////////////////////
 
-#ifndef PROBABILISTICMODEL_H
-#define PROBABILISTICMODEL_H
+#pragma once
 
 #include <list>
 #include <cmath>
@@ -19,7 +18,7 @@
 
 using namespace std;
 
-namespace PROBCONS {
+namespace PROBCONS_RNA {
   //int NumInsertStates = 1;
 
   const int NumMatchStates = 1;                                    // note that in this version the number
@@ -1158,4 +1157,3 @@ counts[i][j] -= totalProb;
     }
   };
 }
-#endif

@@ -1828,9 +1828,9 @@ void DMSA::
   }
 }
 
-DMSA&
+DMSA &
 DMSA::
-parse_options(int& argc, char**& argv)
+    parse_options(int &argc, char **&argv)
 {
   cxxopts::Options options(argv[0], "DAFS: dual decomposition for simultaneous aligning and folding RNA sequences.");
   options.add_options()
@@ -1838,14 +1838,14 @@ parse_options(int& argc, char**& argv)
     ("input", "Input file", cxxopts::value<std::string>(), "FILE")
     ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
     //("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
-    ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.5"))
+    ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.25"))
     ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
     //("f,fourway-pct", "Weight of four-way PCT", cxxopts::value<float>()->default_value("0.0"))
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"));
 
   options.add_options("Aligning")
-    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, ProbCons)", 
-      cxxopts::value<std::string>()->default_value("ProbCons"))
+    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, ProbConsRNA, ProbCons)", 
+      cxxopts::value<std::string>()->default_value("ProbConsRNA"))
     ("p,align-pct", "Weight of PCT for matching probabilities", cxxopts::value<float>()->default_value("0.25"))
     ("u,align-th", "Threshold for matching probabilities", cxxopts::value<float>()->default_value("0.01"))
     ("align-aux", "Load matching probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
@@ -1909,6 +1909,8 @@ parse_options(int& argc, char**& argv)
       a_model_ = std::make_unique<AUXAlign>(res["align-aux"].as<std::string>(), CUTOFF);
     else if (res["align-model"].as<std::string>() == "CONTRAlign")
       a_model_ = std::make_unique<CONTRAlign>(th_a_);
+    else if (res["align-model"].as<std::string>() == "ProbConsRNA")
+      a_model_ = std::make_unique<ProbConsRNA>(th_a_);
     else if (res["align-model"].as<std::string>() == "ProbCons")
       a_model_ = std::make_unique<ProbCons>(th_a_);
     else

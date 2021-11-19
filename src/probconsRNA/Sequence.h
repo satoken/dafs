@@ -3,9 +3,7 @@
 //
 // Class for reading/manipulating single sequence character data.
 /////////////////////////////////////////////////////////////////
-
-#ifndef SEQUENCE_H
-#define SEQUENCE_H
+#pragma once
 
 #include <string>
 #include <fstream>
@@ -15,7 +13,7 @@
 #include "SafeVector.h"
 #include "FileBuffer.h"
 
-namespace PROBCONS {
+namespace PROBCONS_RNA {
   /////////////////////////////////////////////////////////////////
   // Sequence
   //
@@ -414,4 +412,3 @@ namespace PROBCONS {
     }
   };
 }
-#endif

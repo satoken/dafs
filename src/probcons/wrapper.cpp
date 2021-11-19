@@ -8,7 +8,7 @@
 
 #include <iomanip>
 
-namespace PROBCONS_RNA {
+namespace PROBCONS {
 
   VF initDistrib (NumMatrixTypes);
   VF gapOpen (2*NumInsertStates);

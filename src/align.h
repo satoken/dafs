@@ -26,6 +26,7 @@
 #include "typedefs.h"
 #include "fa.h"
 #include "probconsRNA/probcons.h"
+#include "probcons/probcons.h"
 #include "contralign/contralign.h"
 #if 0
 #include "partalign/partalign.h"
@@ -64,6 +65,14 @@ namespace Align
     virtual float decode(const VVF& p, VU& al) const = 0;
   };
 }
+
+class ProbConsRNA : public Align::Model, PROBCONS_RNA::Probcons
+{
+public:
+  ProbConsRNA(float th);
+  ~ProbConsRNA() { }
+  void calculate(const std::string& seq1, const std::string& seq2, MP& mp);
+};
 
 class ProbCons : public Align::Model, PROBCONS::Probcons
 {

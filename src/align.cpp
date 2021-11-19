@@ -51,6 +51,33 @@ calculate(const std::vector<Fasta>& fa, std::vector<std::vector<MP> >& mp)
   }
 }
 
+ProbConsRNA::
+ProbConsRNA(float th)
+  : Align::Model(th), PROBCONS_RNA::Probcons()
+{
+}
+
+void
+ProbConsRNA::
+calculate(const std::string& seq1, const std::string& seq2, MP& mp)
+{
+  std::vector<float> posterior;
+  ComputePosterior(seq1, seq2, posterior, threshold());
+  const uint L1 = seq1.size();
+  const uint L2 = seq2.size();
+
+  mp.resize(L1);
+  for (uint i=0; i!=L1; ++i)
+  {
+    for (uint j=0; j!=L2; ++j)
+    {
+      const float& p=posterior[(L2+1)*(i+1)+(j+1)];
+      if (p>threshold())
+        mp[i].push_back(std::make_pair(j,p));
+    }
+  }
+}
+
 ProbCons::
 ProbCons(float th)
   : Align::Model(th), PROBCONS::Probcons()

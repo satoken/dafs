@@ -3,15 +3,13 @@
 //
 // Sparse matrix computations
 /////////////////////////////////////////////////////////////////
-
-#ifndef SPARSEMATRIX_H
-#define SPARSEMATRIX_H
+#pragma once
 
 #include <iostream>
 
 using namespace std;
 
-namespace PROBCONS {
+namespace PROBCONS_RNA {
 
   const float POSTERIOR_CUTOFF = 0.01;         // minimum posterior probability
   // value that is maintained in the
@@ -252,4 +250,3 @@ namespace PROBCONS {
 
   };
 }
-#endif

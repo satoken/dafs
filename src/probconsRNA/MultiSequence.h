@@ -4,8 +4,7 @@
 // Utilities for reading/writing multiple sequence data.
 /////////////////////////////////////////////////////////////////
 
-#ifndef MULTISEQUENCE_H
-#define MULTISEQUENCE_H
+#pragma once
 
 #include <cctype>
 #include <string>
@@ -18,7 +17,7 @@
 #include "Sequence.h"
 #include "FileBuffer.h"
 
-namespace PROBCONS {
+namespace PROBCONS_RNA {
   /////////////////////////////////////////////////////////////////
   // MultiSequence
   //
@@ -708,4 +707,3 @@ namespace PROBCONS {
     }
   };
 }
-#endif
