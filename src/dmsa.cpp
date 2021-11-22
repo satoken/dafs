@@ -20,10 +20,11 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include <cstdlib>
 #include <cstring>
 #include <cassert>
 #include <cmath>
-#include <unistd.h>
+//#include <unistd.h>
 #include <vector>
 #include <queue>
 #include <stack>
@@ -36,12 +37,8 @@
 #include <limits>
 #include <system_error>
 #include "fa.h"
-//#include "fold.h"
-//#include "nussinov.h"
-//#include "ipknot.h"
 #include "align.h"
 #include "needleman_wunsch.h"
-//#include "alifold.h"
 #include "ip.h"
 #include "typedefs.h"
 //#include "alignment_graph.h"
@@ -83,10 +80,8 @@ private:
   float calculate_alignment_score(const ALN &aln) const;
   void project_alignment(ALN &aln, const ALN &aln1, const ALN &aln2, const VU &z) const;
   void average_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2) const;
-  void sum_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2) const;
-  void sum_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2, const VVVU &z) const;
-  float align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
-  float align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z) const;
+  void sum_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2, const VVVU &z = VVVU()) const;
+  float align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z = VVVU()) const;
   float solve(VVVVF &p_z, VVVU &z) const
   {
 #if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
@@ -103,18 +98,19 @@ private:
   }
   float solve_by_dd(const VVVVF &p_z, VVVU &z) const;
   float solve_by_ip(const VVVVF &p_z, VVVU &z) const;
-  float align(ALN &aln, int ch) const;
-  float align(ALN &aln, int ch, const VVVU &z) const;
+  float align(ALN &aln, int ch, const VVVU &z = VVVU()) const;
   void unzip_mp(VVVVF &mp) const;
-  void refine(ALN &aln) const;
-  void refine(ALN &aln, const VVVU &z) const;
-  // void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
+  void refine(ALN &aln, const VVVU &z = VVVU()) const;
+  float refine(ALN &aln, uint n, const VVVU &z = VVVU()) const;
+  float refine(ALN &aln, float s, uint n, const VVVU &z = VVVU()) const;
   void output(std::ostream &os, const ALN &aln) const;
   void output(std::ostream &os, ALN::const_iterator b, ALN::const_iterator e) const;
 
 private:
   float w_pct_a_;                             // the weight of PCT for alignment matching probabilities
   uint n_refinement_;                         // the number of the iterative refinement
+  uint n_init_refinement_;                    // the number of the initial iterative refinement
+  uint n_last_refinement_;                    // the number of the last iterative refinement
   uint t_max_;                                // the maximum number of the iteration of the subgradient update
   float th_a_;                                // the threshold for alignment matching probabilities
   float eta0_;                                // the initial step width of the subgradient update
@@ -372,7 +368,7 @@ void DMSA::
 }
 
 void DMSA::
-    sum_matching_probability(VVF &sps, const ALN &aln1, const ALN &aln2) const
+    sum_matching_probability(VVF &sps, const ALN &aln1, const ALN &aln2, const VVVU &z /* = VVVU() */) const
 {
   const uint L1 = aln1.front().second.size();
   const uint L2 = aln2.front().second.size();
@@ -398,52 +394,7 @@ void DMSA::
             continue;
           if (jj == x->first)
           {
-            p[i][j] = std::max(th_a_, p[i][j]) + (x->second - th_a_); // p^{s1,s2}_{ii,jj}-th_a_
-            ++x;
-          }
-          ++jj;
-        }
-        ++ii;
-      }
-    }
-  }
-  for (uint i = 0; i != p.size(); ++i)
-    for (uint j = 0; j != p[i].size(); ++j)
-    {
-      if (p[i][j] <= CUTOFF)
-        p[i][j] = 0.0;
-    }
-  std::swap(sps, p);
-}
-
-void DMSA::
-    sum_matching_probability(VVF &sps, const ALN &aln1, const ALN &aln2, const VVVU &z) const
-{
-  const uint L1 = aln1.front().second.size();
-  const uint L2 = aln2.front().second.size();
-  const uint N1 = aln1.size();
-  const uint N2 = aln2.size();
-  VVF p(L1, VF(L2, std::numeric_limits<float>::lowest()));
-  for (const auto &[s1, v1] : aln1)
-  {
-    assert(L1 == v1.size());
-    for (const auto &[s2, v2] : aln2)
-    {
-      assert(L2 == v2.size());
-      const MP &m = mp_[s1][s2];
-      for (uint i = 0, ii = 0; i != L1; ++i)
-      {
-        if (!v1[i])
-          continue;
-        assert(ii < m.size());
-        auto x = m[ii].cbegin();
-        for (uint j = 0, jj = 0; j != L2 && x != m[ii].cend(); ++j)
-        {
-          if (!v2[j])
-            continue;
-          if (jj == x->first)
-          {
-            if (z[s1][s2][ii] == jj)
+            if (z.size() == 0 || z[s1][s2][ii] == jj)
               p[i][j] = std::max(th_a_, p[i][j]) + (x->second - th_a_); // p^{s1,s2}_{ii,jj}-th_a_
             ++x;
           }
@@ -463,12 +414,18 @@ void DMSA::
 }
 
 static float
-calculate_similarity_score(const MP &mp, uint L1, uint L2)
+calculate_similarity_score(const MP &mp, uint L1, uint L2, const VU &z = VU())
 {
   assert(mp.size() == L1);
 
-  VVF dp(L1 + 1, VF(L2 + 1, 0.0));
+  VVF dp(L1 + 1, VF(L2 + 1, std::numeric_limits<float>::lowest()));
   VVI tr(L1 + 1, VI(L2 + 1, 0));
+
+  for (uint i = 0; i != L1 + 1; ++i)
+    dp[i][0] = 0;
+  for (uint j = 0; j != L2 + 1; ++j)
+    dp[0][j] = 0;
+
   for (uint i = 1; i != L1 + 1; ++i)
   {
     uint j = 1;
@@ -485,8 +442,11 @@ calculate_similarity_score(const MP &mp, uint L1, uint L2)
         }
       }
 
-      dp[i][j] = dp[i - 1][j - 1] + jj->second;
-      tr[i][j] = tr[i - 1][j - 1] + 1;
+      if (z.size() == 0 || z[i - 1] == j - 1)
+      {
+        dp[i][j] = dp[i - 1][j - 1] + jj->second;
+        tr[i][j] = tr[i - 1][j - 1] + 1;
+      }
       if (dp[i][j] < dp[i][j - 1])
       {
         dp[i][j] = dp[i][j - 1];
@@ -613,49 +573,8 @@ void DMSA::
   }
 }
 
-#if 0
-void DMSA::
-    output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const
-{
-  ALN aln;
-  project_alignment(aln, aln1, aln2, z);
-  VU xx, yy;
-  project_secondary_structure(xx, yy, x, y, z);
-
-  std::string x_str, y_str;
-  s_decoder_->make_brackets(xx, x_str);
-  s_decoder_->make_brackets(yy, y_str);
-
-  output(std::cout, aln.begin(), aln.begin() + aln1.size());
-  std::cout << x_str << std::endl;
-
-  output(std::cout, aln.begin() + aln1.size(), aln.end());
-  std::cout << y_str << std::endl;
-
-  std::cout << std::endl;
-}
-#endif
-
 float DMSA::
-    align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const
-{
-  // calculate sum-of-pairs scores
-  VVF p_z;
-  sum_matching_probability(p_z, aln1, aln2);
-
-  // solve the problem
-  VU zz;
-  a_decoder_->initialize(p_z);
-  auto s = a_decoder_->decode(p_z, zz);
-
-  // build the result
-  project_alignment(aln, aln1, aln2, zz);
-
-  return s;
-}
-
-float DMSA::
-    align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z) const
+    align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2, const VVVU &z /* = VVVU() */) const
 {
   // calculate sum-of-pairs scores
   VVF p_z;
@@ -753,19 +672,16 @@ float DMSA::
 
     gm.add_clip(clips);
     gm.add_cycle(cycles);
-    auto [n_violated_clips, n_violated_cycles] = gm.update(phi, g, score, t);
+    auto [n_violated_clips, n_violated_cycles, eta] = gm.update(phi, g, score, t);
     auto violation_num = n_violated_clips + n_violated_cycles;
 
     spdlog::debug("T={}, new clips={}, new cycles={}, violated clips={}, violated cycles={}",
                   t, clips.size(), cycles.size(), n_violated_clips, n_violated_cycles);
 
-    // 4.get a solution from the alignment graph
-    if (violation_num == 0 || t == t_max_)
+    // 4. get a solution from the alignment graph
+    if (violation_num == 0 || t == t_max_ || eta < 1e-8)
     {
-      // all constraints are satisfied.
       z = g.get_all_edges();
-      // score = align(aln, tree_.size() - 1, z);
-      // aln = g.get_alignmentColumns(p_z);
       return score;
     }
   }
@@ -931,27 +847,7 @@ float DMSA::
 }
 
 float DMSA::
-    align(ALN &aln, int ch) const
-{
-  if (tree_[ch].second.first == -1u)
-  {
-    assert(tree_[ch].second.second == -1u);
-    aln.resize(1);
-    aln[0].first = ch;
-    aln[0].second = std::vector<bool>(fa_[ch].size(), true);
-    return 0.0;
-  }
-  else
-  {
-    ALN aln1, aln2;
-    auto s1 = align(aln1, tree_[ch].second.first);
-    auto s2 = align(aln2, tree_[ch].second.second);
-    return align_alignments(aln, aln1, aln2) + s1 + s2;
-  }
-}
-
-float DMSA::
-    align(ALN &aln, int ch, const VVVU &z) const
+    align(ALN &aln, int ch, const VVVU &z /* = VVVU() */) const
 {
   if (tree_[ch].second.first == -1u)
   {
@@ -1002,45 +898,7 @@ void DMSA::
 }
 
 void DMSA::
-    refine(ALN &aln) const
-{
-  VU group[2];
-  do
-  {
-    group[0].clear();
-    group[1].clear();
-    for (uint i = 0; i != aln.size(); ++i)
-      group[rand() % 2].push_back(i);
-  } while (group[0].empty() || group[1].empty());
-
-  ALN a[2];
-  for (uint i = 0; i != 2; ++i)
-  {
-    uint N = group[i].size();
-    a[i].resize(N);
-    uint L = aln[group[i][0]].second.size();
-    for (uint j = 0; j != N; ++j)
-      a[i][j].first = aln[group[i][j]].first;
-    for (uint k = 0; k != L; ++k)
-    {
-      bool gap = true;
-      for (uint j = 0; j != N; ++j)
-        gap &= !aln[group[i][j]].second[k];
-      if (!gap)
-      {
-        for (uint j = 0; j != N; ++j)
-          a[i][j].second.push_back(aln[group[i][j]].second[k]);
-      }
-    }
-  }
-
-  ALN r;
-  align_alignments(r, a[0], a[1]);
-  std::swap(r, aln);
-}
-
-void DMSA::
-    refine(ALN &aln, const VVVU &z) const
+    refine(ALN &aln, const VVVU &z /* = VVVU() */) const
 {
   VU group[2];
   do
@@ -1077,6 +935,35 @@ void DMSA::
   std::swap(r, aln);
 }
 
+float DMSA::
+    refine(ALN &aln, uint n, const VVVU &z /* = VVVU() */) const
+{
+  std::sort(std::begin(aln), std::end(aln));
+  return refine(aln, calculate_alignment_score(aln), n, z);
+}
+
+float DMSA::
+    refine(ALN &aln, float s, uint n, const VVVU &z /* = VVVU() */) const
+{
+  for (uint i = 0; i != n; ++i)
+  {
+    ALN aln_temp = aln;
+    float s_temp;
+
+    refine(aln_temp, z);
+    std::sort(aln_temp.begin(), aln_temp.end());
+    s_temp = calculate_alignment_score(aln_temp);
+    if (s_temp > s)
+    {
+      s = s_temp;
+      std::swap(aln, aln_temp);
+    }
+    spdlog::debug("iterative refinement: {}, s={}", i, s);
+  }
+  return s;
+}
+
+
 void DMSA::
     output(std::ostream &os, const ALN &aln) const
 {
@@ -1106,17 +993,24 @@ DMSA &
 DMSA::
     parse_options(int &argc, char **&argv)
 {
-  cxxopts::Options options(argv[0], "DAFS: dual decomposition for simultaneous aligning and folding RNA sequences.");
+  cxxopts::Options options(argv[0], "DMSA: dual decomposition for multiple sequence alignment.");
   options.add_options()
     ("h,help", "Print usage")
     ("input", "Input file", cxxopts::value<std::string>(), "FILE")
-    ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
+    ("init-refinement", "The number of iteration of the iterative refinment for lower bound computation",
+      cxxopts::value<int>()->default_value("0"), "N")
+    ("r,refinement", "The number of iteration of the iterative refinment after dual decomposition", 
+      cxxopts::value<int>()->default_value("0"), "N")
+    ("last-refinement", "The number of iteration of the iterative refinment for the last calculation", 
+      cxxopts::value<int>()->default_value("0"), "N")
     ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.25"))
-    ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
+    ("m,max-iter", "The maximum number of iteration of the subgradient optimization", 
+      cxxopts::value<int>()->default_value("600"), "T")
+    ("seed", "specify random seed (auto=0)", cxxopts::value<int>()->default_value("0"), "NUM")
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"));
 
   options.add_options("Aligning")
-    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, CONTRAlignRNA, ProbCons, ProbConsRNA)", 
+    ("a,align-model", "Alignment model for calcualating matching probablities (available models: CONTRAlign, CONTRAlignRNA, ProbCons, ProbConsRNA)", 
       cxxopts::value<std::string>()->default_value("ProbConsRNA"))
     ("p,align-pct", "Weight of PCT for matching probabilities", cxxopts::value<float>()->default_value("0.25"))
     ("u,align-th", "Threshold for matching probabilities", cxxopts::value<float>()->default_value("0.01"))
@@ -1135,8 +1029,14 @@ DMSA::
     }
     // general options
     n_refinement_ = res["refinement"].as<int>();
+    n_init_refinement_ = res["init-refinement"].as<int>();
+    n_last_refinement_ = res["last-refinement"].as<int>();
     eta0_ = res["eta"].as<float>();
     t_max_ = res["max-iter"].as<int>();
+    if (res.count("seed"))
+      srand(res["seed"].as<int>());
+    else
+      srand(time(nullptr));
     verbose_ = res["verbose"].as<int>();
     switch (verbose_)
     {
@@ -1174,9 +1074,11 @@ DMSA::
     // read sequences
     Fasta::load(fa_, res["input"].as<std::string>().c_str());
   }
-  catch (cxxopts::option_has_no_value_exception e)
+  catch (cxxopts::OptionException e)
   {
-    std::cout << options.help() << std::endl;
+    std::cout << e.what() << std::endl
+              << std::endl
+              << options.help() << std::endl;
     exit(0);
   }
 
@@ -1215,97 +1117,80 @@ int DMSA::
     relax_matching_probability();
 
   // calculate lower bound by progressive alignment
-  float lower_bound = 0.0;
-  if (true)
+  // compute the guide tree
+  build_tree();
+  std::ostringstream os;
+  print_tree(os, tree_.size() - 1);
+  spdlog::info("initial guide tree: {}", os.str());
+
+  // compute progressive alignments along with the guide tree
+  ALN aln;
+  align(aln, tree_.size() - 1);
+  std::sort(aln.begin(), aln.end());
+  float s = calculate_alignment_score(aln);
+  spdlog::info("progressive alignment score: {}", s);
+
+  // initial iterative refinement
+  if (n_init_refinement_ > 0)
   {
-    // compute the guide tree
-    build_tree();
-    std::ostringstream os;
-    print_tree(os, tree_.size() - 1);
-    spdlog::info("guide tree: {}", os.str());
-
-    // compute progressive alignments along with the guide tree
-    ALN aln;
-    float s = align(aln, tree_.size() - 1);
-    std::sort(aln.begin(), aln.end());
-
-    // iterative refinement
-    s = calculate_alignment_score(aln);
-    spdlog::info("progressive alignment score: {}", s);
-    for (uint i = 0; i != n_refinement_; ++i)
-    {
-      ALN aln_temp = aln;
-      float s_temp;
-
-      refine(aln_temp);
-      std::sort(aln_temp.begin(), aln_temp.end());
-      s_temp = calculate_alignment_score(aln_temp);
-      if (s_temp > s)
-      {
-        s = s_temp;
-        std::swap(aln, aln_temp);
-      }
-      spdlog::debug("iterative refinement: {}, s={}", i, s);
-      if (i == n_refinement_ -1)
-        spdlog::info("iterative refinement: {}", s);
-    }
-    lower_bound = s;
+    s = refine(aln, s, n_init_refinement_);
+    spdlog::info("initial iterative refinement: {}", s);
   }
-  lb_ = lower_bound;
+  lb_ = s;
+  
+  if (t_max_ == 0) // do not perform DMSA algorithm
+  {
+    // output the alignment
+    output(std::cout, aln);
+    return EXIT_SUCCESS;
+  }
 
   // compute multiple sequence alignment via dual decomposition
   VVVVF p_z;
   unzip_mp(p_z);
 
-  // solve alignment
+  // solve alignment by DMSA algorithm
   VVVU z;
-  ALN aln;
-  float s = solve(p_z, z);
-  auto score = align(aln, tree_.size() - 1, z);
+  solve(p_z, z);
+
+  // build guide tree for the solution
+  for (uint i = 0; i != N; ++i)
+  {
+    sim_[i][i] = 1.0;
+    for (uint j = i + 1; j != N; ++j)
+      sim_[i][j] = sim_[j][i] = calculate_similarity_score(mp_[i][j], fa_[i].size(), fa_[j].size(), z[i][j]);
+  }
+  build_tree();
+  {
+    std::ostringstream os;
+    print_tree(os, tree_.size() - 1);
+    spdlog::info("guide tree for solution: {}", os.str());
+  }
+
+  // solve unsatisfied constraints using the solution
+  align(aln, tree_.size() - 1, z);
   std::sort(aln.begin(), aln.end());
   s = calculate_alignment_score(aln);
-  spdlog::info("final alignment score: {}", s);
+  spdlog::info("alignment score: {}", s);
 
-  for (uint i = 0; i != n_refinement_; ++i)
+  if (n_refinement_ > 0) 
   {
-    ALN aln_temp = aln;
-    float s_temp;
-
-    refine(aln_temp, z);
-    std::sort(aln_temp.begin(), aln_temp.end());
-    s_temp = calculate_alignment_score(aln_temp);
-    if (s_temp > s)
-    {
-      s = s_temp;
-      std::swap(aln, aln_temp);
-    }
-    spdlog::debug("final iterative refinement: {}, s={}", i, s);
-    if (i == n_refinement_ - 1)
-      spdlog::info("final iterative refinement: {}", s);
+    s = refine(aln, s, n_refinement_, z);
+    spdlog::info("iterative refinement using solution: {}", s);
   }
 
-  for (uint i = 0; i != n_refinement_; ++i)
+  // last iterative refinement
+  if (n_last_refinement_ > 0)
   {
-    ALN aln_temp = aln;
-    float s_temp;
-
-    refine(aln_temp);
-    std::sort(aln_temp.begin(), aln_temp.end());
-    s_temp = calculate_alignment_score(aln_temp);
-    if (s_temp > s)
-    {
-      s = s_temp;
-      std::swap(aln, aln_temp);
-    }
-    spdlog::debug("final iterative refinement: {}, s={}", i, s);
-    if (i == n_refinement_ - 1)
-      spdlog::info("final iterative refinement: {}", s);
+    s = refine(aln, s, n_last_refinement_, z);
+    spdlog::info("final iterative refinement: {}", s);
   }
+
   // output the alignment
   //std::sort(aln.begin(), aln.end());
   output(std::cout, aln);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 int main(int argc, char *argv[])

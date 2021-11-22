@@ -23,60 +23,133 @@
 
 #include "gradient_method.h"
 
+void GradientMethod::
+    add_clip(const VVN &clips)
+{
+  for (const auto &clip : clips)
+  {
+    clips_.insert({clip, {0.0f, 0.0f, 0.0f}});
+  }
+}
 
-/////////////////////////////////////////////////////////////////
-// FOR DEBUG
-/////////////////////////////////////////////////////////////////
+void GradientMethod::
+    add_cycle(const VVE &cycles)
+{
+  for (const auto &cycle : cycles)
+  {
+    cycles_.insert({cycle, {0.0f, 0.0f, 0.0f}});
+  }
+}
 
-  /*
-  uint sl[] = {3,3,3};
-  VU seqlen2(sl, sl+3);
-  Align_Graph g(seqlen2);
-  
-  // graph_1 (non-DAG)
-  g.add_edge( node(0,0), node(1,0) );
-  g.add_edge( node(0,0), node(2,0) );
-  g.add_edge( node(1,0), node(2,0) );
-  
-  g.add_edge( node(0,1), node(1,1) );
-  g.add_edge( node(0,1), node(2,1) );
-  g.add_edge( node(1,1), node(2,2) );
+auto GradientMethod::
+    num_clips() const
+{
+  return clips_.size();
+}
 
-  g.add_edge( node(0,2), node(1,2) );  
-  g.add_edge( node(0,2), node(2,2) );
-  
-  
-  // graph_2 (DAG)
-  g.add_edge( node(0,0), node(1,0) );
-  g.add_edge( node(0,0), node(2,0) );
-  g.add_edge( node(1,0), node(2,0) );
-  
-  g.add_edge( node(0,1), node(1,1) );
-  g.add_edge( node(0,1), node(2,1) );
-  g.add_edge( node(1,1), node(2,1) );
+auto GradientMethod::num_cycles() const
+{
+  return cycles_.size();
+}
 
-  g.add_edge( node(0,2), node(1,2) );
-  g.add_edge( node(0,2), node(2,2) );
-  g.add_edge( node(1,2), node(2,2) );
-  */
+std::tuple<uint, uint, float>
+GradientMethod::
+    update(VVVVF &lambda, Align_Graph &g, float lr, uint t)
+{
+  float g2 = 0.0;
+  uint n_violated_clips = 0, n_violated_cycles = 0;
+  for (auto &[clip, vals] : clips_)
+  {
+    const node &inner = clip[0];
+    const node &outer_1 = clip[1];
+    const node &outer_2 = clip[2];
+    // calculate gradient
+    const bool z01 = g.isAdjacent(inner, outer_1);
+    const bool z02 = g.isAdjacent(inner, outer_2);
+    const bool z12 = g.isAdjacent(outer_1, outer_2);
+    const int grad = (1 - z01 - z02 + z12);
+    g2 += grad * grad;
+    if (grad < 0)
+      n_violated_clips++;
+  }
 
-  /*
-  // graph_3 (non-DAG)
-  uint sl[] = {1,1,4,2,2};
-  VU seqlen2(sl, sl+5);
-  Align_Graph g(seqlen2);
+  for (auto &[cycle, vals] : cycles_)
+  {
+    // calculate gradient
+    int grad = cycle.size() - 1;
+    for (const auto [n1, n2] : cycle)
+      grad -= g.isAdjacent(n1, n2);
+    g2 += grad * grad;
+    if (grad < 0)
+      n_violated_cycles++;
+  }
 
-  g.add_edge( node(0,0), node(1,0) );
-  g.add_edge( node(0,0), node(2,1) );
-  g.add_edge( node(0,0), node(3,0) );
-  g.add_edge( node(2,0), node(3,1) );
-  g.add_edge( node(2,0), node(4,1) );
-  g.add_edge( node(3,1), node(4,1) );
-  //g.add_edge( node(0,0), node(4,0) );
-  g.add_edge( node(1,0), node(2,3) );
-  */
-  
-  
-  /////////////////////////////////////////////////////////////////
-  // 
-  /////////////////////////////////////////////////////////////////
+  auto eta = eta_ * (lr - lb_) / g2;
+  spdlog::debug("LR={}, LB={}, eta={}", lr, lb_, eta);
+
+  std::set<VN> rm_clips;
+  for (auto &[clip, vals] : clips_)
+  {
+    const node &inner = clip[0];
+    const node &outer_1 = clip[1];
+    const node &outer_2 = clip[2];
+    // calculate gradient
+    const bool z01 = g.isAdjacent(inner, outer_1);
+    const bool z02 = g.isAdjacent(inner, outer_2);
+    const bool z12 = g.isAdjacent(outer_1, outer_2);
+    const int grad = (1 - z01 - z02 + z12);
+
+    // update lagmul
+    auto &[lagmul, state1, state2] = vals;
+    auto delta = eta * grad;
+    lagmul = std::max(0.0f, lagmul - delta);
+    // update lambda
+    tie(lambda, edge(inner, outer_1)) -= lagmul;
+    tie(lambda, edge(inner, outer_2)) -= lagmul;
+    tie(lambda, edge(outer_1, outer_2)) += lagmul;
+
+    if (lagmul == 0.0f)
+      rm_clips.insert(clip);
+  }
+  for (const auto clip : rm_clips)
+    clips_.erase(clip);
+
+  std::set<VE> rm_cycles;
+  for (auto &[cycle, vals] : cycles_)
+  {
+    // calculate gradient
+    int grad = cycle.size() - 1;
+    for (const auto [n1, n2] : cycle)
+      grad -= g.isAdjacent(n1, n2);
+    // update lagmul
+    auto &[lagmul, state1, state2] = vals;
+    auto delta = eta * grad;
+    lagmul = std::max(0.0f, lagmul - delta);
+
+    // update lambda
+    for (const auto &e : cycle)
+      tie(lambda, e) -= lagmul;
+
+    if (lagmul == 0.0)
+      rm_cycles.insert(cycle);
+  }
+  for (const auto &cycle : rm_cycles)
+    cycles_.erase(cycle);
+
+  return {n_violated_clips, n_violated_cycles, eta};
+}
+
+GradientMethod::
+    GradientMethod(float eta, float lb /*= 0.0*/)
+    : eta_(eta), lb_(lb)
+{
+}
+
+float &GradientMethod::
+    tie(VVVVF &lambda, const edge &e)
+{
+  const auto [n1, n2] = std::minmax(e.first, e.second);
+  const auto [k1, i1] = n1;
+  const auto [k2, i2] = n2;
+  return lambda[k1][k2][i1][i2];
+}
