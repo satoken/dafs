@@ -77,6 +77,8 @@ private:
   void relax_matching_probability();
   void build_tree();
   void print_tree(std::ostream &os, int i) const;
+  std::string print_tree(int i) const;
+  std::string print_tree() const { return print_tree(tree_.size() - 1); }
   float calculate_alignment_score(const ALN &aln) const;
   void project_alignment(ALN &aln, const ALN &aln1, const ALN &aln2, const VU &z) const;
   void average_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2) const;
@@ -317,6 +319,14 @@ void DMSA::
     print_tree(os, tree_[i].second.second);
     os << " ]";
   }
+}
+
+std::string DMSA::
+  print_tree(int i) const
+{
+  std::ostringstream os;
+  print_tree(os, i);
+  return os.str();
 }
 
 void DMSA::
@@ -1119,9 +1129,7 @@ int DMSA::
   // calculate lower bound by progressive alignment
   // compute the guide tree
   build_tree();
-  std::ostringstream os;
-  print_tree(os, tree_.size() - 1);
-  spdlog::info("initial guide tree: {}", os.str());
+  spdlog::info("initial guide tree: {}", print_tree());
 
   // compute progressive alignments along with the guide tree
   ALN aln;
@@ -1161,11 +1169,7 @@ int DMSA::
       sim_[i][j] = sim_[j][i] = calculate_similarity_score(mp_[i][j], fa_[i].size(), fa_[j].size(), z[i][j]);
   }
   build_tree();
-  {
-    std::ostringstream os;
-    print_tree(os, tree_.size() - 1);
-    spdlog::info("guide tree for solution: {}", os.str());
-  }
+  spdlog::info("guide tree for solution: {}", print_tree());
 
   // solve unsatisfied constraints using the solution
   align(aln, tree_.size() - 1, z);
