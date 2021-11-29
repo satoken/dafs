@@ -1,22 +1,20 @@
 # From ubuntu:18.04
-From debian:10
+From debian:11
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /workspaces
 
 # use the official package
-ADD https://www.tbi.univie.ac.at/RNA/download/debian/debian_10/viennarna_2.4.15-1_amd64.deb .
-ADD https://www.tbi.univie.ac.at/RNA/download/debian/debian_10/viennarna-dev_2.4.15-1_amd64.deb .
+# ADD https://www.tbi.univie.ac.at/RNA/download/debian/debian_10/viennarna_2.4.15-1_amd64.deb .
+# ADD https://www.tbi.univie.ac.at/RNA/download/debian/debian_10/viennarna-dev_2.4.15-1_amd64.deb .
 # ADD https://www.tbi.univie.ac.at/RNA/download/debian/debian_10/python3-rna_2.4.15-1_amd64.deb .
 
 RUN apt-get update \
     && apt-get -y install build-essential wget cmake \
-            libglpk-dev libgsl-dev libgmp-dev libltdl-dev libmpfr-dev pkg-config \
-    && apt-get -y install ./*.deb \
+            libglpk-dev libgsl-dev libgmp-dev pkg-config libboost-graph-dev \
     && apt-get autoremove -y \
     && apt-get clean -y \
-    && rm -f *.deb \
     && rm -rf /var/lib/apt/lists/*
 
 # build from the source
