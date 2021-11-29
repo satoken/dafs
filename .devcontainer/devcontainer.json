@@ -1,16 +1,17 @@
 // For format details, see https://aka.ms/vscode-remote/devcontainer.json or this file's README at:
-// https://github.com/microsoft/vscode-dev-containers/tree/v0.112.0/containers/cpp
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.195.0/containers/cpp
 {
-	"name": "DAFS development container",
-	"dockerFile": "Dockerfile",
-	//"image": "satoken/vsc-viennarna-dev:latest",
+	"name": "C++",
+	"build": {
+		"dockerfile": "Dockerfile",
+		// Update 'VARIANT' to pick an Debian / Ubuntu OS version: debian-11, debian-10, debian-9, ubuntu-21.04, ubuntu-20.04, ubuntu-18.04
+		// Use Debian 11, Debian 9, Ubuntu 18.04 or Ubuntu 21.04 on local arm64/Apple Silicon
+		"args": { "VARIANT": "debian-11" }
+	},
 	"runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"],
 
 	// Set *default* container specific settings.json values on container create.
-	"settings": { 
-		"terminal.integrated.shell.linux": "/bin/bash",
-		"C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-	},
+	"settings": {},
 
 	// Add the IDs of extensions you want installed when the container is created.
 	"extensions": [
@@ -24,8 +25,8 @@
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "gcc -v",
+	"postCreateCommand": "git submodule update --init --recursive",
 
-	// Uncomment to connect as a non-root user. See https://aka.ms/vscode-remote/containers/non-root.
+	// Comment out this line to run as root instead.
 	"remoteUser": "vscode"
-
 }
