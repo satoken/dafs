@@ -31,5 +31,5 @@ COPY . .
 RUN rm -rf build && mkdir build \
     && cd build \
     && cmake -DCMAKE_BUILD_TYPE=Release .. \
-    #&& cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXE_LINKER_FLAGS='-static' -DCMAKE_FIND_LIBRARY_SUFFIXES='.a' .. \ # static link
+    #&& cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXE_LINKER_FLAGS='-static' -DCMAKE_FIND_LIBRARY_SUFFIXES='.a' -DBUILD_SHARED_LIBRARIES=OFF .. \ # static link
     && make && make install

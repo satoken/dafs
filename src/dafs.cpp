@@ -1607,6 +1607,7 @@ parse_options(int& argc, char**& argv)
   cxxopts::Options options(argv[0], "DAFS: dual decomposition for simultaneous aligning and folding RNA sequences.");
   options.add_options()
     ("h,help", "Print usage")
+    ("version", "Print version")
     ("input", "Input file", cxxopts::value<std::string>(), "FILE")
     ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
     ("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
@@ -1647,6 +1648,11 @@ parse_options(int& argc, char**& argv)
     if (res.count("help"))
     {
       std::cout << options.help({"", "Aligning", "Folding"}) << std::endl;
+      exit(0);
+    }
+    if (res.count("version"))
+    {
+      std::cout << "DAFS version " << VERSION << std::endl;
       exit(0);
     }
     // general options

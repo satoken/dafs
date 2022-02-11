@@ -2,6 +2,11 @@ add_subdirectory(contrafold)
 add_subdirectory(probconsRNA)
 add_subdirectory(contralign)
 
+# for building a statically linked binary
+# set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
+# set(BUILD_SHARED_LIBRARIES OFF)
+# set(CMAKE_EXE_LINKER_FLAGS "-static")
+
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 add_definitions(-DPACKAGE="dafs")
 add_definitions(-DPACKAGE_VERSION="0.0.4")
