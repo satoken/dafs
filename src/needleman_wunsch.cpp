@@ -32,10 +32,19 @@ decode(const VVF& p, const VVF& q, VU& al) const
   const uint L1 = p.size();
   const uint L2 = p[0].size();
 
-  VVF dp(L1+1, VF(L2+1, 0.0));
+  VVF dp(L1+1, VF(L2+1, std::numeric_limits<float>::lowest()));
+  dp[0][0] = 0.0;
   VVC tr(L1+1, VC(L2+1, ' '));
-  for (uint i=1; i!=L1+1; ++i) tr[i][0] = 'X';
-  for (uint k=1; k!=L2+1; ++k) tr[0][k] = 'Y';
+  for (uint i=1; i!=L1+1; ++i)
+  {
+    dp[i][0] = 0.0;
+    tr[i][0] = 'X';
+  }
+  for (uint k=1; k!=L2+1; ++k)
+  {
+    dp[0][k] = 0.0;
+    tr[0][k] = 'Y';
+  }
 
   for (uint i=1; i!=L1+1; ++i)
   {
@@ -108,10 +117,19 @@ decode(const VVF& p, VU& al) const
   const uint L1 = p.size();
   const uint L2 = p[0].size();
 
-  VVF dp(L1+1, VF(L2+1, 0.0));
+  VVF dp(L1+1, VF(L2+1, std::numeric_limits<float>::lowest()));
+  dp[0][0] = 0.0;
   VVC tr(L1+1, VC(L2+1, ' '));
-  for (uint i=1; i!=L1+1; ++i) tr[i][0] = 'X';
-  for (uint k=1; k!=L2+1; ++k) tr[0][k] = 'Y';
+  for (uint i=1; i!=L1+1; ++i)
+  {
+    dp[i][0] = 0.0;
+    tr[i][0] = 'X';
+  }
+  for (uint k=1; k!=L2+1; ++k)
+  {
+    dp[0][k] = 0.0;
+    tr[0][k] = 'Y';
+  }
 
   for (uint i=1; i!=L1+1; ++i)
   {
@@ -241,10 +259,20 @@ decode(const VVF& p, const VVF& q, VU& al) const
   const uint L1 = p.size();
   const uint L2 = p[0].size();
 
-  VVF dp(L1+1, VF(L2+1, 0.0));
+  VVF dp(L1+1, VF(L2+1, std::numeric_limits<float>::lowest()));
+  dp[0][0] = 0.0;
   VVC tr(L1+1, VC(L2+1, ' '));
-  for (uint i=1; i!=L1+1; ++i) tr[i][0] = 'X';
-  for (uint k=1; k!=L2+1; ++k) tr[0][k] = 'Y';
+  for (uint i=1; i!=L1+1; ++i)
+  {
+    dp[i][0] = 0.0;
+    tr[i][0] = 'X';
+  }
+  for (uint k=1; k!=L2+1; ++k) 
+  {
+    dp[0][k] = 0.0;
+    tr[0][k] = 'Y';
+  }
+
   for (uint i=1; i!=L1+1; ++i)
   {
     for (uint k=env_[i].first; k<=env_[i].second; ++k)
@@ -316,10 +344,19 @@ decode(const VVF& p, VU& al) const
   const uint L1 = p.size();
   const uint L2 = p[0].size();
 
-  VVF dp(L1+1, VF(L2+1, 0.0));
+  VVF dp(L1+1, VF(L2+1, std::numeric_limits<float>::lowest()));
+  dp[0][0] = 0.0;
   VVC tr(L1+1, VC(L2+1, ' '));
-  for (uint i=1; i!=L1+1; ++i) tr[i][0] = 'X';
-  for (uint k=1; k!=L2+1; ++k) tr[0][k] = 'Y';
+  for (uint i=1; i!=L1+1; ++i)
+  {
+    dp[i][0] = 0.0;
+    tr[i][0] = 'X';
+  }
+  for (uint k=1; k!=L2+1; ++k)
+  {
+    dp[0][k] = 0.0;
+    tr[0][k] = 'Y';
+  }
   for (uint i=1; i!=L1+1; ++i)
   {
     for (uint k=env_[i].first; k<=env_[i].second; ++k)

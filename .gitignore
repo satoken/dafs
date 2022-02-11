@@ -10,3 +10,8 @@ INSTALL
 config.log
 config.status
 src/dafs
+.dirstamp
+CMakeCache.txt
+CMakeFiles
+cmake_install.cmake
+build

@@ -13,60 +13,44 @@ Requirements
 Install
 -------
 
-	./configure --with-vienna-rna=/path/to/vienna-rna
-	make
-	make install
+	export PKG_CONFIG_PATH=/path/to/viennarna/lib/pkgconfig:$PKG_CONFIG_PATH
+	mkdir build && cd build
+	cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build . 
+	cmake --install . # optional
 
 To use "--ipknot" option for pseudoknotted common secondary structure
 prediction, build DAFS with an IP solver.
 
-For GLPK,
-
-	./configure --with-vienna-rna=/path/to/vienna-rna --with-glpk
-
-For Gurobi, 
-
-	./configure --with-vienna-rna=/path/to/vienna-rna --with-gurobi=/path/to/gurobi
-
-For CPLEX,
-
-	./configure --with-vienna-rna=/path/to/vienna-rna --with-cplex \
-	            --with-cplex-include=/path/to/cplex/include \
-		        --with-cplex-lib=/path/to/cplex/lib
-
 Usage
 -----
-
-DAFS can take FASTA formatted RNA sequences as input, then produce a structural alignment.
-
-    Usage: dafs [OPTIONS]... [FILES]
+	DAFS: dual decomposition for simultaneous aligning and folding RNA sequences.
+	Usage:
+  	  dafs [OPTION...] FILE
+    	
+  	  -h, --help             Print usage
+  	  -w, --weight arg       Weight of the expected accuracy score for 
+                         	  secondary structures (default: 4.0)
+  	  -m, --max-iter T       The maximum number of iteration of the subgradient 
+                         	  optimization (default: 600)
+  	  -v, --verbose arg      The level of verbose outputs (default: 0)
     
-     -h, --help                Print help and exit
-         --full-help           Print help, including hidden options, and exit
-     -V, --version             Print version and exit
-     -w, --weight=FLOAT        Weight of the expected accuracy score for secondary 
-                                 structures  (default=`4.0')
-     -m, --max-iter=INT        The maximum number of iteration of the subgradient 
-                                 optimization  (default=`600')
-     -v, --verbose=INT         The level of verbose outputs  (default=`0')
-   
-    Options for alignments:
-     -a, --align-model=STRING  Alignment model for calcualating matching 
-                                 probablities  (possible values="CONTRAlign", 
-                                 "ProbCons" default=`ProbCons')
-     -u, --align-th=FLOAT      Threshold for matching probabilities  
-                                 (default=`0.01')
-   
-    Options for folding:
-     -s, --fold-model=STRING   Folding model for calculating base-pairing 
-                                 probablities  (possible values="Boltzmann", 
-                                 "Vienna", "CONTRAfold" default=`Boltzmann')
-     -t, --fold-th=FLOAT       Threshold for base-pairing probabilities  
-                                 (default=`0.2')
-     -T, --fold-th1=FLOAT      Threshold for base-pairing probabilities of the 
-                                 conclusive common secondary structures
-         --ipknot              Use IPknot decoding  (default=off)
-
+ 	  Aligning options:
+  	  -a, --align-model arg     Alignment model for calcualating matching 
+                            	  probablities (value=CONTRAlign, ProbCons) 
+                            	  (default: ProbCons)
+  	  -u, --align-th arg        Threshold for matching probabilities (default: 
+                            	  0.01)
+    
+ 	  Folding options:
+  	  -s, --fold-model arg     Folding model for calculating base-pairing 
+                           	  probablities (value=Boltzmann, Vienna, 
+                           	  CONTRAfold) (default: Boltzmann)
+  	  -t, --fold-th arg        Threshold for base-pairing probabilities 
+                           	  (default: 0.2)
+  	  -T, --fold-th1 arg       Threshold for base-pairing probabilities of the 
+                           	  conclusive common secondary structures
+      	  --ipknot             Set optimized parameters for IPknot decoding 
+                           	  (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)
 
 Example
 -------

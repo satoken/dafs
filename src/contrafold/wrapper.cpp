@@ -423,7 +423,7 @@ StochasticTraceback() const
 
 // instantiation
 template
-class CONTRAfold<float>;
+class CONTRAFOLD::CONTRAfold<float>;
 
 template
-class CONTRAfoldM<float>;
+class CONTRAFOLD::CONTRAfoldM<float>;
