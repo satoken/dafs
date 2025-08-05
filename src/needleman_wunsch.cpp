@@ -24,6 +24,7 @@
 #include "needleman_wunsch.h"
 #include <cassert>
 #include <algorithm>
+#include <limits>
 
 float
 NeedlemanWunsch::
