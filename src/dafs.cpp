@@ -41,6 +41,7 @@
 #include "alifold.h"
 #include "ip.h"
 #include "typedefs.h"
+#include "gradient_manager.h"
 
 namespace Vienna
 {
@@ -73,8 +74,6 @@ class DAFS
 private:
   // nodes in the guide tree
   typedef std::pair<float, std::pair<uint, uint>> node_t;
-  // indices for consensus base pairs
-  typedef std::pair<std::pair<uint, uint>, std::pair<uint, uint>> CBP;
 
 public:
   DAFS()
@@ -980,29 +979,6 @@ float DAFS::
 #endif
 }
 
-#ifdef ADAGRAD
-float adagrad_update(float &g2, const float g, const float eta0)
-{
-  const float eps = 1e-6;
-  g2 += g * g;
-  return eta0 * g / std::sqrt(g2 + eps);
-}
-#endif
-
-#ifdef ADAM
-float adam_update(int t, float &m, float &v, const float g, float alpha = 0.1)
-{
-  const float beta1 = 0.9;
-  const float beta2 = 0.999;
-  const float eps = 1e-8;
-  m = beta1 * m + (1 - beta1) * g;
-  v = beta2 * v + (1 - beta2) * g * g;
-  const float m_hat = m / (1 - std::pow(beta1, t));
-  const float v_hat = v / (1 - std::pow(beta2, t));
-  return alpha * m_hat / (std::sqrt(v_hat) + eps);
-}
-#endif
-
 float DAFS::
     solve_by_dd(VU &x, VU &y, VU &z,
                 const VVF &p_x, const VVF &p_y, const VVF &p_z,
@@ -1016,9 +992,7 @@ float DAFS::
   // enumerate the candidates of consensus base-pairs
   std::vector<CBP> cbp; // consensus base-pairs
   float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
-#ifdef SPARSE_UPDATE
   VVU c_x(L1), c_y(L2), c_z(L1); // project consensus base-pairs into each structure and alignment
-#endif
   for (uint i = 0; i != L1 - 1; ++i)
     for (uint j = i + 1; j != L1; ++j)
       if (p_x[i][j] > CUTOFF)
@@ -1034,15 +1008,12 @@ float DAFS::
                 if (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0)
                 {
                   cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
-#ifdef SPARSE_UPDATE
                   c_x[i].push_back(j);
                   c_y[k].push_back(l);
                   c_z[i].push_back(k);
                   c_z[j].push_back(l);
-#endif
                 }
               }
-#ifdef SPARSE_UPDATE
   for (uint i = 0; i != c_x.size(); ++i)
   {
     std::sort(c_x[i].begin(), c_x[i].end());
@@ -1058,34 +1029,29 @@ float DAFS::
     std::sort(c_z[i].begin(), c_z[i].end());
     c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
   }
-#endif
 
   // precalculate the range for alignment, i.e. alignment envelope
   a_decoder_->initialize(p_z);
 
-  // multipliers
-  VVF q_x(L1, VF(L1, 0.0));
-  VVF q_y(L2, VF(L2, 0.0));
-  VVF q_z(L1, VF(L2, 0.0));
-
-  //uint c=0;
-  float c = 0.0;
+  // Initialize gradient manager
+  GradientManager::Method method = GradientManager::STANDARD;
 #if defined ADAGRAD
-  VVF g_x(L1, VF(L1, 0.0));
-  VVF g_y(L2, VF(L2, 0.0));
-  VVF g_z(L1, VF(L2, 0.0));
+  method = GradientManager::ADAGRAD;
 #elif defined ADAM
-  VVF m_x(L1, VF(L1, 0.0)), v_x(L1, VF(L1, 0.0));
-  VVF m_y(L2, VF(L2, 0.0)), v_y(L2, VF(L2, 0.0));
-  VVF m_z(L1, VF(L2, 0.0)), v_z(L1, VF(L2, 0.0));
-#else
-  float eta = eta0_;
+  method = GradientManager::ADAM;
 #endif
+  GradientManager gm(method, eta0_);
+  gm.initialize(L1, L2);
+  
   float s_prev = 0.0;
   uint violated = 0;
   uint t;
   for (t = 0; t != t_max_; ++t)
   {
+    // Get current multipliers from gradient manager
+    VVF q_x, q_y, q_z;
+    gm.get_multipliers(q_x, q_y, q_z);
+    
     // solve the subproblems
     float s = 0.0;
     s += s_decoder_->decode(w_ * 2 * N1 / (N1 + N2), p_x, q_x, x);
@@ -1095,198 +1061,26 @@ float DAFS::
     if (verbose_ >= 2)
       output_verbose(x, y, z, aln1, aln2);
 
-    // update the multipliers
-    violated = 0;
-    VVI t_x(L1, VI(L1, 0));
-    VVI t_y(L2, VI(L2, 0));
-    VVI t_z(L1, VI(L2, 0));
+    // Calculate Lagrangian value
     for (uint u = 0; u != cbp.size(); ++u)
     {
       const uint i = cbp[u].first.first, j = cbp[u].first.second;
       const uint k = cbp[u].second.first, l = cbp[u].second.second;
       const float s_w = q_x[i][j] + q_y[k][l] - q_z[i][k] - q_z[j][l];
-      const int w_ijkl = s_w > 0.0f ? 1 : 0;
-      if (w_ijkl)
+      if (s_w > 0.0f)
       {
-        s += s_w;    /* * w_ijkl*/
-        t_x[i][j]++; // += w_ijkl;
-        t_y[k][l]++; // += w_ijkl;
-        t_z[i][k]++; // += w_ijkl;
-        t_z[j][l]++; // += w_ijkl;
+        s += s_w;
       }
     }
 
-    // update Lagrangian for x (=q_x)
-#ifdef SPARSE_UPDATE // efficient implementation using sparsity
-    for (uint i = 0; i != L1; ++i)
-    {
-      const uint j = x[i];
-      if (j != -1u && t_x[i][j] != 1)
-      {
-        violated++;
-#if defined ADAGRAD
-        q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j] - 1, eta0_);
-#elif defined ADAM
-        q_x[i][j] -= adam_update(t + 1, m_x[i][j], v_x[i][j], t_x[i][j] - 1, eta0_);
-#else
-        q_x[i][j] -= eta * (t_x[i][j] - 1);
-#endif
-      }
-      for (uint jj = 0; jj != c_x[i].size(); ++jj)
-      {
-        const uint j = c_x[i][jj];
-        if (x[i] != j && t_x[i][j] != 0)
-        {
-          violated++;
-#if defined ADAGRAD
-          q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j], eta0_);
-#elif defined ADAM
-          q_x[i][j] -= adam_update(t + 1, m_x[i][j], v_x[i][j], t_x[i][j], eta0_);
-#else
-          q_x[i][j] -= eta * t_x[i][j];
-#endif
-        }
-      }
-    }
-#else // naive implementation
-    for (uint i = 0; i != L1 - 1; ++i)
-      for (uint j = i + 1; j != L1; ++j)
-      {
-        const int x_ij = x[i] == j ? 1 : 0;
-        if (t_x[i][j] - x_ij != 0)
-        {
-          violated++;
-#if defined ADAGRAD
-          q_x[i][j] -= adagrad_update(g_x[i][j], t_x[i][j] - x_ij, eta0_);
-#elif defined ADAM
-          q_x[i][j] -= adam_update(t + 1, m_x[i][j], v_x[i][j], t_x[i][j] - x_ij, eta0_);
-#else
-          q_x[i][j] -= eta * (t_x[i][j] - x_ij);
-#endif
-        }
-      }
-#endif
+    // Update gradients using GradientManager
+    violated = gm.update_gradients(cbp, x, y, z, c_x, c_y, c_z, t, s, s_prev);
 
-    // update Lagrangian for y (=q_y)
-#ifdef SPARSE_UPDATE
-    for (uint k = 0; k != L2; ++k)
-    {
-      const uint l = y[k];
-      if (l != -1u && t_y[k][l] != 1)
-      {
-        violated++;
-#if defined ADAGRAD
-        q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l] - 1, eta0_);
-#elif defined ADAM
-        q_y[k][l] -= adam_update(t + 1, m_y[k][l], v_y[k][l], t_y[k][l] - 1, eta0_);
-#else
-        q_y[k][l] -= eta * (t_y[k][l] - 1);
-#endif
-      }
-      for (uint ll = 0; ll != c_y[k].size(); ++ll)
-      {
-        const uint l = c_y[k][ll];
-        if (y[k] != l && t_y[k][l] != 0)
-        {
-          violated++;
-#if defined ADAGRAD
-          q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l], eta0_);
-#elif defined ADAM
-          q_y[k][l] -= adam_update(t + 1, m_y[k][l], v_y[k][l], t_y[k][l], eta0_);
-#else
-          q_y[k][l] -= eta * t_y[k][l];
-#endif
-        }
-      }
-    }
-#else // naive implementation
-    for (uint k = 0; k != L2 - 1; ++k)
-      for (uint l = k + 1; l != L2; ++l)
-      {
-        const int y_kl = y[k] == l ? 1 : 0;
-        if (t_y[k][l] - y_kl != 0)
-        {
-          violated++;
-#if defined ADAGRAD
-          q_y[k][l] -= adagrad_update(g_y[k][l], t_y[k][l] - y_kl, eta0_);
-#elif defined ADAM
-          q_y[k][l] -= adam_update(t + 1, m_y[k][l], v_y[k][l], t_y[k][l] - y_kl, eta0_);
-#else
-          q_y[k][l] -= eta * (t_y[k][l] - y_kl);
-#endif
-        }
-      }
-#endif
-
-    // update Lagrangian for z (=q_z)
-#ifdef SPARSE_UPDATE
-    for (uint i = 0; i != L1; ++i)
-    {
-      const uint k = z[i];
-      if (k != -1u) // z_ik==1
-      {
-        if (t_z[i][k] > 1)
-          violated++;
-#if defined ADAGRAD
-        q_z[i][k] = std::max(0.0f, q_z[i][k] - adagrad_update(g_z[i][k], 1 - t_z[i][k], eta0_));
-#elif defined ADAM
-        q_z[i][k] = std::max(0.0f, q_z[i][k] - adam_update(t + 1, m_z[i][k], v_z[i][k], 1 - t_z[i][k], eta0_));
-#else
-        q_z[i][k] = std::max(0.0f, q_z[i][k] - eta * (1 - t_z[i][k]));
-#endif
-      }
-      for (uint kk = 0; kk != c_z[i].size(); ++kk)
-      {
-        const uint k = c_z[i][kk];
-        if (z[i] != k) // z_ik==0
-        {
-          if (t_z[i][k] > 0)
-            violated++;
-#if defined ADAGRAD
-          q_z[i][k] = std::max(0.0f, q_z[i][k] - adagrad_update(g_z[i][k], -t_z[i][k], eta0_));
-#elif defined ADAM
-          q_z[i][k] = std::max(0.0f, q_z[i][k] - adam_update(t + 1, m_z[i][k], v_z[i][k], -t_z[i][k], eta0_));
-#else
-          q_z[i][k] = std::max(0.0f, q_z[i][k] + eta * t_z[i][k]);
-#endif
-        }
-      }
-    }
-#else // naive implementation
-    for (uint i = 0; i != L1; ++i)
-      for (uint k = 0; k != L2; ++k)
-      {
-        const int z_ik = z[i] == k ? 1 : 0;
-        if (z_ik - t_z[i][k] < 0)
-          violated++;
-#if defined ADAGRAD
-        q_z[i][k] = std::max(0.0f, q_z[i][k] - adagrad_update(g_z[i][k], z_ik - t_z[i][k], eta0_));
-#elif defined ADAM
-        q_z[i][k] = std::max(0.0f, q_z[i][k] - adam_update(t + 1, m_z[i][k], v_z[i][k], z_ik - t_z[i][k], eta0_));
-#else
-        q_z[i][k] = std::max(0.0f, q_z[i][k] - eta * (z_ik - t_z[i][k]));
-#endif
-      }
-#endif
-
-#if !defined ADAGRAD && !defined ADAM
-    spdlog::debug("Step: {}, eta: {}, L: {}, Violated: {}", t, eta, s, violated);
-#else
-    spdlog::debug("Step: {}, L: {}, Violated: {}", t, s, violated);
-#endif
+    spdlog::debug("Step: {}, eta: {}, L: {}, Violated: {}", t, gm.get_step_size(), s, violated);
 
     if (violated == 0)
       break; // all constraints were satisfied.
 
-      // update the step width
-#if !defined ADAGRAD && !defined ADAM
-    if (s > s_prev || t == 0)
-    {
-      c += std::max(0.0f, 4.0f * cbp.size() - violated) / (4.0 * cbp.size());
-      //eta = eta0_/(1.0+sqrt(c));
-      eta = eta0_ / (1.0 + c);
-    }
-#endif
     s_prev = s;
   }
   spdlog::info("Step: {}, Violated: {}", t, violated);

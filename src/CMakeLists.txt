@@ -47,7 +47,7 @@ endif()
 add_executable(
     dafs
     alifold.cpp align.cpp boltzmann_param.c dafs.cpp fa.cpp fold.cpp
-    ip.cpp ipknot.cpp needleman_wunsch.cpp nussinov.cpp tree.cpp
+    gradient_manager.cpp ip.cpp ipknot.cpp needleman_wunsch.cpp nussinov.cpp tree.cpp
 )
 target_link_libraries(dafs contrafold probcons contralign
   ${VIENNARNA_LDFLAGS} ${GLPK_LIBRARY} ${ZLIB_LIBRARY} ${GMP_LIBRARY} ${DL_LIBRARY} ${LTDL_LIBRARY} ${MPFR_LIBRARY}
