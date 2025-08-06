@@ -66,8 +66,6 @@ namespace Vienna
 #define CUTOFF 0.01
 
 #define SPARSE_UPDATE
-//#define ADAGRAD
-//#define ADAM
 
 class DAFS
 {
@@ -103,6 +101,7 @@ private:
                                       const ALN &aln, bool use_alifold) const;
   void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
   float align_alignments(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const;
+  float calculate_alignment_only_score(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const;
   float solve(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
               const ALN &aln1, const ALN &aln2) const
   {
@@ -980,6 +979,45 @@ float DAFS::
 }
 
 float DAFS::
+    calculate_alignment_only_score(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const
+{
+  // 1. Use alignment decoder only with zero Lagrange multipliers
+  VVF p_z;
+  average_matching_probability(p_z, aln1, aln2);
+  
+  // Initialize alignment decoder
+  a_decoder_->initialize(p_z);
+  
+  // Use zero Lagrange multipliers for alignment-only decoding
+  VVF q_z_zero(p_z.size(), VF(p_z.size() > 0 ? p_z[0].size() : 0, 0.0));
+  
+  VU z;
+  float alignment_score = a_decoder_->decode(p_z, q_z_zero, z);
+  
+  // Build the combined alignment from the decoded alignment
+  project_alignment(aln, aln1, aln2, z);
+  
+  // 2. Compute common secondary structure like the final step in run method
+  VVF p;
+  average_basepairing_probability(p, aln, false /*use_alifold1_*/);
+#if 0 
+  if (use_bp_update1_ && s_decoder1_)
+  {
+    std::string str;
+    VU ss_temp;
+    s_decoder1_->decode(p, ss_temp, str);
+    update_basepairing_probability(p, ss_temp, str, aln, use_alifold1_);
+  }
+#endif
+  std::string str;
+  float structure_score = w_ * 2 * s_decoder_->decode(p, ss, str);
+
+  // Return total score (alignment + secondary structure)
+  spdlog::info("Initial lower bound for adaptive method: {} (={}+{})", alignment_score + structure_score, alignment_score, structure_score);
+  return alignment_score + structure_score;
+}
+
+float DAFS::
     solve_by_dd(VU &x, VU &y, VU &z,
                 const VVF &p_x, const VVF &p_y, const VVF &p_z,
                 const ALN &aln1, const ALN &aln2) const
@@ -1039,9 +1077,21 @@ float DAFS::
   method = GradientManager::ADAGRAD;
 #elif defined ADAM
   method = GradientManager::ADAM;
+#elif defined USE_ADAPTIVE
+  method = GradientManager::ADAPTIVE;
 #endif
   GradientManager gm(method, eta0_);
   gm.initialize(L1, L2);
+  
+  // Calculate lower bound from alignment-only score for adaptive method
+  if (method == GradientManager::ADAPTIVE) {
+    // Calculate lower bound using alignment-only method with common secondary structure
+    VU ss_lb;
+    ALN aln_lb;
+    float lb = calculate_alignment_only_score(ss_lb, aln_lb, aln1, aln2);
+    
+    gm.set_lower_bound(lb);
+  }
   
   float s_prev = 0.0;
   uint violated = 0;
@@ -1083,7 +1133,7 @@ float DAFS::
 
     s_prev = s;
   }
-  spdlog::info("Step: {}, Violated: {}", t, violated);
+  spdlog::info("Step: {}, L: {}, Violated: {}", t, s_prev, violated);
 
   return s_prev;
 }

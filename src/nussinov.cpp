@@ -206,6 +206,25 @@ make_brackets(const VU& ss, std::string& str) const
 
 float
 SparseNussinov::
+score(float w, const VVF& p, const VVF& q, const VU& ss)
+{
+  uint L=p.size();
+  assert(p[0].size()==L);
+  float score = 0.0;
+  
+  for (uint i=0; i!=L; ++i)
+  {
+    if (ss[i] != -1u)
+    {
+      score += w * (p[i][ss[i]] - th_) - q[i][ss[i]];
+    }
+  }
+
+  return score;
+}
+
+float
+SparseNussinov::
 decode(float w, const VVF& p, const VVF& q, VU& ss)
 {
   uint L=p.size();

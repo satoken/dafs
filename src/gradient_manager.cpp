@@ -21,6 +21,10 @@
 #include <algorithm>
 #include <cassert>
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/basic_file_sink.h"
+#include "spdlog/stopwatch.h"
+
 GradientManager::GradientManager(Method method, float eta0, float lb)
     : method_(method), eta0_(eta0), lb_(lb), current_eta_(eta0), 
       violations_(0), step_count_(0.0)
@@ -35,19 +39,18 @@ void GradientManager::initialize(uint L1, uint L2)
     q_z_.assign(L1, VF(L2, 0.0));
     
     // Initialize gradient history for adaptive methods
-    if (method_ == ADAGRAD) {
-        g2_x_.assign(L1, VF(L1, 0.0));
-        g2_y_.assign(L2, VF(L2, 0.0));
-        g2_z_.assign(L1, VF(L2, 0.0));
-    }
-    else if (method_ == ADAM) {
-        m_x_.assign(L1, VF(L1, 0.0));
-        v_x_.assign(L1, VF(L1, 0.0));
-        m_y_.assign(L2, VF(L2, 0.0));
-        v_y_.assign(L2, VF(L2, 0.0));
-        m_z_.assign(L1, VF(L2, 0.0));
-        v_z_.assign(L1, VF(L2, 0.0));
-    }
+#if defined(USE_ADAGRAD)
+    g2_x_.assign(L1, VF(L1, 0.0));
+    g2_y_.assign(L2, VF(L2, 0.0));
+    g2_z_.assign(L1, VF(L2, 0.0));
+#elif defined(USE_ADAM)
+    m_x_.assign(L1, VF(L1, 0.0));
+    v_x_.assign(L1, VF(L1, 0.0));
+    m_y_.assign(L2, VF(L2, 0.0));
+    v_y_.assign(L2, VF(L2, 0.0));
+    m_z_.assign(L1, VF(L2, 0.0));
+    v_z_.assign(L1, VF(L2, 0.0));
+#endif
 }
 
 void GradientManager::set_multipliers(const VVF& q_x, const VVF& q_y, const VVF& q_z)
@@ -64,13 +67,16 @@ void GradientManager::get_multipliers(VVF& q_x, VVF& q_y, VVF& q_z) const
     q_z = q_z_;
 }
 
+#if defined(USE_ADAGRAD)
 float GradientManager::adagrad_update(float& g2, float grad)
 {
     const float eps = 1e-6;
     g2 += grad * grad;
     return eta0_ * grad / std::sqrt(g2 + eps);
 }
+#endif
 
+#if defined(USE_ADAM)
 float GradientManager::adam_update(float& m, float& v, float grad, uint t)
 {
     const float beta1 = 0.9;
@@ -85,16 +91,7 @@ float GradientManager::adam_update(float& m, float& v, float grad, uint t)
     
     return eta0_ * m_hat / (std::sqrt(v_hat) + eps);
 }
-
-void GradientManager::update_standard_stepsize(float score, float prev_score, uint cbp_size, uint t)
-{
-    if (score > prev_score || t == 0) {
-        if (cbp_size > 0) {
-            step_count_ += std::max(0.0f, 4.0f * cbp_size - violations_) / (4.0f * cbp_size);
-            current_eta_ = eta0_ / (1.0 + step_count_);
-        }
-    }
-}
+#endif
 
 uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
                                       const VU& x, const VU& y, const VU& z,
@@ -107,62 +104,101 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
     // Reset violation count
     violations_ = 0;
     
-    // Compute constraint violations and gradients
+    // Compute constraint violations once
     VVI t_x(L1, VI(L1, 0));
     VVI t_y(L2, VI(L2, 0));
     VVI t_z(L1, VI(L2, 0));
     
     // Check consensus base-pair constraints
-    for (uint u = 0; u != cbp.size(); ++u) {
-        const uint i = cbp[u].first.first, j = cbp[u].first.second;
-        const uint k = cbp[u].second.first, l = cbp[u].second.second;
+    for (const auto &[cbp_ij, cbp_kl]: cbp) {
+        const auto &[i, j] = cbp_ij;
+        const auto &[k, l] = cbp_kl;
         const float s_w = q_x_[i][j] + q_y_[k][l] - q_z_[i][k] - q_z_[j][l];
         
-        if (s_w > 0.0f) {
+        if (s_w > 0.0f) { // w_ijkl=1
             t_x[i][j]++;
             t_y[k][l]++;
             t_z[i][k]++;
             t_z[j][l]++;
         }
     }
+   
+    // calculate sum of squares of gradients
+    float g2 = 0.0;
+    for (uint i = 0; i != L1; ++i) {
+        const uint j = x[i];
+        if (j != -1u && t_x[i][j] != 1) {
+            float grad = t_x[i][j] - 1; // x_ij=1
+            g2 += grad * grad;
+        }
+        
+        for (auto j: c_x[i]) {
+            if (x[i] != j && t_x[i][j] != 0) {
+                float grad = t_x[i][j]; // x_ij=0
+                g2 += grad * grad;
+            }
+        }
+    }
     
+    for (uint k = 0; k != L2; ++k) {
+        const uint l = y[k];
+        if (l != -1u && t_y[k][l] != 1) {
+            float grad = t_y[k][l] - 1; // y_kl=1
+            g2 += grad * grad;
+        }
+        
+        for (auto l: c_y[k]) {
+            if (y[k] != l && t_y[k][l] != 0) {
+                float grad = t_y[k][l]; // y_kl=0
+                g2 += grad * grad;
+            }
+        }
+    }
+    
+    for (uint i = 0; i != L1; ++i) {
+        const uint k = z[i];
+        if (k != -1u) {
+            float grad = 1 - t_z[i][k]; // z_ik=1
+            g2 += grad * grad;
+        }
+        
+        for (auto k: c_z[i]) {
+            if (z[i] != k) {
+                float grad = -t_z[i][k]; // z_ik=0
+                g2 += grad * grad;
+            }
+        }
+    }
+    float eta = current_eta_;
+    eta *= (score - lb_) / std::sqrt(g2 + 1e-6f);
+    // spdlog::debug("eta: {}, g^2: {}, score: {}, lb_: {}", eta, g2, score, lb_);
+
     // Update Lagrangian for x (=q_x) using sparse update
     for (uint i = 0; i != L1; ++i) {
         const uint j = x[i];
         if (j != -1u && t_x[i][j] != 1) {
             violations_++;
-            float grad = t_x[i][j] - 1;
-            
-            switch (method_) {
-                case ADAGRAD:
-                    q_x_[i][j] -= adagrad_update(g2_x_[i][j], grad);
-                    break;
-                case ADAM:
-                    q_x_[i][j] -= adam_update(m_x_[i][j], v_x_[i][j], grad, t + 1);
-                    break;
-                case STANDARD:
-                    q_x_[i][j] -= current_eta_ * grad;
-                    break;
-            }
+            float grad = t_x[i][j] - 1; // x_ij=1
+#if defined(USE_ADAGRAD)            
+            q_x_[i][j] -= adagrad_update(g2_x_[i][j], grad);
+#elif defined(USE_ADAM)
+            q_x_[i][j] -= adam_update(m_x_[i][j], v_x_[i][j], grad, t + 1);
+#else
+            q_x_[i][j] -= eta * grad;
+#endif
         }
         
-        for (uint jj = 0; jj != c_x[i].size(); ++jj) {
-            const uint j = c_x[i][jj];
+        for (auto j: c_x[i]) {
             if (x[i] != j && t_x[i][j] != 0) {
                 violations_++;
-                float grad = t_x[i][j];
-                
-                switch (method_) {
-                    case ADAGRAD:
-                        q_x_[i][j] -= adagrad_update(g2_x_[i][j], grad);
-                        break;
-                    case ADAM:
-                        q_x_[i][j] -= adam_update(m_x_[i][j], v_x_[i][j], grad, t + 1);
-                        break;
-                    case STANDARD:
-                        q_x_[i][j] -= current_eta_ * grad;
-                        break;
-                }
+                float grad = t_x[i][j]; // x_ij=0
+#if defined(USE_ADAGRAD)                
+                q_x_[i][j] -= adagrad_update(g2_x_[i][j], grad);
+#elif defined(USE_ADAM)
+                q_x_[i][j] -= adam_update(m_x_[i][j], v_x_[i][j], grad, t + 1);
+#else
+                q_x_[i][j] -= eta * grad;
+#endif
             }
         }
     }
@@ -172,38 +208,27 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
         const uint l = y[k];
         if (l != -1u && t_y[k][l] != 1) {
             violations_++;
-            float grad = t_y[k][l] - 1;
-            
-            switch (method_) {
-                case ADAGRAD:
-                    q_y_[k][l] -= adagrad_update(g2_y_[k][l], grad);
-                    break;
-                case ADAM:
-                    q_y_[k][l] -= adam_update(m_y_[k][l], v_y_[k][l], grad, t + 1);
-                    break;
-                case STANDARD:
-                    q_y_[k][l] -= current_eta_ * grad;
-                    break;
-            }
+            float grad = t_y[k][l] - 1; // y_kl=1
+#if defined(USE_ADAGRAD)            
+            q_y_[k][l] -= adagrad_update(g2_y_[k][l], grad);
+#elif defined(USE_ADAM)
+            q_y_[k][l] -= adam_update(m_y_[k][l], v_y_[k][l], grad, t + 1);
+#else
+            q_y_[k][l] -= eta * grad;
+#endif
         }
         
-        for (uint ll = 0; ll != c_y[k].size(); ++ll) {
-            const uint l = c_y[k][ll];
+        for (auto l: c_y[k]) {
             if (y[k] != l && t_y[k][l] != 0) {
                 violations_++;
-                float grad = t_y[k][l];
-                
-                switch (method_) {
-                    case ADAGRAD:
-                        q_y_[k][l] -= adagrad_update(g2_y_[k][l], grad);
-                        break;
-                    case ADAM:
-                        q_y_[k][l] -= adam_update(m_y_[k][l], v_y_[k][l], grad, t + 1);
-                        break;
-                    case STANDARD:
-                        q_y_[k][l] -= current_eta_ * grad;
-                        break;
-                }
+                float grad = t_y[k][l]; // y_kl=0
+#if defined(USE_ADAGRAD)                
+                q_y_[k][l] -= adagrad_update(g2_y_[k][l], grad);
+#elif defined(USE_ADAM)
+                q_y_[k][l] -= adam_update(m_y_[k][l], v_y_[k][l], grad, t + 1);
+#else
+                q_y_[k][l] -= eta * grad;
+#endif
             }
         }
     }
@@ -215,53 +240,43 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
             if (t_z[i][k] > 1) {
                 violations_++;
             }
-            float grad = 1 - t_z[i][k];
+            float grad = 1 - t_z[i][k]; // z_ik=1
             float update = 0.0;
-            
-            switch (method_) {
-                case ADAGRAD:
-                    update = adagrad_update(g2_z_[i][k], grad);
-                    break;
-                case ADAM:
-                    update = adam_update(m_z_[i][k], v_z_[i][k], grad, t + 1);
-                    break;
-                case STANDARD:
-                    update = current_eta_ * grad;
-                    break;
-            }
-            
+#if defined(USE_ADAGRAD)            
+            update = adagrad_update(g2_z_[i][k], grad);
+#elif defined(USE_ADAM)
+            update = adam_update(m_z_[i][k], v_z_[i][k], grad, t + 1);
+#else
+            update = eta * grad;
+#endif
             q_z_[i][k] = std::max(0.0f, q_z_[i][k] - update);
         }
         
-        for (uint kk = 0; kk != c_z[i].size(); ++kk) {
-            const uint k = c_z[i][kk];
+        for (auto k: c_z[i]) {
             if (z[i] != k) {
                 if (t_z[i][k] > 0) {
                     violations_++;
                 }
-                float grad = -t_z[i][k];
+                float grad = -t_z[i][k]; // z_ik=0
                 float update = 0.0;
-                
-                switch (method_) {
-                    case ADAGRAD:
-                        update = adagrad_update(g2_z_[i][k], grad);
-                        break;
-                    case ADAM:
-                        update = adam_update(m_z_[i][k], v_z_[i][k], grad, t + 1);
-                        break;
-                    case STANDARD:
-                        update = current_eta_ * grad;
-                        break;
-                }
-                
+#if defined(USE_ADAGRAD)                
+                update = adagrad_update(g2_z_[i][k], grad);
+#elif defined(USE_ADAM)
+                update = adam_update(m_z_[i][k], v_z_[i][k], grad, t + 1);
+#else
+                update = eta * grad;
+#endif
                 q_z_[i][k] = std::max(0.0f, q_z_[i][k] - update);
             }
         }
     }
     
-    // Update step size for standard method
-    if (method_ == STANDARD) {
-        update_standard_stepsize(score, prev_score, cbp.size(), t);
+    // Update step size
+    if (score > prev_score || t == 0) {
+        if (cbp.size() > 0) {
+            step_count_ += std::max(0.0f, 4.0f * cbp.size() - violations_) / (4.0f * cbp.size());
+            current_eta_ = eta0_ / (1.0 + step_count_);
+        }
     }
     
     return violations_;

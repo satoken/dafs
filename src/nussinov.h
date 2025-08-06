@@ -27,6 +27,7 @@ class Nussinov : public Fold::Decoder
 public:
   Nussinov(float th) : Fold::Decoder(), th_(th) { }
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
+  float score(float w, const VVF& p, const VVF& q, const VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 
@@ -39,6 +40,7 @@ class SparseNussinov : public Fold::Decoder
 public:
   SparseNussinov(float th) : Fold::Decoder(), th_(th) { }
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
+  float score(float w, const VVF& p, const VVF& q, const VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 

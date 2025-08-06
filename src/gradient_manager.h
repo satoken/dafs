@@ -25,12 +25,16 @@
 #include <memory>
 #include <cmath>
 
+//#define USE_ADAGRAD
+//#define USE_ADAM
+#define USE_ADAPTIVE
+
 // Consensus base-pair indices
 typedef std::pair<std::pair<uint, uint>, std::pair<uint, uint>> CBP;
 
 class GradientManager {
 public:
-    enum Method { STANDARD, ADAGRAD, ADAM };
+    enum Method { STANDARD, ADAGRAD, ADAM, ADAPTIVE };
     
     GradientManager(Method method, float eta0, float lb = 0.0);
     ~GradientManager() = default;
@@ -54,6 +58,10 @@ public:
     // Get current step size
     float get_step_size() const { return current_eta_; }
     
+    // Set lower bound for adaptive method
+    void set_lower_bound(float lb) { lb_ = lb; }
+    
+    
 private:
     Method method_;
     float eta0_;          // Initial step size
@@ -65,16 +73,25 @@ private:
     VVF q_x_, q_y_, q_z_;
     
     // For adaptive methods
+#if defined(USE_ADAGRAD)
     VVF g2_x_, g2_y_, g2_z_;                    // AdaGrad: accumulated squared gradients
+#elif defined(USE_ADAM)
     VVF m_x_, m_y_, v_x_, v_y_, m_z_, v_z_;    // Adam: first and second moment estimates
+#endif
     
     // Step size adaptation for standard method
     float step_count_;
     
     // Helper functions for different update methods
+#if defined(USE_ADAGRAD)
     float adagrad_update(float& g2, float grad);
+#elif defined(USE_ADAM)
     float adam_update(float& m, float& v, float grad, uint t);
+#endif
     void update_standard_stepsize(float score, float prev_score, uint cbp_size, uint t);
+    void update_adaptive_stepsize(float score, const VU& x, const VU& y, const VU& z,
+                                 const VVU& c_x, const VVU& c_y, const VVU& c_z);
+    void compute_constraint_violations(const std::vector<CBP>& cbp);
 };
 
 #endif // __INC_GRADIENT_MANAGER_H__
