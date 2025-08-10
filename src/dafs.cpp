@@ -31,6 +31,7 @@
 #include <iostream>
 #include <memory>
 #include <system_error>
+#include <random>
 //#include <fstream>
 #include "fa.h"
 #include "fold.h"
@@ -42,6 +43,7 @@
 #include "ip.h"
 #include "typedefs.h"
 #include "gradient_manager.h"
+#include "dafs.h"
 
 namespace Vienna
 {
@@ -61,94 +63,30 @@ namespace Vienna
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/stopwatch.h"
-
-#define FOREACH(i, v) for (auto i = std::begin(v); i != std::end(v); ++i)
 #define CUTOFF 0.01
 
 #define SPARSE_UPDATE
 
-class DAFS
+DAFS::DAFS()
+    : use_alifold_(false),
+      use_alifold1_(true),
+      g_(42)
 {
-private:
-  // nodes in the guide tree
-  typedef std::pair<float, std::pair<uint, uint>> node_t;
+}
 
-public:
-  DAFS()
-      : use_alifold_(false),
-        use_alifold1_(true)
-  {
-  }
+DAFS::~DAFS()
+{
+}
 
-  ~DAFS()
-  {
-  }
-
-  DAFS &parse_options(int &argc, char **&argv);
-  int run();
-
-private:
-  void relax_matching_probability();
-  void relax_basepairing_probability();
-  void relax_fourway_consistency();
-  void build_tree();
-  void print_tree(std::ostream &os, int i) const;
-  void project_alignment(ALN &aln, const ALN &aln1, const ALN &aln2, const VU &z) const;
-  void project_secondary_structure(VU &xx, VU &yy, const VU &x, const VU &y, const VU &z) const;
-  void average_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2) const;
-  void average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const;
-  void update_basepairing_probability(VVF &posterior, const VU &ss, const std::string &str,
-                                      const ALN &aln, bool use_alifold) const;
-  void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
-  float align_alignments(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const;
-  float calculate_alignment_only_score(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const;
-  float solve(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
-              const ALN &aln1, const ALN &aln2) const
-  {
+float DAFS::solve(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
+                  const ALN &aln1, const ALN &aln2) const
+{
 #if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
-    return t_max_ != 0 ? solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2);
+  return t_max_ != 0 ? solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2);
 #else
-    return solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2);
+  return solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2);
 #endif
-  }
-  float solve_by_dd(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
-                    const ALN &aln1, const ALN &aln2) const;
-  float solve_by_ip(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
-                    const ALN &aln1, const ALN &aln2) const;
-  void align(ALN &aln, int ch) const;
-  float align(VU &ss, ALN &aln, int ch) const;
-  float refine(VU &ss, ALN &aln) const;
-  void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
-  void output(std::ostream &os, const ALN &aln) const;
-  void output(std::ostream &os, ALN::const_iterator b, ALN::const_iterator e) const;
-
-private:
-  float w_pct_a_;                   // the weight of PCT for alignment matching probabilities
-  float w_pct_s_;                   // the weight of PCT for base-pairing probabilities
-  float w_pct_f_;                   // the weight of four-way PCT
-  uint n_refinement_;               // the number of the iterative refinement
-  uint t_max_;                      // the maximum number of the iteration of the subgradient update
-  float th_a_;                      // the threshold for base-pairing probabilities
-  VF th_s_;                         // the threshold for alignment matching probabilities
-  float w_;                         // the weight for base pairs in the objective function
-  float eta0_;                      // the initial step width of the subgradient update
-  std::unique_ptr<Align::Model> a_model_;           // alignment model
-  std::unique_ptr<Align::Decoder> a_decoder_;       // alignment decoder
-  std::unique_ptr<Fold::Model> s_model_;            // folding model
-  std::unique_ptr<Fold::Decoder> s_decoder_;        // folding decoder
-  std::unique_ptr<Fold::Decoder> s_decoder1_;       // folding decoder for the final folding
-  std::vector<Fasta> fa_;           // input sequences
-  std::vector<std::vector<MP>> mp_; // alignment matching probability matrices
-  std::vector<BP> bp_;              // base-pairing probability matrices
-  VVF sim_;                         // simalarity matrix between input sequences
-  std::vector<node_t> tree_;        // guide tree
-  bool use_alifold_;
-  bool use_alifold1_;
-  bool use_bp_update_;
-  bool use_bp_update1_;
-  // bool use_bpscore_;
-  uint verbose_;
-};
+}
 
 static void
 transpose_mp(const MP &mp, MP &mp_trans, uint x, uint y)
@@ -171,8 +109,8 @@ print_mp(std::ostream &os, const MP &mp)
   for (uint i = 0; i != mp.size(); ++i)
   {
     os << i << ":";
-    FOREACH(v, mp[i])
-    os << " " << v->first << ":" << v->second;
+    for (const auto& v : mp[i])
+    os << " " << v.first << ":" << v.second;
     os << std::endl;
   }
 }
@@ -183,8 +121,8 @@ print_bp(std::ostream &os, const BP &bp)
   for (uint i = 0; i != bp.size(); ++i)
   {
     os << i << ":";
-    FOREACH(v, bp[i])
-    os << " " << v->first << ":" << v->second;
+    for (const auto& v : bp[i])
+    os << " " << v.first << ":" << v.second;
     os << std::endl;
   }
 }
@@ -226,8 +164,8 @@ save_bp(std::ostream &os, const std::vector<BP> &bp)
     for (uint i = 0; i != bp[x].size(); ++i)
     {
       os << i;
-      FOREACH(j, bp[x][i])
-      os << " " << j->first << ":" << j->second;
+      for (const auto& j : bp[x][i])
+      os << " " << j.first << ":" << j.second;
       os << std::endl;
     }
   }
@@ -244,8 +182,8 @@ save_mp(std::ostream &os, const std::vector<std::vector<MP>> &mp)
       for (uint i = 0; i != mp[x][y].size(); ++i)
       {
         os << i;
-        FOREACH(k, mp[x][y][i])
-        os << " " << k->first << ":" << k->second;
+        for (const auto& k : mp[x][y][i])
+        os << " " << k.first << ":" << k.second;
         os << std::endl;
       }
     }
@@ -516,22 +454,22 @@ void DAFS::
   const uint N1 = aln1.size();
   const uint N2 = aln2.size();
   VVF p(L1, VF(L2, 0.0));
-  FOREACH(it1, aln1)
+  for (const auto& it1 : aln1)
   {
-    assert(L1 == it1->second.size());
-    FOREACH(it2, aln2)
+    assert(L1 == it1.second.size());
+    for (const auto& it2 : aln2)
     {
-      assert(L2 == it2->second.size());
-      const MP &m = mp_[it1->first][it2->first];
+      assert(L2 == it2.second.size());
+      const MP &m = mp_[it1.first][it2.first];
       for (uint i = 0, ii = 0; i != L1; ++i)
       {
-        if (!it1->second[i])
+        if (!it1.second[i])
           continue;
         assert(ii < m.size());
         SV::const_iterator x = m[ii].begin();
         for (uint j = 0, jj = 0; j != L2 && x != m[ii].end(); ++j)
         {
-          if (!it2->second[j])
+          if (!it2.second[j])
             continue;
           if (jj == x->first)
           {
@@ -563,13 +501,13 @@ void DAFS::
   const uint L = aln.front().second.size();
   const uint N = aln.size();
   VVF p(L, VF(L, 0.0));
-  FOREACH(it, aln)
+  for (const auto& it : aln)
   {
-    assert(L == it->second.size());
-    uint s = it->first;
+    assert(L == it.second.size());
+    uint s = it.first;
     VU idx(fa_[s].size());
     for (uint i = 0, j = 0; i != L; ++i)
-      if (it->second[i])
+      if (it.second[i])
         idx[j++] = i;
     const BP &bp = bp_[s];
     for (uint i = 0; i != bp.size(); ++i)
@@ -615,15 +553,15 @@ void DAFS::
 
   // calculate an averaged base-pairing probabilities
   //   which are constrained by the previous prediction
-  FOREACH(it, aln)
+  for (const auto& it : aln)
   {
-    assert(L == it->second.size());
+    assert(L == it.second.size());
     // calculate the mapping
-    uint s = it->first;
+    uint s = it.first;
     VU idx(fa_[s].size()); // from the sequence to the alignment
     VU rev(L, -1u);        // from the alignment to the sequence
     for (uint i = 0, j = 0; i != L; ++i)
-      if (it->second[i])
+      if (it.second[i])
       {
         idx[j] = i;
         rev[i] = j;
@@ -718,9 +656,9 @@ calculate_similarity_score(const MP &mp, uint L1, uint L2)
   for (uint i = 1; i != L1 + 1; ++i)
   {
     uint j = 1;
-    FOREACH(jj, mp[i - 1])
+    for (const auto& jj : mp[i - 1])
     {
-      for (; j - 1 < jj->first; ++j)
+      for (; j - 1 < jj.first; ++j)
       {
         dp[i][j] = dp[i][j - 1];
         tr[i][j] = tr[i][j - 1] + 1;
@@ -731,7 +669,7 @@ calculate_similarity_score(const MP &mp, uint L1, uint L2)
         }
       }
 
-      dp[i][j] = dp[i - 1][j - 1] + jj->second;
+      dp[i][j] = dp[i - 1][j - 1] + jj.second;
       tr[i][j] = tr[i - 1][j - 1] + 1;
       if (dp[i][j] < dp[i][j - 1])
       {
@@ -773,9 +711,9 @@ void DAFS::
       c++;
   const uint L = L1 + L2 - c;
   ALN::iterator p = aln.begin();
-  FOREACH(q, aln1)
+  for (const auto& q : aln1)
   {
-    p->first = q->first;
+    p->first = q.first;
     p->second.resize(L, false);
     uint r = 0, k = 0;
     for (uint i = 0; i != z.size(); ++i)
@@ -787,11 +725,11 @@ void DAFS::
           p->second[r++] = false;
           k++;
         }
-        p->second[r++] = q->second[i];
+        p->second[r++] = q.second[i];
         ++k;
       }
       else
-        p->second[r++] = q->second[i];
+        p->second[r++] = q.second[i];
     }
     while (k < L2)
     {
@@ -800,9 +738,9 @@ void DAFS::
     }
     ++p;
   }
-  FOREACH(q, aln2)
+  for (const auto& q : aln2)
   {
-    p->first = q->first;
+    p->first = q.first;
     p->second.resize(L, false);
     uint k = 0, r = 0;
     for (uint i = 0; i != z.size(); ++i)
@@ -810,14 +748,14 @@ void DAFS::
       if (z[i] != -1u)
       {
         while (k < z[i])
-          p->second[r++] = q->second[k++];
-        p->second[r++] = q->second[k++];
+          p->second[r++] = q.second[k++];
+        p->second[r++] = q.second[k++];
       }
       else
         p->second[r++] = false;
     }
     while (k < L2)
-      p->second[r++] = q->second[k++];
+      p->second[r++] = q.second[k++];
     ++p;
   }
 }
@@ -1013,7 +951,11 @@ float DAFS::
   float structure_score = w_ * 2 * s_decoder_->decode(p, ss, str);
 
   // Return total score (alignment + secondary structure)
+#if 0
   spdlog::info("Initial lower bound for adaptive method: {} (={}+{})", alignment_score + structure_score, alignment_score, structure_score);
+  if (verbose_ >= 1)
+    output(std::cout, aln);
+#endif
   return alignment_score + structure_score;
 }
 
@@ -1029,6 +971,7 @@ float DAFS::
 
   // enumerate the candidates of consensus base-pairs
   std::vector<CBP> cbp; // consensus base-pairs
+  VU w_cbp;
   float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
   VVU c_x(L1), c_y(L2), c_z(L1); // project consensus base-pairs into each structure and alignment
   for (uint i = 0; i != L1 - 1; ++i)
@@ -1072,26 +1015,14 @@ float DAFS::
   a_decoder_->initialize(p_z);
 
   // Initialize gradient manager
-  GradientManager::Method method = GradientManager::STANDARD;
-#if defined ADAGRAD
-  method = GradientManager::ADAGRAD;
-#elif defined ADAM
-  method = GradientManager::ADAM;
-#elif defined USE_ADAPTIVE
-  method = GradientManager::ADAPTIVE;
-#endif
-  GradientManager gm(method, eta0_);
+  GradientManager gm(eta0_);
   gm.initialize(L1, L2);
   
-  // Calculate lower bound from alignment-only score for adaptive method
-  if (method == GradientManager::ADAPTIVE) {
-    // Calculate lower bound using alignment-only method with common secondary structure
-    VU ss_lb;
-    ALN aln_lb;
-    float lb = calculate_alignment_only_score(ss_lb, aln_lb, aln1, aln2);
-    
-    gm.set_lower_bound(lb);
-  }
+  // Calculate lower bound using alignment-only method with common secondary structure
+  VU ss_lb;
+  ALN aln_lb;
+  float lb = calculate_alignment_only_score(ss_lb, aln_lb, aln1, aln2);
+  gm.set_lower_bound(lb);
   
   float s_prev = 0.0;
   uint violated = 0;
@@ -1112,19 +1043,21 @@ float DAFS::
       output_verbose(x, y, z, aln1, aln2);
 
     // Calculate Lagrangian value
+    w_cbp.clear();
     for (uint u = 0; u != cbp.size(); ++u)
     {
-      const uint i = cbp[u].first.first, j = cbp[u].first.second;
-      const uint k = cbp[u].second.first, l = cbp[u].second.second;
+      const auto &[i, j] = cbp[u].first;
+      const auto &[k, l] = cbp[u].second;
       const float s_w = q_x[i][j] + q_y[k][l] - q_z[i][k] - q_z[j][l];
       if (s_w > 0.0f)
       {
         s += s_w;
+        w_cbp.push_back(u);
       }
     }
 
     // Update gradients using GradientManager
-    violated = gm.update_gradients(cbp, x, y, z, c_x, c_y, c_z, t, s, s_prev);
+    violated = gm.update_gradients(cbp, x, y, z, w_cbp, c_x, c_y, c_z, t, s, s_prev);
 
     spdlog::debug("Step: {}, eta: {}, L: {}, Violated: {}", t, gm.get_step_size(), s, violated);
 
@@ -1133,7 +1066,7 @@ float DAFS::
 
     s_prev = s;
   }
-  spdlog::info("Step: {}, L: {}, Violated: {}", t, s_prev, violated);
+  spdlog::info("Step: {}, L: {}, Violated: {}, LB: {}", t, s_prev, violated, lb);
 
   return s_prev;
 }
@@ -1369,13 +1302,38 @@ float DAFS::
     aln.resize(1);
     aln[0].first = ch;
     aln[0].second = std::vector<bool>(fa_[ch].size(), true);
+    spdlog::info("Aligning #{} ({})", ch, fa_[ch].name());
   }
   else
   {
     ALN aln1, aln2;
-    align(aln1, tree_[ch].second.first);
-    align(aln2, tree_[ch].second.second);
+    VU ss1, ss2;
+    align(ss1, aln1, tree_[ch].second.first);
+    align(ss2, aln2, tree_[ch].second.second);
+    spdlog::info("Aligning #{} and #{} into #{}", tree_[ch].second.first, tree_[ch].second.second, ch);
     s = align_alignments(ss, aln, aln1, aln2);
+
+    // iterative refinement
+    if (aln.size() >= 3 && n_refinement_ > 0) 
+    {
+      spdlog::info("Refining alignment for {} sequences", aln.size());
+      auto n_itr = std::min(n_refinement_, (uint)aln.size());
+      for (uint i = 0; i != n_itr; ++i)
+      {
+        VU ss_temp = ss;
+        ALN aln_temp = aln;
+        float s_temp;
+
+        s_temp = refine(ss_temp, aln_temp);
+        //std::cout << s << " " << s_temp << std::endl;
+        if (s_temp > s)
+        {
+          s = s_temp;
+          std::swap(ss, ss_temp);
+          std::swap(aln, aln_temp);
+        }
+      }
+    }
   }
   return s;
 }
@@ -1384,13 +1342,15 @@ float DAFS::
     refine(VU &ss, ALN &aln) const
 {
   VU group[2];
-  do
-  {
-    group[0].clear();
-    group[1].clear();
-    for (uint i = 0; i != aln.size(); ++i)
-      group[rand() % 2].push_back(i);
-  } while (group[0].empty() || group[1].empty());
+  VU idx(aln.size(), -1u);
+  for (auto i=0u; i!=idx.size(); ++i)
+    idx[i] = i;
+  std::shuffle(idx.begin(), idx.end(), g_);
+  auto mid = idx.size() / 2;
+  for (auto i=0; i!=mid; ++i)
+    group[0].push_back(idx[i]);
+  for (auto i=mid; i!=idx.size(); ++i)
+    group[1].push_back(idx[i]);
 
   ALN a[2];
   for (uint i = 0; i != 2; ++i)
@@ -1454,6 +1414,7 @@ parse_options(int& argc, char**& argv)
     ("version", "Print version")
     ("input", "Input file", cxxopts::value<std::string>(), "FILE")
     ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
+    ("seed", "Random seed for shuffling", cxxopts::value<int>()->default_value("42"), "N")
     ("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
     ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.5"))
     ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
@@ -1501,6 +1462,7 @@ parse_options(int& argc, char**& argv)
     }
     // general options
     n_refinement_ = res["refinement"].as<int>();
+    g_ = std::mt19937(res["seed"].as<int>());
     w_ = res["weight"].as<float>();
     eta0_ = res["eta"].as<float>();
     t_max_ = res["max-iter"].as<int>();
@@ -1613,7 +1575,7 @@ parse_options(int& argc, char**& argv)
     // read sequences
     Fasta::load(fa_, res["input"].as<std::string>().c_str());
   }
-  catch (cxxopts::option_has_no_value_exception e)
+  catch (const cxxopts::exceptions::exception& e)
   {
     std::cout << options.help() << std::endl;
     exit(0);
@@ -1681,6 +1643,7 @@ int DAFS::
   float s;
   s = align(ss, aln, tree_.size() - 1);
 
+#if 0
   // iterative refinement
   for (uint i = 0; i != n_refinement_; ++i)
   {
@@ -1697,6 +1660,7 @@ int DAFS::
       std::swap(aln, aln_temp);
     }
   }
+#endif
 
   std::string str;
   if (s_decoder1_)

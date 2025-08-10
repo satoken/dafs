@@ -12,7 +12,6 @@
 #include "../fold.h"
 #include "partalign.h"
 
-#define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
 #define CUTOFF 0.01
 
 class PATrain

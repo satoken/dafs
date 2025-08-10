@@ -34,9 +34,7 @@ typedef std::pair<std::pair<uint, uint>, std::pair<uint, uint>> CBP;
 
 class GradientManager {
 public:
-    enum Method { STANDARD, ADAGRAD, ADAM, ADAPTIVE };
-    
-    GradientManager(Method method, float eta0, float lb = 0.0);
+    GradientManager(float eta0, float lb = 0.0, float gradient_clip = 1.0);
     ~GradientManager() = default;
     
     // Initialize gradient matrices
@@ -48,7 +46,7 @@ public:
     
     // Update gradients based on constraint violations
     uint update_gradients(const std::vector<CBP>& cbp,
-                         const VU& x, const VU& y, const VU& z,
+                         const VU& x, const VU& y, const VU& z, const VU& w_cbp,
                          const VVU& c_x, const VVU& c_y, const VVU& c_z,
                          uint t, float score, float prev_score);
     
@@ -61,13 +59,16 @@ public:
     // Set lower bound for adaptive method
     void set_lower_bound(float lb) { lb_ = lb; }
     
+    // Set gradient clipping threshold
+    void set_gradient_clip(float clip) { gradient_clip_ = clip; }
+    
     
 private:
-    Method method_;
     float eta0_;          // Initial step size
     float lb_;            // Lower bound
     float current_eta_;   // Current step size
     uint violations_;     // Number of constraint violations
+    float gradient_clip_; // Gradient clipping threshold
     
     // Lagrange multipliers
     VVF q_x_, q_y_, q_z_;
@@ -92,6 +93,9 @@ private:
     void update_adaptive_stepsize(float score, const VU& x, const VU& y, const VU& z,
                                  const VVU& c_x, const VVU& c_y, const VVU& c_z);
     void compute_constraint_violations(const std::vector<CBP>& cbp);
+    
+    // Gradient clipping helper
+    float clip_update(float update) const;
 };
 
 #endif // __INC_GRADIENT_MANAGER_H__

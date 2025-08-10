@@ -38,8 +38,6 @@ extern "C" {
 };
 };
 
-#define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
-
 #ifdef HAVE_VIENNA18
 typedef Vienna::plist pair_info;
 #else
@@ -159,11 +157,11 @@ alloc_aln(const ALN& aln, const std::vector<Fasta>& fa)
   char** seqs = new char*[N+1];
   seqs[N] = NULL;
   char** s = seqs;
-  FOREACH (ALN::const_iterator, it, aln)
+  for (const auto& it : aln)
   {
     *s = new char[L+1];
     for (uint i=0, j=0; i!=L; ++i)
-      (*s)[i] = it->second[i] ? fa[it->first].seq()[j++] : '-';
+      (*s)[i] = it.second[i] ? fa[it.first].seq()[j++] : '-';
     (*s)[L] = 0;
     ++s;
   }

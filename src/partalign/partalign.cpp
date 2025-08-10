@@ -10,8 +10,6 @@
 
 using namespace PARTALIGN;
 
-#define FOREACH(itr, i, v) for (itr i=(v).begin(); i!=(v).end(); ++i)
-
 enum { A=0, C=1, G=2, U=3, N=4 };
 
 template < class V >
@@ -215,12 +213,12 @@ void
 calc_bp(VF& pl, VF& pr, VF& q, const BP& px)
 {
   for (uint i=0; i!=px.size(); ++i)
-    FOREACH(SV::const_iterator, it, px[i])
+    for (const auto& it : px[i])
     {
-      pl[i] += it->second;
-      q[i] -= it->second;
-      pl[it->first] += it->second;
-      q[it->first] -= it->second;
+      pl[i] += it.second;
+      q[i] -= it.second;
+      pl[it.first] += it.second;
+      q[it.first] -= it.second;
     }
 }
 
