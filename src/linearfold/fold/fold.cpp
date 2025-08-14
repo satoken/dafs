@@ -9,7 +9,7 @@
 
 //static
 auto
-Fold::
+_Fold::
 make_paren(const std::vector<u_int32_t>& p) -> std::string
 {
     std::string s(p.size()-1, '.');
@@ -22,7 +22,7 @@ make_paren(const std::vector<u_int32_t>& p) -> std::string
 }
 
 bool
-Fold::Options::
+_Fold::Options::
 allow_paired(char x, char y) const
 {
     x = std::tolower(x);
@@ -31,7 +31,7 @@ allow_paired(char x, char y) const
 }
 
 bool
-Fold::Options::
+_Fold::Options::
 allow_paired(const std::string& seq, u_int32_t i, u_int32_t j) const
 {
     std::tie(i, j) = std::minmax(i, j);
@@ -42,7 +42,7 @@ allow_paired(const std::string& seq, u_int32_t i, u_int32_t j) const
 }
 
 auto
-Fold::Options::
+_Fold::Options::
 make_constraint(const std::string& seq, bool canonical_only /*=true*/) const
     -> std::pair<std::vector<std::vector<bool>>, std::vector<std::vector<bool>>>
 {
@@ -87,7 +87,7 @@ make_constraint(const std::string& seq, bool canonical_only /*=true*/) const
 }
 
 auto 
-Fold::Options::
+_Fold::Options::
 make_additional_scores(size_t L) const
     -> std::tuple<TriMatrix<float>, std::vector<std::vector<float>>>
 {

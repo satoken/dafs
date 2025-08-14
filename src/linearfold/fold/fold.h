@@ -8,7 +8,7 @@
 #include "trimatrix.h"
 using namespace std::literals::string_literals;
 
-class Fold
+class _Fold
 {
     public:
         struct Options

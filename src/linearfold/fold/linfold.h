@@ -2,17 +2,18 @@
 
 #include "fold.h"
 #include <unordered_map>
+#include <limits>
 
 #define HELIX_LENGTH
 
 template < typename P, typename S = typename P::ScoreType >
-class LinFold : public Fold
+class LinFold : public _Fold
 {
     public:
         using ScoreType = S;
 
-        struct Options : public Fold::Options {;
-            Options() : Fold::Options(), beam_size_(100) {}
+        struct Options : public _Fold::Options {;
+            Options() : _Fold::Options(), beam_size_(100) {}
 
             Options& beam_size(u_int32_t s)
             {

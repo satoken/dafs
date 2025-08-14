@@ -44,6 +44,7 @@
 #include "typedefs.h"
 #include "gradient_manager.h"
 #include "dafs.h"
+#include "linfold_wrapper.h"
 
 namespace Vienna
 {
@@ -1429,7 +1430,7 @@ parse_options(int& argc, char**& argv)
     ("align-aux", "Load matching probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
 
   options.add_options("Folding")
-    ("s,fold-model", "Folding model for calculating base-pairing probablities (value=Boltzmann, Vienna, CONTRAfold)",
+    ("s,fold-model", "Folding model for calculating base-pairing probablities (value=Boltzmann, Vienna, CONTRAfold, lpv, lpc)",
       cxxopts::value<std::string>()->default_value("Boltzmann"))
     ("fold-decoder", "Decoder for common secondary structure prediction (value=Nussinov, IPknot)",
       cxxopts::value<std::string>()->default_value("Nussinov"))
@@ -1442,7 +1443,8 @@ parse_options(int& argc, char**& argv)
     ("ipknot", "Set optimized parameters for IPknot decoding (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)")
     ("bp-update", "Use the iterative update of BPs")
     ("bp-update1", "Use the iterative update of BPs for the final prediction")
-    ("fold-aux", "Load base-pairing probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
+    ("fold-aux", "Load base-pairing probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME")
+    ("linfold-beam", "Beam size for LinFold algorithm", cxxopts::value<int>()->default_value("100"), "SIZE");
 
   options.parse_positional({"input"});
   options.positional_help("FILE").show_positional_help();
@@ -1508,6 +1510,16 @@ parse_options(int& argc, char**& argv)
       s_model_ = std::make_unique<RNAfold>(false, nullptr, CUTOFF);
     else if (res["fold-model"].as<std::string>() == "CONTRAfold")
       s_model_ = std::make_unique<CONTRAfold>(CUTOFF);
+    else if (res["fold-model"].as<std::string>() == "lpv" || res["fold-model"].as<std::string>() == "LinFold")
+    {
+      int beam_size = res["linfold-beam"].as<int>();
+      s_model_ = std::make_unique<LinFoldWrapper>(CUTOFF, LinFoldWrapper::ModelType::LPV, beam_size);
+    }
+    else if (res["fold-model"].as<std::string>() == "lpc")
+    {
+      int beam_size = res["linfold-beam"].as<int>();
+      s_model_ = std::make_unique<LinFoldWrapper>(CUTOFF, LinFoldWrapper::ModelType::LPC, beam_size);
+    }
     else
       throw "Unknown folding model: " + res["fold-model"].as<std::string>();
     assert(s_model_);
