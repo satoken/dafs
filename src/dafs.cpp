@@ -38,6 +38,7 @@
 #include "nussinov.h"
 #include "ipknot.h"
 #include "align.h"
+#include "linearalign.h"
 #include "needleman_wunsch.h"
 #include "alifold.h"
 #include "ip.h"
@@ -1423,8 +1424,9 @@ parse_options(int& argc, char**& argv)
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"));
 
   options.add_options("Aligning")
-    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, ProbCons)", 
+    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, ProbCons, LinearAlign)", 
       cxxopts::value<std::string>()->default_value("ProbCons"))
+    ("align-beam", "Beam size for LinearAlign model", cxxopts::value<int>()->default_value("100"))
     ("p,align-pct", "Weight of PCT for matching probabilities", cxxopts::value<float>()->default_value("0.25"))
     ("u,align-th", "Threshold for matching probabilities", cxxopts::value<float>()->default_value("0.01"))
     ("align-aux", "Load matching probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
@@ -1494,6 +1496,8 @@ parse_options(int& argc, char**& argv)
       a_model_ = std::make_unique<CONTRAlign>(th_a_);
     else if (res["align-model"].as<std::string>() == "ProbCons")
       a_model_ = std::make_unique<ProbCons>(th_a_);
+    else if (res["align-model"].as<std::string>() == "LinearAlign")
+      a_model_ = std::make_unique<LinearAlign>(th_a_, res["align-beam"].as<int>());
     else
       throw "Unknown alignment model: " + res["align-model"].as<std::string>();
     assert(a_model_);

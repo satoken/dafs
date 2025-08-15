@@ -2,6 +2,7 @@ add_subdirectory(contrafold)
 add_subdirectory(probconsRNA)
 add_subdirectory(contralign)
 add_subdirectory(linearfold)
+add_subdirectory(linearalign)
 
 # for building a statically linked binary
 # set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
@@ -48,9 +49,9 @@ endif()
 add_executable(
     dafs
     alifold.cpp align.cpp boltzmann_param.c dafs.cpp fa.cpp fold.cpp
-    gradient_manager.cpp ip.cpp ipknot.cpp linfold_wrapper.cpp needleman_wunsch.cpp nussinov.cpp tree.cpp
+    gradient_manager.cpp ip.cpp ipknot.cpp linfold_wrapper.cpp linearalign.cpp needleman_wunsch.cpp nussinov.cpp tree.cpp
 )
-target_link_libraries(dafs contrafold probcons contralign linearfold
+target_link_libraries(dafs contrafold probcons contralign linearfold linearalign
   ${VIENNARNA_LDFLAGS} ${GLPK_LIBRARY} ${ZLIB_LIBRARY} ${GMP_LIBRARY} ${DL_LIBRARY} ${LTDL_LIBRARY} ${MPFR_LIBRARY}
   ${CPLEX_LIBRARY} ${GUROBI_LIBRARY} ${GUROBI_CPP_LIBRARY} ${CMAKE_DL_LIBS})
 target_compile_features(dafs PUBLIC cxx_std_17)
