@@ -46,6 +46,10 @@
 #include "gradient_manager.h"
 #include "dafs.h"
 #include "linfold_wrapper.h"
+#include "cbp_manager.h"
+
+// For column generation - use ViolationInfo from gradient_manager.h
+using ViolationInfo = ::ViolationInfo;
 
 namespace Vienna
 {
@@ -72,7 +76,10 @@ namespace Vienna
 DAFS::DAFS()
     : use_alifold_(false),
       use_alifold1_(true),
-      g_(42)
+      g_(42),
+      use_column_generation_(false),
+      cbp_addition_frequency_(5),   // More frequent CBP addition
+      cbp_violation_threshold_(0.005f)  // Lower threshold for CBP addition
 {
 }
 
@@ -81,7 +88,7 @@ DAFS::~DAFS()
 }
 
 float DAFS::solve(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
-                  const ALN &aln1, const ALN &aln2) const
+                  const ALN &aln1, const ALN &aln2)
 {
 #if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
   return t_max_ != 0 ? solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2);
@@ -832,7 +839,7 @@ void DAFS::
 }
 
 void DAFS::
-    align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const
+    align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2)
 {
   // calculate posteriors
   VVF p_x, p_y, p_z;
@@ -849,7 +856,7 @@ void DAFS::
 }
 
 float DAFS::
-    align_alignments(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const
+    align_alignments(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2)
 {
   // calculate posteriors
   VVF p_x, p_y, p_z;
@@ -964,53 +971,108 @@ float DAFS::
 float DAFS::
     solve_by_dd(VU &x, VU &y, VU &z,
                 const VVF &p_x, const VVF &p_y, const VVF &p_z,
-                const ALN &aln1, const ALN &aln2) const
+                const ALN &aln1, const ALN &aln2)
 {
   const uint L1 = p_x.size();
   const uint L2 = p_y.size();
   const uint N1 = aln1.size();
   const uint N2 = aln2.size();
 
-  // enumerate the candidates of consensus base-pairs
-  std::vector<CBP> cbp; // consensus base-pairs
+  // Column generation for CBP
+  std::vector<CBP> cbp;
   VU w_cbp;
-  float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
-  VVU c_x(L1), c_y(L2), c_z(L1); // project consensus base-pairs into each structure and alignment
-  for (uint i = 0; i != L1 - 1; ++i)
-    for (uint j = i + 1; j != L1; ++j)
-      if (p_x[i][j] > CUTOFF)
-        for (uint k = 0; k != L2 - 1; ++k)
-          if (p_z[i][k] > CUTOFF)
-            for (uint l = k + 1; l != L2; ++l)
-              if (p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF)
-              {
-                assert(p_x[i][j] <= 1.0);
-                assert(p_y[k][l] <= 1.0);
-                float p = (N1 * p_x[i][j] + N2 * p_y[k][l]) / (N1 + N2);
-                float q = (p_z[i][k] + p_z[j][l]) / 2;
-                if (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0)
+  VVU c_x, c_y, c_z;
+  
+  if (use_column_generation_) {
+    // Initialize CBP manager if not already done
+    if (!cbp_manager_) {
+      cbp_manager_ = std::make_unique<CBPManager>(L1, L2, CUTOFF);
+    }
+    
+    // Initialize with probability matrices and parameters
+    cbp_manager_->initialize(p_x, p_y, p_z, N1, N2, w_, th_a_, th_s_);
+    
+    // Generate initial CBPs with strict thresholds
+    cbp_manager_->generateInitialCBPs();
+    
+    // Get the CBPs and projection arrays
+    cbp = cbp_manager_->getCBPs();
+    c_x = cbp_manager_->get_c_x();
+    c_y = cbp_manager_->get_c_y();
+    c_z = cbp_manager_->get_c_z();
+    
+    // Ensure projection arrays have correct size
+    if (c_x.size() != L1) c_x.resize(L1);
+    if (c_y.size() != L2) c_y.resize(L2);
+    if (c_z.size() != L1) c_z.resize(L1);
+    
+    if (verbose_ >= 1) {
+      std::cout << "Column generation: Starting with " << cbp.size() << " initial CBPs" << std::endl;
+      if (verbose_ >= 2) {
+        std::cout << "Sample CBPs: ";
+        for (size_t i = 0; i < std::min(5ul, cbp.size()); ++i) {
+          std::cout << "(" << cbp[i].first.first << "," << cbp[i].first.second 
+                    << "," << cbp[i].second.first << "," << cbp[i].second.second << ") ";
+        }
+        std::cout << std::endl;
+      }
+    }
+  } else {
+    // Original implementation: enumerate all candidates
+    float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
+    c_x.resize(L1);
+    c_y.resize(L2);
+    c_z.resize(L1);
+    
+    for (uint i = 0; i != L1 - 1; ++i)
+      for (uint j = i + 1; j != L1; ++j)
+        if (p_x[i][j] > CUTOFF)
+          for (uint k = 0; k != L2 - 1; ++k)
+            if (p_z[i][k] > CUTOFF)
+              for (uint l = k + 1; l != L2; ++l)
+                if (p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF)
                 {
-                  cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
-                  c_x[i].push_back(j);
-                  c_y[k].push_back(l);
-                  c_z[i].push_back(k);
-                  c_z[j].push_back(l);
+                  assert(p_x[i][j] <= 1.0);
+                  assert(p_y[k][l] <= 1.0);
+                  float p = (N1 * p_x[i][j] + N2 * p_y[k][l]) / (N1 + N2);
+                  float q = (p_z[i][k] + p_z[j][l]) / 2;
+                  if (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0)
+                  {
+                    cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
+                    c_x[i].push_back(j);
+                    c_y[k].push_back(l);
+                    c_z[i].push_back(k);
+                    c_z[j].push_back(l);
+                  }
                 }
-              }
-  for (uint i = 0; i != c_x.size(); ++i)
-  {
-    std::sort(c_x[i].begin(), c_x[i].end());
-    c_x[i].erase(std::unique(c_x[i].begin(), c_x[i].end()), c_x[i].end());
-  }
-  for (uint k = 0; k != c_y.size(); ++k)
-  {
-    std::sort(c_y[k].begin(), c_y[k].end());
-    c_y[k].erase(std::unique(c_y[k].begin(), c_y[k].end()), c_y[k].end());
-  }
-  for (uint i = 0; i != c_z.size(); ++i)
-  {
-    std::sort(c_z[i].begin(), c_z[i].end());
-    c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
+    
+    for (uint i = 0; i != c_x.size(); ++i)
+    {
+      std::sort(c_x[i].begin(), c_x[i].end());
+      c_x[i].erase(std::unique(c_x[i].begin(), c_x[i].end()), c_x[i].end());
+    }
+    for (uint k = 0; k != c_y.size(); ++k)
+    {
+      std::sort(c_y[k].begin(), c_y[k].end());
+      c_y[k].erase(std::unique(c_y[k].begin(), c_y[k].end()), c_y[k].end());
+    }
+    for (uint i = 0; i != c_z.size(); ++i)
+    {
+      std::sort(c_z[i].begin(), c_z[i].end());
+      c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
+    }
+    
+    if (verbose_ >= 1) {
+      std::cout << "Normal DAFS: Generated " << cbp.size() << " CBPs" << std::endl;
+      if (verbose_ >= 2) {
+        std::cout << "Sample CBPs: ";
+        for (size_t i = 0; i < std::min(5ul, cbp.size()); ++i) {
+          std::cout << "(" << cbp[i].first.first << "," << cbp[i].first.second 
+                    << "," << cbp[i].second.first << "," << cbp[i].second.second << ") ";
+        }
+        std::cout << std::endl;
+      }
+    }
   }
 
   // precalculate the range for alignment, i.e. alignment envelope
@@ -1058,8 +1120,39 @@ float DAFS::
       }
     }
 
-    // Update gradients using GradientManager
-    violated = gm.update_gradients(cbp, x, y, z, w_cbp, c_x, c_y, c_z, t, s, s_prev);
+    // Update gradients and collect violations if using column generation
+    if (use_column_generation_ && cbp_manager_) {
+      std::vector<ViolationInfo> violations;
+      violated = gm.update_gradients_with_violations(cbp, x, y, z, w_cbp, c_x, c_y, c_z, t, s, s_prev, violations);
+      
+      // True column generation: ALWAYS add CBPs when violations occur
+      if (!violations.empty()) {
+        // Process ALL violations - no limits, ensure convergence
+        size_t cbp_before = cbp_manager_->size();
+        uint added = cbp_manager_->addViolatedCBPs(violations);
+        
+        if (added > 0) {
+          // Update local copies of CBP data
+          cbp = cbp_manager_->getCBPs();
+          c_x = cbp_manager_->get_c_x();
+          c_y = cbp_manager_->get_c_y();
+          c_z = cbp_manager_->get_c_z();
+          
+          // Ensure projection arrays have correct size
+          if (c_x.size() != L1) c_x.resize(L1);
+          if (c_y.size() != L2) c_y.resize(L2);
+          if (c_z.size() != L1) c_z.resize(L1);
+          
+          if (verbose_ >= 1) {
+            std::cout << "Column generation: Added " << added << " new CBPs at iteration " << t 
+                     << " (total: " << cbp.size() << ")" << std::endl;
+          }
+        }
+      }
+    } else {
+      // Original implementation without violation collection
+      violated = gm.update_gradients(cbp, x, y, z, w_cbp, c_x, c_y, c_z, t, s, s_prev);
+    }
 
     spdlog::debug("Step: {}, eta: {}, L: {}, Violated: {}", t, gm.get_step_size(), s, violated);
 
@@ -1276,7 +1369,7 @@ float DAFS::
 }
 
 void DAFS::
-    align(ALN &aln, int ch) const
+    align(ALN &aln, int ch)
 {
   if (tree_[ch].second.first == -1u)
   {
@@ -1295,7 +1388,7 @@ void DAFS::
 }
 
 float DAFS::
-    align(VU &ss, ALN &aln, int ch) const
+    align(VU &ss, ALN &aln, int ch)
 {
   float s = 0.0;
   if (tree_[ch].second.first == -1u)
@@ -1341,7 +1434,7 @@ float DAFS::
 }
 
 float DAFS::
-    refine(VU &ss, ALN &aln) const
+    refine(VU &ss, ALN &aln)
 {
   VU group[2];
   VU idx(aln.size(), -1u);
@@ -1421,7 +1514,10 @@ parse_options(int& argc, char**& argv)
     ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.5"))
     ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
     ("f,fourway-pct", "Weight of four-way PCT", cxxopts::value<float>()->default_value("0.0"))
-    ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"));
+    ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"))
+    ("column-generation", "Use column generation for CBP management")
+    ("cbp-add-freq", "Add new CBPs every N iterations", cxxopts::value<uint>()->default_value("10"))
+    ("cbp-violation-th", "Minimum violation score to trigger CBP addition", cxxopts::value<float>()->default_value("0.01"));
 
   options.add_options("Aligning")
     ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, ProbCons, LinearAlign)", 
@@ -1472,6 +1568,9 @@ parse_options(int& argc, char**& argv)
     t_max_ = res["max-iter"].as<int>();
     w_pct_f_ = res["fourway-pct"].as<float>();
     verbose_ = res["verbose"].as<int>();
+    use_column_generation_ = res.count("column-generation") > 0;
+    cbp_addition_frequency_ = res["cbp-add-freq"].as<uint>();
+    cbp_violation_threshold_ = res["cbp-violation-th"].as<float>();
     switch (verbose_)
     {
     default:

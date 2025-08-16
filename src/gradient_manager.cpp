@@ -98,6 +98,16 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
                                       const VVU& c_x, const VVU& c_y, const VVU& c_z,
                                       uint t, float score, float prev_score)
 {
+    std::vector<ViolationInfo> dummy_violations;
+    return update_gradients_with_violations(cbp, x, y, z, w_cbp, c_x, c_y, c_z, t, score, prev_score, dummy_violations);
+}
+
+uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& cbp,
+                                      const VU& x, const VU& y, const VU& z, const VU& w_cbp,
+                                      const VVU& c_x, const VVU& c_y, const VVU& c_z,
+                                      uint t, float score, float prev_score,
+                                      std::vector<ViolationInfo>& violations)
+{
     const uint L1 = q_x_.size();
     const uint L2 = q_y_.size();
     
@@ -170,11 +180,15 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
     eta *= (score - lb_) / std::sqrt(g2 + 1e-6f);
     spdlog::debug("eta: {}, g^2: {}, score: {}, lb_: {}", eta, g2, score, lb_);
 
+    // Clear violations list
+    violations.clear();
+    
     // Update Lagrangian for x (=q_x) using sparse update
     for (uint i = 0; i != L1; ++i) {
         const uint j = x[i];
         if (j != -1u && t_x[i][j] != 1) {
             violations_++;
+            violations.push_back(ViolationInfo(ViolationInfo::X_VIOLATION, i, j, -1u, -1u, std::abs(t_x[i][j] - 1)));
             float grad = t_x[i][j] - 1; // x_ij=1
 #if defined(USE_ADAGRAD)            
             q_x_[i][j] -= clip_update(adagrad_update(g2_x_[i][j], grad));
@@ -185,17 +199,21 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
 #endif
         }
         
-        for (auto j: c_x[i]) {
-            if (x[i] != j && t_x[i][j] != 0) {
-                violations_++;
-                float grad = t_x[i][j]; // x_ij=0
+        // Add bounds check for c_x access
+        if (i < c_x.size()) {
+            for (auto j: c_x[i]) {
+                if (x[i] != j && t_x[i][j] != 0) {
+                    violations_++;
+                    violations.push_back(ViolationInfo(ViolationInfo::X_VIOLATION, i, j, -1u, -1u, std::abs(t_x[i][j])));
+                    float grad = t_x[i][j]; // x_ij=0
 #if defined(USE_ADAGRAD)                
-                q_x_[i][j] -= clip_update(adagrad_update(g2_x_[i][j], grad));
+                    q_x_[i][j] -= clip_update(adagrad_update(g2_x_[i][j], grad));
 #elif defined(USE_ADAM)
-                q_x_[i][j] -= clip_update(adam_update(m_x_[i][j], v_x_[i][j], grad, t + 1));
+                    q_x_[i][j] -= clip_update(adam_update(m_x_[i][j], v_x_[i][j], grad, t + 1));
 #else
-                q_x_[i][j] -= clip_update(eta * grad);
+                    q_x_[i][j] -= clip_update(eta * grad);
 #endif
+                }
             }
         }
     }
@@ -205,6 +223,7 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
         const uint l = y[k];
         if (l != -1u && t_y[k][l] != 1) {
             violations_++;
+            violations.push_back(ViolationInfo(ViolationInfo::Y_VIOLATION, k, l, k, l, std::abs(t_y[k][l] - 1)));
             float grad = t_y[k][l] - 1; // y_kl=1
 #if defined(USE_ADAGRAD)            
             q_y_[k][l] -= clip_update(adagrad_update(g2_y_[k][l], grad));
@@ -215,17 +234,21 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
 #endif
         }
         
-        for (auto l: c_y[k]) {
-            if (y[k] != l && t_y[k][l] != 0) {
-                violations_++;
-                float grad = t_y[k][l]; // y_kl=0
+        // Add bounds check for c_y access
+        if (k < c_y.size()) {
+            for (auto l: c_y[k]) {
+                if (y[k] != l && t_y[k][l] != 0) {
+                    violations_++;
+                    violations.push_back(ViolationInfo(ViolationInfo::Y_VIOLATION, k, l, k, l, std::abs(t_y[k][l])));
+                    float grad = t_y[k][l]; // y_kl=0
 #if defined(USE_ADAGRAD)                
-                q_y_[k][l] -= clip_update(adagrad_update(g2_y_[k][l], grad));
+                    q_y_[k][l] -= clip_update(adagrad_update(g2_y_[k][l], grad));
 #elif defined(USE_ADAM)
-                q_y_[k][l] -= clip_update(adam_update(m_y_[k][l], v_y_[k][l], grad, t + 1));
+                    q_y_[k][l] -= clip_update(adam_update(m_y_[k][l], v_y_[k][l], grad, t + 1));
 #else
-                q_y_[k][l] -= clip_update(eta * grad);
+                    q_y_[k][l] -= clip_update(eta * grad);
 #endif
+                }
             }
         }
     }
@@ -236,6 +259,7 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
         if (k != -1u) {
             if (t_z[i][k] > 1) {
                 violations_++;
+                violations.push_back(ViolationInfo(ViolationInfo::Z_VIOLATION, i, k, i, k, std::abs(1 - t_z[i][k])));
             }
             float grad = 1 - t_z[i][k]; // z_ik=1
             float update = 0.0;
@@ -249,21 +273,25 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
             q_z_[i][k] = std::max(0.0f, q_z_[i][k] - update);
         }
         
-        for (auto k: c_z[i]) {
-            if (z[i] != k) {
-                if (t_z[i][k] > 0) {
-                    violations_++;
-                }
-                float grad = -t_z[i][k]; // z_ik=0
-                float update = 0.0;
+        // Add bounds check for c_z access
+        if (i < c_z.size()) {
+            for (auto k: c_z[i]) {
+                if (z[i] != k) {
+                    if (t_z[i][k] > 0) {
+                        violations_++;
+                        violations.push_back(ViolationInfo(ViolationInfo::Z_VIOLATION, i, k, i, k, std::abs(t_z[i][k])));
+                    }
+                    float grad = -t_z[i][k]; // z_ik=0
+                    float update = 0.0;
 #if defined(USE_ADAGRAD)                
-                update = clip_update(adagrad_update(g2_z_[i][k], grad));
+                    update = clip_update(adagrad_update(g2_z_[i][k], grad));
 #elif defined(USE_ADAM)
-                update = clip_update(adam_update(m_z_[i][k], v_z_[i][k], grad, t + 1));
+                    update = clip_update(adam_update(m_z_[i][k], v_z_[i][k], grad, t + 1));
 #else
-                update = clip_update(eta * grad);
+                    update = clip_update(eta * grad);
 #endif
-                q_z_[i][k] = std::max(0.0f, q_z_[i][k] - update);
+                    q_z_[i][k] = std::max(0.0f, q_z_[i][k] - update);
+                }
             }
         }
     }

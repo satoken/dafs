@@ -29,6 +29,9 @@
 #include "fold.h"
 #include "align.h"
 
+// Forward declarations
+class CBPManager;
+
 class DAFS
 {
 private:
@@ -54,18 +57,18 @@ private:
   void average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const;
   void update_basepairing_probability(VVF &posterior, const VU &ss, const std::string &str,
                                       const ALN &aln, bool use_alifold) const;
-  void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2) const;
-  float align_alignments(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const;
+  void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2);
+  float align_alignments(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2);
   float calculate_alignment_only_score(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const;
   float solve(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
-              const ALN &aln1, const ALN &aln2) const;
+              const ALN &aln1, const ALN &aln2);
   float solve_by_dd(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
-                    const ALN &aln1, const ALN &aln2) const;
+                    const ALN &aln1, const ALN &aln2);
   float solve_by_ip(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
                     const ALN &aln1, const ALN &aln2) const;
-  void align(ALN &aln, int ch) const;
-  float align(VU &ss, ALN &aln, int ch) const;
-  float refine(VU &ss, ALN &aln) const;
+  void align(ALN &aln, int ch);
+  float align(VU &ss, ALN &aln, int ch);
+  float refine(VU &ss, ALN &aln);
   void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
   void output(std::ostream &os, const ALN &aln) const;
   void output(std::ostream &os, ALN::const_iterator b, ALN::const_iterator e) const;
@@ -89,6 +92,12 @@ private:
   std::vector<std::vector<MP>> mp_; // alignment matching probability matrices
   std::vector<BP> bp_;              // base-pairing probability matrices
   VVF sim_;                         // simalarity matrix between input sequences
+  
+  // Column generation variables
+  bool use_column_generation_;      // whether to use column generation for CBP management
+  uint cbp_addition_frequency_;     // frequency to add new CBPs (every N iterations)
+  float cbp_violation_threshold_;   // minimum violation score to trigger CBP addition
+  std::unique_ptr<CBPManager> cbp_manager_; // CBP manager for column generation
   std::vector<node_t> tree_;        // guide tree
   bool use_alifold_;
   bool use_alifold1_;
