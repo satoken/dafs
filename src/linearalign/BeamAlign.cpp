@@ -451,11 +451,15 @@ double BeamAlign::forward(string seq1, string seq2, double** &trans_probs, doubl
 }
 
 double BeamAlign::backward(double** &transprobs, double** &emitprobs, bool prior){
+    // Initialize the final state beta = 1.0 (log(1.0) = 0.0)
     bestALN[seq1_len + seq2_len][seq1_len * max_len + seq2_len].beta = xlog(1.0);
     bestALN[seq1_len + seq2_len][seq1_len * max_len + seq2_len].manner = 3; //ALIGN_ALN;
     bestALN[seq1_len + seq2_len][seq1_len * max_len + seq2_len].step = seq1_len + seq2_len;
     bestALN[seq1_len + seq2_len][seq1_len * max_len + seq2_len].i = seq1_len;
     bestALN[seq1_len + seq2_len][seq1_len * max_len + seq2_len].k = seq2_len;
+    
+    // Beta values are already initialized to xlog(0) by AlignState constructor
+    // No need to explicitly reinitialize them
 
     for(int s = seq1_len + seq2_len - 2; s >= 0; --s) {
         double trans_emit_prob;
@@ -487,9 +491,15 @@ double BeamAlign::backward(double** &transprobs, double** &emitprobs, bool prior
 
                         if (((next_i == seq1_len) && (next_k == seq2_len)) || ((next_i < seq1_len) && (next_k < seq2_len))) {
                             next_key = next_i * max_len + next_k;
-                            trans_emit_prob = get_trans_emit_prob(manner - 1, next_manner - 1, next_i, next_k, transprobs, emitprobs);
-                            trans_emit_prob = xlog_mul(get_match_prior(next_i, next_k, prior), trans_emit_prob);
-                            state.beta = xlog_sum(state.beta, xlog_mul(bestALN[next_step][next_key].beta, trans_emit_prob));
+                            // Check if next state exists before accessing its beta value
+                            if (bestALN[next_step].find(next_key) != bestALN[next_step].end()) {
+                                trans_emit_prob = get_trans_emit_prob(manner - 1, next_manner - 1, next_i, next_k, transprobs, emitprobs);
+                                trans_emit_prob = xlog_mul(get_match_prior(next_i, next_k, prior), trans_emit_prob);
+                                double next_beta = bestALN[next_step][next_key].beta;
+                                if (!std::isnan(trans_emit_prob) && !std::isnan(next_beta)) {
+                                    state.beta = xlog_sum(state.beta, xlog_mul(next_beta, trans_emit_prob));
+                                }
+                            }
                         }
                         break;
 
@@ -501,8 +511,14 @@ double BeamAlign::backward(double** &transprobs, double** &emitprobs, bool prior
 
                         if ((next_i < seq1_len) && (next_k < seq2_len)) {
                             next_key = next_i * max_len + next_k;
-                            trans_emit_prob = get_trans_emit_prob(manner - 1, next_manner - 1, next_i, next_k, transprobs, emitprobs);
-                            state.beta = xlog_sum(state.beta, xlog_mul(bestINS1[next_step][next_key].beta, trans_emit_prob));
+                            // Check if next state exists before accessing its beta value
+                            if (bestINS1[next_step].find(next_key) != bestINS1[next_step].end()) {
+                                trans_emit_prob = get_trans_emit_prob(manner - 1, next_manner - 1, next_i, next_k, transprobs, emitprobs);
+                                double next_beta = bestINS1[next_step][next_key].beta;
+                                if (!std::isnan(trans_emit_prob) && !std::isnan(next_beta)) {
+                                    state.beta = xlog_sum(state.beta, xlog_mul(next_beta, trans_emit_prob));
+                                }
+                            }
                         }
                         break;
 
@@ -514,8 +530,14 @@ double BeamAlign::backward(double** &transprobs, double** &emitprobs, bool prior
 
                         if ((next_i < seq1_len) && (next_k < seq2_len)) {
                             next_key = next_i * max_len + next_k;
-                            trans_emit_prob = get_trans_emit_prob(manner - 1, next_manner - 1, next_i, next_k, transprobs, emitprobs);
-                            state.beta = xlog_sum(state.beta, xlog_mul(bestINS2[next_step][next_key].beta, trans_emit_prob));
+                            // Check if next state exists before accessing its beta value
+                            if (bestINS2[next_step].find(next_key) != bestINS2[next_step].end()) {
+                                trans_emit_prob = get_trans_emit_prob(manner - 1, next_manner - 1, next_i, next_k, transprobs, emitprobs);
+                                double next_beta = bestINS2[next_step][next_key].beta;
+                                if (!std::isnan(trans_emit_prob) && !std::isnan(next_beta)) {
+                                    state.beta = xlog_sum(state.beta, xlog_mul(next_beta, trans_emit_prob));
+                                }
+                            }
                         }
                         break;
                     

@@ -174,6 +174,14 @@ void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP
         if (aln_results != nullptr) {
             try {
                 convertToSparseMatrix(aln_results, seq1_copy, seq2_copy, mp);
+                
+                // Debug output can be enabled by uncommenting the following lines
+                // int total_entries = 0;
+                // for (const auto& row : mp) {
+                //     total_entries += row.size();
+                // }
+                // std::cerr << "LinearAlign: Generated " << total_entries << " alignment probabilities" << std::endl;
+                
             } catch (...) {
                 // Ensure cleanup even if conversion fails
                 delete[] aln_results;
