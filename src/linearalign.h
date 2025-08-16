@@ -51,6 +51,12 @@ private:
     
     // Initialize default HMM parameters if not provided
     void initializeDefaultParameters();
+    
+    // Initialize ML HMM parameters from LinearTurboFold
+    void initializeMLParameters();
+    
+    // Clean up allocated HMM parameters
+    void cleanupParameters();
 };
 
 #endif // __INC_LINEARALIGN_H__

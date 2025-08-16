@@ -110,8 +110,8 @@ double BeamAlign::get_trans_emit_prob(int prev_state, int current_state, int i, 
     int i_sym;
 	int k_sym;
 
-	// Fix symbols to gaps in case of of insertions.
-	if(current_state == 0 || k == 0)
+	// Fix symbols to gaps in case of insertions or boundary conditions.
+	if(current_state == 0 || k == 0 || k >= seq2_len)
 	{
 		// Gap is coded into value 4 in the emission table.
 		k_sym = 4; 
@@ -121,7 +121,7 @@ double BeamAlign::get_trans_emit_prob(int prev_state, int current_state, int i, 
 		k_sym = nucs2[k];
 	}
 
-	if(current_state == 1 || i == 0)
+	if(current_state == 1 || i == 0 || i >= seq1_len)
 	{
 		// Gap is coded into value 4 in the emission table.
 		i_sym = 4;
@@ -178,12 +178,12 @@ void BeamAlign::prepare(string &seq1, string &seq2) {
     seq2_len = static_cast<unsigned>(seq2.length() + 1);
     max_len = seq1_len >= seq2_len ? seq1_len : seq2_len;
 
+    // Clean up existing arrays before allocating new ones
+    if (nucs1) delete[] nucs1;
+    if (nucs2) delete[] nucs2;
+    
     nucs1 = new int[seq1_len];
     nucs2 = new int[seq2_len];
-
-    bestALN = new unordered_map<int, AlignState>[seq1_len + seq2_len + 1];
-    bestINS1 = new unordered_map<int, AlignState>[seq1_len + seq2_len + 1];
-    bestINS2 = new unordered_map<int, AlignState>[seq1_len + seq2_len + 1];
 
     scores.reserve(seq2_len);
 
@@ -348,11 +348,15 @@ void BeamAlign::ml_alignment(string &seq1, string &seq2, vector<char> &aln1, vec
 
 
 double BeamAlign::forward(string seq1, string seq2, double** &trans_probs, double** &emit_probs, bool prior){
-    // re-new 
-    delete[] bestINS1;
-    delete[] bestINS2;
-    delete[] bestALN;
-
+    // Clean up beam arrays before prepare
+    if (bestINS1) delete[] bestINS1;
+    if (bestINS2) delete[] bestINS2;
+    if (bestALN) delete[] bestALN;
+    
+    // Prepare the sequences (this will handle nucs1/nucs2)
+    prepare(seq1, seq2);
+    
+    // Allocate new beam arrays
     bestALN = new unordered_map<int, AlignState>[seq1_len + seq2_len + 1];
     bestINS1 = new unordered_map<int, AlignState>[seq1_len + seq2_len + 1];
     bestINS2 = new unordered_map<int, AlignState>[seq1_len + seq2_len + 1];
@@ -529,6 +533,9 @@ double BeamAlign::backward(double** &transprobs, double** &emitprobs, bool prior
 }
 
 std::unordered_map<int, aln_ret>*  BeamAlign::cal_align_prob(double forward_score, double threshold, std::unordered_map<int, aln_ret>* &aln_results){
+    // Always create a new array for this sequence pair - ignore input parameter
+    aln_results = new std::unordered_map<int, aln_ret>[seq1_len];
+    
     double aln_prob, ins1_prob, ins2_prob;
    
     for (int s = 0; s < seq1_len + seq2_len; s++){
@@ -536,10 +543,13 @@ std::unordered_map<int, aln_ret>*  BeamAlign::cal_align_prob(double forward_scor
             AlignState &state = item.second;
             int i = state.i;
             int k = state.k;
-            aln_prob = xlog_div(xlog_mul(state.alpha, state.beta), forward_score);
-            if (aln_prob > float(-9.91152)) {
-                aln_results[i][k].prob = xlog_sum(aln_results[i][k].prob, aln_prob);
-                aln_results[i][k].aln_prob = aln_prob;
+            // Add bounds checking before accessing aln_results array
+            if (i >= 0 && i < (int)seq1_len && k >= 0) {
+                aln_prob = xlog_div(xlog_mul(state.alpha, state.beta), forward_score);
+                if (aln_prob > float(-9.91152)) {
+                    aln_results[i][k].prob = xlog_sum(aln_results[i][k].prob, aln_prob);
+                    aln_results[i][k].aln_prob = aln_prob;
+                }
             }
         }
 
@@ -547,16 +557,22 @@ std::unordered_map<int, aln_ret>*  BeamAlign::cal_align_prob(double forward_scor
             AlignState &state = item.second;
             int i = state.i;
             int k = state.k;
-            ins1_prob = xlog_div(xlog_mul(state.alpha, state.beta), forward_score);
-            if (ins1_prob > float(-9.91152)) aln_results[i][k].prob = xlog_sum(aln_results[i][k].prob, ins1_prob);
+            // Add bounds checking before accessing aln_results array
+            if (i >= 0 && i < (int)seq1_len && k >= 0) {
+                ins1_prob = xlog_div(xlog_mul(state.alpha, state.beta), forward_score);
+                if (ins1_prob > float(-9.91152)) aln_results[i][k].prob = xlog_sum(aln_results[i][k].prob, ins1_prob);
+            }
         }
 
         for(auto &item : bestINS2[s]){
             AlignState &state = item.second;
             int i = state.i;
             int k = state.k;
-            ins2_prob = xlog_div(xlog_mul(state.alpha, state.beta), forward_score);
-            if (ins2_prob > float(-9.91152)) aln_results[i][k].prob = xlog_sum(aln_results[i][k].prob, ins2_prob);
+            // Add bounds checking before accessing aln_results array
+            if (i >= 0 && i < (int)seq1_len && k >= 0) {
+                ins2_prob = xlog_div(xlog_mul(state.alpha, state.beta), forward_score);
+                if (ins2_prob > float(-9.91152)) aln_results[i][k].prob = xlog_sum(aln_results[i][k].prob, ins2_prob);
+            }
         }
     }
 
@@ -582,14 +598,41 @@ std::unordered_map<int, aln_ret>*  BeamAlign::cal_align_prob(double forward_scor
 }
 
 BeamAlign::BeamAlign(int beam_size)
-    : beam(beam_size), match_score_func_(nullptr) {
+    : beam(beam_size), match_score_func_(nullptr), seq1_len(0), seq2_len(0), max_len(0) {
+    init_pointers();
 }
 
 BeamAlign::~BeamAlign(){
-    delete[] bestINS1;
-    delete[] bestINS2;
-    delete[] bestALN;
+    cleanup_arrays();
+}
 
-    delete[] nucs1;
-    delete[] nucs2;
+void BeamAlign::init_pointers() {
+    bestINS1 = nullptr;
+    bestINS2 = nullptr;
+    bestALN = nullptr;
+    nucs1 = nullptr;
+    nucs2 = nullptr;
+}
+
+void BeamAlign::cleanup_arrays() {
+    if (bestINS1) {
+        delete[] bestINS1;
+        bestINS1 = nullptr;
+    }
+    if (bestINS2) {
+        delete[] bestINS2;
+        bestINS2 = nullptr;
+    }
+    if (bestALN) {
+        delete[] bestALN;
+        bestALN = nullptr;
+    }
+    if (nucs1) {
+        delete[] nucs1;
+        nucs1 = nullptr;
+    }
+    if (nucs2) {
+        delete[] nucs2;
+        nucs2 = nullptr;
+    }
 }

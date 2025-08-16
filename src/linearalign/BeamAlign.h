@@ -17,7 +17,7 @@
 #include <functional> 
 #include "math/xlog_math.h"
 #include "math/matrix.h"
-#include "phmm.h"
+// #include "phmm.h"
 
 using namespace std;
 
@@ -85,10 +85,14 @@ public:
 	std::unordered_map<int, aln_ret>* cal_align_prob(double forward_score, double threshold, std::unordered_map<int, aln_ret>* &aln_ret);
 
 private:
-    unordered_map<int, AlignState> *bestINS1, *bestINS2, *bestALN; //, *bestState;
+    unordered_map<int, AlignState> *bestINS1, *bestINS2, *bestALN;
     int *nucs1, *nucs2;
     vector<pair<double, int>> scores;
     unsigned seq1_len, seq2_len, max_len;
+    
+    // Memory management helpers
+    void cleanup_arrays();
+    void init_pointers();
 
     void prepare(string &len1, string &len2);
     double beam_prune(std::unordered_map<int, AlignState> &beamstep);

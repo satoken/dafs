@@ -1,5 +1,6 @@
 /*
  * LinearAlign implementation for DAFS
+ * Uses BeamAlign with ML parameters from LinearTurboFold for posterior probability calculation
  */
 
 #include "linearalign.h"
@@ -7,93 +8,141 @@
 #include <cmath>
 #include <algorithm>
 #include <unordered_map>
+#include <iomanip>
 
-// Include the simplified BeamAlign implementation
-#include "linearalign/BeamAlignSimple.h"
+// Include the original BeamAlign implementation
+#include "linearalign/BeamAlign.h"
 
-// Default HMM parameters based on common RNA alignment models
-static const double DEFAULT_TRANS_PROBS[3][3] = {
-    // M     X     Y
-    {0.9,  0.05, 0.05},  // from M
-    {0.15, 0.8,  0.05},  // from X  
-    {0.15, 0.05, 0.8}    // from Y
+// ML HMM parameters from LinearTurboFold (trained on RNA families)
+// States: 0=INS1, 1=INS2, 2=ALIGN
+static const double ML_TRANS_PROBS[3][3] = {
+    {0.666439, 0.041319, 0.292242}, // INS1 -> [INS1, INS2, ALIGN]
+    {0.041319, 0.666439, 0.292242}, // INS2 -> [INS1, INS2, ALIGN]
+    {0.022666, 0.022666, 0.954668}  // ALIGN -> [INS1, INS2, ALIGN]
 };
 
-static const double DEFAULT_EMIT_PROBS[3][5] = {
-    // A     C     G     U     N
-    {0.25, 0.25, 0.25, 0.25, 0.0},  // Match state
-    {0.2,  0.2,  0.2,  0.2,  0.2},  // Insert X
-    {0.2,  0.2,  0.2,  0.2,  0.2}   // Insert Y
+// ML emission probabilities from LinearTurboFold
+// 27 symbols: 25 nucleotide pairs (5x5) + start(25) + end(26)
+// Order: AA, AC, AG, AU, A., CA, CC, CG, CU, C., GA, GC, GG, GU, G., UA, UC, UG, UU, U., .A, .C, .G, .U, .., START, END
+static const double ML_EMIT_PROBS[27][3] = {
+    {0.000000, 0.000000, 0.134009}, // AA
+    {0.000000, 0.000000, 0.027164}, // AC
+    {0.000000, 0.000000, 0.049659}, // AG
+    {0.000000, 0.000000, 0.028825}, // AU
+    {0.211509, 0.000000, 0.000000}, // A.
+    {0.000000, 0.000000, 0.027164}, // CA
+    {0.000000, 0.000000, 0.140242}, // CC
+    {0.000000, 0.000000, 0.037862}, // CG
+    {0.000000, 0.000000, 0.047735}, // CU
+    {0.257349, 0.000000, 0.000000}, // C.
+    {0.000000, 0.000000, 0.049659}, // GA
+    {0.000000, 0.000000, 0.037862}, // GC
+    {0.000000, 0.000000, 0.178863}, // GG
+    {0.000000, 0.000000, 0.032351}, // GU
+    {0.271398, 0.000000, 0.000000}, // G.
+    {0.000000, 0.000000, 0.028825}, // UA
+    {0.000000, 0.000000, 0.047735}, // UC
+    {0.000000, 0.000000, 0.032351}, // UG
+    {0.000000, 0.000000, 0.099694}, // UU
+    {0.259744, 0.000000, 0.000000}, // U.
+    {0.000000, 0.211509, 0.000000}, // .A
+    {0.000000, 0.257349, 0.000000}, // .C
+    {0.000000, 0.271398, 0.000000}, // .G
+    {0.000000, 0.259744, 0.000000}, // .U
+    {0.000000, 0.000000, 0.000000}, // ..
+    {0.000000, 0.000000, 1.000000}, // START
+    {0.000000, 0.000000, 1.000000}  // END
 };
 
 LinearAlign::LinearAlign(float th, int beam_size)
     : Align::Model(th), 
       beam_size_(beam_size),
-      use_prior_(false),
+      use_prior_(false),  // Use false for initial iteration (no structure info)
       trans_probs_(nullptr),
       emit_probs_(nullptr),
       custom_params_(false)
 {
-    // Create BeamAlign instance with specified beam size
-    beam_align_ = std::make_unique<BeamAlign>(beam_size);
-    
-    // Initialize default parameters
-    initializeDefaultParameters();
+    beam_align_ = std::make_unique<BeamAlign>(beam_size_);
+    initializeMLParameters();
 }
 
 LinearAlign::~LinearAlign()
 {
-    // Clean up allocated HMM parameters if using defaults
-    if (!custom_params_ && trans_probs_ != nullptr) {
-        for (int i = 0; i < 3; ++i) {
-            delete[] trans_probs_[i];
-            delete[] emit_probs_[i];
-        }
-        delete[] trans_probs_;
-        delete[] emit_probs_;
-    }
+    cleanupParameters();
 }
 
-void LinearAlign::initializeDefaultParameters()
+void LinearAlign::initializeMLParameters()
 {
-    if (!custom_params_) {
-        // Allocate and set default HMM parameters
-        trans_probs_ = new double*[3];
-        emit_probs_ = new double*[3];
-        
-        for (int i = 0; i < 3; ++i) {
-            trans_probs_[i] = new double[3];
-            emit_probs_[i] = new double[5];
-            
-            for (int j = 0; j < 3; ++j) {
-                trans_probs_[i][j] = std::log(DEFAULT_TRANS_PROBS[i][j]);
-            }
-            for (int j = 0; j < 5; ++j) {
-                emit_probs_[i][j] = std::log(DEFAULT_EMIT_PROBS[i][j]);
-            }
+    // Clean up any existing parameters
+    cleanupParameters();
+    
+    // Allocate and initialize ML transition probabilities
+    trans_probs_ = new double*[3];
+    for (int i = 0; i < 3; ++i) {
+        trans_probs_[i] = new double[3];
+        for (int j = 0; j < 3; ++j) {
+            trans_probs_[i][j] = std::log(ML_TRANS_PROBS[i][j]);
         }
+    }
+    
+    // Allocate and initialize ML emission probabilities
+    emit_probs_ = new double*[27];
+    for (int sym = 0; sym < 27; ++sym) {
+        emit_probs_[sym] = new double[3];
+        for (int state = 0; state < 3; ++state) {
+            emit_probs_[sym][state] = std::log(ML_EMIT_PROBS[sym][state]);
+        }
+    }
+    
+    custom_params_ = true;
+}
+
+void LinearAlign::cleanupParameters()
+{
+    if (custom_params_) {
+        if (trans_probs_) {
+            for (int i = 0; i < 3; ++i) {
+                delete[] trans_probs_[i];
+            }
+            delete[] trans_probs_;
+            trans_probs_ = nullptr;
+        }
+        
+        if (emit_probs_) {
+            for (int i = 0; i < 27; ++i) {
+                delete[] emit_probs_[i];
+            }
+            delete[] emit_probs_;
+            emit_probs_ = nullptr;
+        }
+        
+        custom_params_ = false;
     }
 }
 
 void LinearAlign::setHMMParameters(double** trans_probs, double** emit_probs)
 {
     // Clean up default parameters if they were allocated
-    if (!custom_params_ && trans_probs_ != nullptr) {
-        for (int i = 0; i < 3; ++i) {
-            delete[] trans_probs_[i];
-            delete[] emit_probs_[i];
-        }
-        delete[] trans_probs_;
-        delete[] emit_probs_;
+    if (custom_params_) {
+        cleanupParameters();
     }
     
     trans_probs_ = trans_probs;
     emit_probs_ = emit_probs;
-    custom_params_ = true;
+    custom_params_ = false;  // External parameters, don't clean up in destructor
 }
 
 void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP& mp)
 {
+    // Initialize empty matrix first
+    mp.clear();
+    mp.resize(seq1.length());
+    
+    // Check for empty sequences
+    if (seq1.empty() || seq2.empty()) {
+        return;
+    }
+    
     // Convert sequences to format expected by BeamAlign
     std::string seq1_copy = seq1;
     std::string seq2_copy = seq2;
@@ -102,44 +151,47 @@ void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP
     std::replace(seq1_copy.begin(), seq1_copy.end(), 'T', 'U');
     std::replace(seq2_copy.begin(), seq2_copy.end(), 'T', 'U');
     
-    // Set up a simple match score function for BeamAlign
-    // This can be improved with more sophisticated scoring
-    beam_align_->setMatchScoreFunction([&seq1_copy, &seq2_copy](char a, char b) -> double {
-        // Simple sequence similarity score
-        if (a == b) {
-            return 2.0;  // Match bonus
-        } else if ((a == 'U' && b == 'T') || (a == 'T' && b == 'U')) {
-            return 2.0;  // RNA T-U equivalence
+    // Check parameters are initialized
+    if (!trans_probs_ || !emit_probs_) {
+        std::cerr << "HMM parameters not initialized in LinearAlign::calculate" << std::endl;
+        return;
+    }
+    
+    try {
+        // Step 1: Run forward algorithm
+        double forward_score = beam_align_->forward(seq1_copy, seq2_copy, trans_probs_, emit_probs_, use_prior_);
+        
+        // Step 2: Run backward algorithm  
+        double backward_score = beam_align_->backward(trans_probs_, emit_probs_, use_prior_);
+        
+        // Step 3: Calculate posterior alignment probabilities
+        std::unordered_map<int, aln_ret>* aln_results = nullptr;  // Always start with nullptr
+        double log_threshold = std::log(this->threshold());  // Convert threshold to log space
+        
+        aln_results = beam_align_->cal_align_prob(forward_score, log_threshold, aln_results);
+        
+        // Step 4: Convert results to DAFS sparse matrix format
+        if (aln_results != nullptr) {
+            try {
+                convertToSparseMatrix(aln_results, seq1_copy, seq2_copy, mp);
+            } catch (...) {
+                // Ensure cleanup even if conversion fails
+                delete[] aln_results;
+                throw;
+            }
+            // Safely delete the array
+            delete[] aln_results;
+            aln_results = nullptr;
         }
-        return -1.0;  // Mismatch penalty
-    });
-    
-    // Vectors to store alignment results
-    std::vector<char> aln1, aln2;
-    
-    // Run BeamAlign ML alignment
-    beam_align_->ml_alignment(seq1_copy, seq2_copy, aln1, aln2, 
-                             trans_probs_, emit_probs_, use_prior_);
-    
-    // Run forward algorithm to get alignment score
-    double forward_score = beam_align_->forward(seq1_copy, seq2_copy,
-                                                trans_probs_, emit_probs_, use_prior_);
-    
-    // Run backward algorithm
-    beam_align_->backward(trans_probs_, emit_probs_, use_prior_);
-    
-    // Calculate alignment probabilities with threshold
-    std::unordered_map<int, aln_ret>* aln_results = nullptr;
-    aln_results = beam_align_->cal_align_prob(forward_score, threshold(), aln_results);
-    
-    // Convert results to DAFS sparse matrix format
-    if (aln_results != nullptr) {
-        convertToSparseMatrix(aln_results, seq1, seq2, mp);
-        delete aln_results;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error in LinearAlign::calculate: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown error in LinearAlign::calculate" << std::endl;
     }
 }
 
-void LinearAlign::convertToSparseMatrix(const std::unordered_map<int, struct aln_ret>* aln_results,
+void LinearAlign::convertToSparseMatrix(const std::unordered_map<int, aln_ret>* aln_results,
                                        const std::string& seq1, const std::string& seq2,
                                        MP& mp)
 {
@@ -151,33 +203,55 @@ void LinearAlign::convertToSparseMatrix(const std::unordered_map<int, struct aln
     mp.resize(L1);
     
     // Convert from BeamAlign's format to DAFS sparse matrix format
-    // BeamAlign uses: key = i * max_len + j
-    uint max_len = std::max(L1, L2) + 1;
+    // BeamAlign uses seq_len = original_len + 1 for start/end symbols
+    // aln_results array size = seq1_len = L1 + 1
+    // Valid array indices: 0 to L1 (inclusive)
+    // However, BeamAlign typically uses indices 1 to L1 for actual sequence positions
     
-    for (const auto& result : *aln_results) {
-        int key = result.first;
-        const struct aln_ret& aln_info = result.second;
+    uint seq1_len = L1 + 1;  // BeamAlign's internal sequence length
+    
+    // Only iterate through valid sequence positions (1-based in BeamAlign)
+    for (uint i = 1; i <= L1; ++i) {
+        // Ensure we don't access beyond allocated array size
+        if (i >= seq1_len) break;
         
-        // Decode position from key
-        uint i = key / max_len;
-        uint j = key % max_len;
-        
-        // Check bounds and threshold
-        if (i < L1 && j < L2) {
-            // Convert from log probability to probability
-            float prob = std::exp(aln_info.aln_prob);
+        const auto& pos_results = aln_results[i];
+        for (const auto& result : pos_results) {
+            uint j = result.first;  // j is position in seq2 (1-based in BeamAlign)
+            const aln_ret& aln_info = result.second;
             
-            if (prob > threshold()) {
-                mp[i].push_back(std::make_pair(j, prob));
+            // Validate j is within valid sequence range (1-based)
+            if (j >= 1 && j <= L2) {
+                float prob = aln_info.prob;
+                
+                // Validate probability value (must be finite and reasonable)
+                if (std::isfinite(prob) && !std::isnan(prob) && prob > 0.0f && prob <= 1.0f && prob > this->threshold()) {
+                    // Convert to 0-based indexing for DAFS
+                    uint i_zero = i - 1;  // Convert from 1-based to 0-based
+                    uint j_zero = j - 1;  // Convert from 1-based to 0-based
+                    
+                    // Final bounds check before adding to sparse matrix
+                    if (i_zero < L1 && j_zero < L2 && i_zero < mp.size()) {
+                        mp[i_zero].push_back(std::make_pair(j_zero, prob));
+                    }
+                }
             }
         }
     }
     
-    // Sort each row by column index for consistency
-    for (uint i = 0; i < L1; ++i) {
+    // Sort each row by column index for DAFS compatibility
+    for (uint i = 0; i < mp.size(); ++i) {
         std::sort(mp[i].begin(), mp[i].end(),
                  [](const std::pair<uint, float>& a, const std::pair<uint, float>& b) {
                      return a.first < b.first;
                  });
     }
+}
+
+// Keep the old initializeDefaultParameters method for compatibility
+void LinearAlign::initializeDefaultParameters()
+{
+    // This method is now replaced by initializeMLParameters
+    // but kept for compatibility
+    initializeMLParameters();
 }

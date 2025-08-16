@@ -1,8 +1,8 @@
 # CMakeLists.txt for LinearAlign library
 
-# Set source files for LinearAlign with simplified BeamAlign implementation
+# Set source files for LinearAlign with proper BeamAlign implementation
 set(LINEARALIGN_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/BeamAlignSimple.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/BeamAlign.cpp
 )
 
 # Create static library

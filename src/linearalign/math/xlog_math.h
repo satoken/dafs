@@ -7,7 +7,7 @@
 #include <iostream>
 #include <cfloat>
 #include <cassert>
-#include "../defines.h"
+// #include "../defines.h"
 #include <stdexcept>
 
 // This header contains extended logarithmic/exponential functions derived from 
