@@ -29,6 +29,12 @@
 //#define USE_ADAM
 #define USE_ADAPTIVE
 
+// Define SPARSE_UPDATE if not defined elsewhere
+// This should match the setting in dafs.cpp
+#ifndef SPARSE_UPDATE
+#define SPARSE_UPDATE
+#endif
+
 // Consensus base-pair indices
 typedef std::pair<std::pair<uint, uint>, std::pair<uint, uint>> CBP;
 

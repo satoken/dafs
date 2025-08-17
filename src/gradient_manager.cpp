@@ -183,7 +183,9 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
     // Clear violations list
     violations.clear();
     
-    // Update Lagrangian for x (=q_x) using sparse update
+    // Update Lagrangian for x (=q_x)
+#ifdef SPARSE_UPDATE
+    // Sparse update implementation
     for (uint i = 0; i != L1; ++i) {
         const uint j = x[i];
         if (j != -1u && t_x[i][j] != 1) {
@@ -217,8 +219,30 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
             }
         }
     }
+#else
+    // Non-sparse (naive) implementation - loop through all pairs
+    for (uint i = 0; i != L1 - 1; ++i) {
+        for (uint j = i + 1; j != L1; ++j) {
+            const int x_ij = (x[i] == j) ? 1 : 0;
+            if (t_x[i][j] - x_ij != 0) {
+                violations_++;
+                violations.push_back(ViolationInfo(ViolationInfo::X_VIOLATION, i, j, -1u, -1u, std::abs(t_x[i][j] - x_ij)));
+                float grad = t_x[i][j] - x_ij;
+#if defined(USE_ADAGRAD)
+                q_x_[i][j] -= clip_update(adagrad_update(g2_x_[i][j], grad));
+#elif defined(USE_ADAM)
+                q_x_[i][j] -= clip_update(adam_update(m_x_[i][j], v_x_[i][j], grad, t + 1));
+#else
+                q_x_[i][j] -= clip_update(eta * grad);
+#endif
+            }
+        }
+    }
+#endif
     
-    // Update Lagrangian for y (=q_y) using sparse update
+    // Update Lagrangian for y (=q_y)
+#ifdef SPARSE_UPDATE
+    // Sparse update implementation
     for (uint k = 0; k != L2; ++k) {
         const uint l = y[k];
         if (l != -1u && t_y[k][l] != 1) {
@@ -252,8 +276,30 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
             }
         }
     }
+#else
+    // Non-sparse (naive) implementation - loop through all pairs
+    for (uint k = 0; k != L2 - 1; ++k) {
+        for (uint l = k + 1; l != L2; ++l) {
+            const int y_kl = (y[k] == l) ? 1 : 0;
+            if (t_y[k][l] - y_kl != 0) {
+                violations_++;
+                violations.push_back(ViolationInfo(ViolationInfo::Y_VIOLATION, k, l, k, l, std::abs(t_y[k][l] - y_kl)));
+                float grad = t_y[k][l] - y_kl;
+#if defined(USE_ADAGRAD)
+                q_y_[k][l] -= clip_update(adagrad_update(g2_y_[k][l], grad));
+#elif defined(USE_ADAM)
+                q_y_[k][l] -= clip_update(adam_update(m_y_[k][l], v_y_[k][l], grad, t + 1));
+#else
+                q_y_[k][l] -= clip_update(eta * grad);
+#endif
+            }
+        }
+    }
+#endif
     
-    // Update Lagrangian for z (=q_z) using sparse update
+    // Update Lagrangian for z (=q_z)
+#ifdef SPARSE_UPDATE
+    // Sparse update implementation
     for (uint i = 0; i != L1; ++i) {
         const uint k = z[i];
         if (k != -1u) {
@@ -295,6 +341,28 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
             }
         }
     }
+#else
+    // Non-sparse (naive) implementation - loop through all pairs
+    for (uint i = 0; i != L1; ++i) {
+        for (uint k = 0; k != L2; ++k) {
+            const int z_ik = (z[i] == k) ? 1 : 0;
+            if (z_ik - t_z[i][k] < 0) {
+                violations_++;
+                violations.push_back(ViolationInfo(ViolationInfo::Z_VIOLATION, i, k, i, k, std::abs(z_ik - t_z[i][k])));
+            }
+            float grad = z_ik - t_z[i][k];
+            float update = 0.0;
+#if defined(USE_ADAGRAD)
+            update = clip_update(adagrad_update(g2_z_[i][k], grad));
+#elif defined(USE_ADAM)
+            update = clip_update(adam_update(m_z_[i][k], v_z_[i][k], grad, t + 1));
+#else
+            update = clip_update(eta * grad);
+#endif
+            q_z_[i][k] = std::max(0.0f, q_z_[i][k] - update);
+        }
+    }
+#endif
     
     // Update step size
     if (score > prev_score || t == 0) {

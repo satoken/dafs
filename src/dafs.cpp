@@ -71,6 +71,8 @@ namespace Vienna
 #include "spdlog/stopwatch.h"
 #define CUTOFF 0.01
 
+// Toggle between sparse and non-sparse update modes
+// Comment out the following line to use non-sparse (naive) implementation
 #define SPARSE_UPDATE
 
 DAFS::DAFS()
@@ -984,6 +986,7 @@ float DAFS::
   VVU c_x, c_y, c_z;
   
   if (use_column_generation_) {
+#ifdef SPARSE_UPDATE
     // Initialize CBP manager if not already done
     if (!cbp_manager_) {
       cbp_manager_ = std::make_unique<CBPManager>(L1, L2, CUTOFF);
@@ -1005,24 +1008,33 @@ float DAFS::
     if (c_x.size() != L1) c_x.resize(L1);
     if (c_y.size() != L2) c_y.resize(L2);
     if (c_z.size() != L1) c_z.resize(L1);
+#else
+    // Column generation requires SPARSE_UPDATE mode
+    spdlog::warn("Column generation is only supported with SPARSE_UPDATE mode. Falling back to standard enumeration.");
+    use_column_generation_ = false;
+#endif
+  }
     
-    if (verbose_ >= 1) {
-      std::cout << "Column generation: Starting with " << cbp.size() << " initial CBPs" << std::endl;
-      if (verbose_ >= 2) {
-        std::cout << "Sample CBPs: ";
-        for (size_t i = 0; i < std::min(5ul, cbp.size()); ++i) {
-          std::cout << "(" << cbp[i].first.first << "," << cbp[i].first.second 
-                    << "," << cbp[i].second.first << "," << cbp[i].second.second << ") ";
-        }
-        std::cout << std::endl;
+  if (use_column_generation_ && verbose_ >= 1) {
+    std::cout << "Column generation: Starting with " << cbp.size() << " initial CBPs" << std::endl;
+    if (verbose_ >= 2) {
+      std::cout << "Sample CBPs: ";
+      for (size_t i = 0; i < std::min(5ul, cbp.size()); ++i) {
+        std::cout << "(" << cbp[i].first.first << "," << cbp[i].first.second 
+                  << "," << cbp[i].second.first << "," << cbp[i].second.second << ") ";
       }
+      std::cout << std::endl;
     }
-  } else {
+  }
+  
+  if (!use_column_generation_) {
     // Original implementation: enumerate all candidates
     float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
+#ifdef SPARSE_UPDATE
     c_x.resize(L1);
     c_y.resize(L2);
     c_z.resize(L1);
+#endif
     
     for (uint i = 0; i != L1 - 1; ++i)
       for (uint j = i + 1; j != L1; ++j)
@@ -1039,13 +1051,16 @@ float DAFS::
                   if (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0)
                   {
                     cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
+#ifdef SPARSE_UPDATE
                     c_x[i].push_back(j);
                     c_y[k].push_back(l);
                     c_z[i].push_back(k);
                     c_z[j].push_back(l);
+#endif
                   }
                 }
     
+#ifdef SPARSE_UPDATE
     for (uint i = 0; i != c_x.size(); ++i)
     {
       std::sort(c_x[i].begin(), c_x[i].end());
@@ -1061,6 +1076,7 @@ float DAFS::
       std::sort(c_z[i].begin(), c_z[i].end());
       c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
     }
+#endif
     
     if (verbose_ >= 1) {
       std::cout << "Normal DAFS: Generated " << cbp.size() << " CBPs" << std::endl;
