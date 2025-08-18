@@ -29,8 +29,6 @@
 #include "fold.h"
 #include "align.h"
 
-// Forward declarations
-class CBPManager;
 
 class DAFS
 {
@@ -92,12 +90,6 @@ private:
   std::vector<std::vector<MP>> mp_; // alignment matching probability matrices
   std::vector<BP> bp_;              // base-pairing probability matrices
   VVF sim_;                         // simalarity matrix between input sequences
-  
-  // Column generation variables
-  bool use_column_generation_;      // whether to use column generation for CBP management
-  uint cbp_addition_frequency_;     // frequency to add new CBPs (every N iterations)
-  float cbp_violation_threshold_;   // minimum violation score to trigger CBP addition
-  std::unique_ptr<CBPManager> cbp_manager_; // CBP manager for column generation
   std::vector<node_t> tree_;        // guide tree
   bool use_alifold_;
   bool use_alifold1_;

@@ -98,16 +98,6 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
                                       const VVU& c_x, const VVU& c_y, const VVU& c_z,
                                       uint t, float score, float prev_score)
 {
-    std::vector<ViolationInfo> dummy_violations;
-    return update_gradients_with_violations(cbp, x, y, z, w_cbp, c_x, c_y, c_z, t, score, prev_score, dummy_violations);
-}
-
-uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& cbp,
-                                      const VU& x, const VU& y, const VU& z, const VU& w_cbp,
-                                      const VVU& c_x, const VVU& c_y, const VVU& c_z,
-                                      uint t, float score, float prev_score,
-                                      std::vector<ViolationInfo>& violations)
-{
     const uint L1 = q_x_.size();
     const uint L2 = q_y_.size();
     
@@ -180,9 +170,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
     eta *= (score - lb_) / std::sqrt(g2 + 1e-6f);
     spdlog::debug("eta: {}, g^2: {}, score: {}, lb_: {}", eta, g2, score, lb_);
 
-    // Clear violations list
-    violations.clear();
-    
     // Update Lagrangian for x (=q_x)
 #ifdef SPARSE_UPDATE
     // Sparse update implementation
@@ -190,7 +177,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
         const uint j = x[i];
         if (j != -1u && t_x[i][j] != 1) {
             violations_++;
-            violations.push_back(ViolationInfo(ViolationInfo::X_VIOLATION, i, j, -1u, -1u, std::abs(t_x[i][j] - 1)));
             float grad = t_x[i][j] - 1; // x_ij=1
 #if defined(USE_ADAGRAD)            
             q_x_[i][j] -= clip_update(adagrad_update(g2_x_[i][j], grad));
@@ -206,7 +192,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
             for (auto j: c_x[i]) {
                 if (x[i] != j && t_x[i][j] != 0) {
                     violations_++;
-                    violations.push_back(ViolationInfo(ViolationInfo::X_VIOLATION, i, j, -1u, -1u, std::abs(t_x[i][j])));
                     float grad = t_x[i][j]; // x_ij=0
 #if defined(USE_ADAGRAD)                
                     q_x_[i][j] -= clip_update(adagrad_update(g2_x_[i][j], grad));
@@ -226,7 +211,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
             const int x_ij = (x[i] == j) ? 1 : 0;
             if (t_x[i][j] - x_ij != 0) {
                 violations_++;
-                violations.push_back(ViolationInfo(ViolationInfo::X_VIOLATION, i, j, -1u, -1u, std::abs(t_x[i][j] - x_ij)));
                 float grad = t_x[i][j] - x_ij;
 #if defined(USE_ADAGRAD)
                 q_x_[i][j] -= clip_update(adagrad_update(g2_x_[i][j], grad));
@@ -247,7 +231,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
         const uint l = y[k];
         if (l != -1u && t_y[k][l] != 1) {
             violations_++;
-            violations.push_back(ViolationInfo(ViolationInfo::Y_VIOLATION, k, l, k, l, std::abs(t_y[k][l] - 1)));
             float grad = t_y[k][l] - 1; // y_kl=1
 #if defined(USE_ADAGRAD)            
             q_y_[k][l] -= clip_update(adagrad_update(g2_y_[k][l], grad));
@@ -263,7 +246,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
             for (auto l: c_y[k]) {
                 if (y[k] != l && t_y[k][l] != 0) {
                     violations_++;
-                    violations.push_back(ViolationInfo(ViolationInfo::Y_VIOLATION, k, l, k, l, std::abs(t_y[k][l])));
                     float grad = t_y[k][l]; // y_kl=0
 #if defined(USE_ADAGRAD)                
                     q_y_[k][l] -= clip_update(adagrad_update(g2_y_[k][l], grad));
@@ -283,7 +265,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
             const int y_kl = (y[k] == l) ? 1 : 0;
             if (t_y[k][l] - y_kl != 0) {
                 violations_++;
-                violations.push_back(ViolationInfo(ViolationInfo::Y_VIOLATION, k, l, k, l, std::abs(t_y[k][l] - y_kl)));
                 float grad = t_y[k][l] - y_kl;
 #if defined(USE_ADAGRAD)
                 q_y_[k][l] -= clip_update(adagrad_update(g2_y_[k][l], grad));
@@ -305,7 +286,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
         if (k != -1u) {
             if (t_z[i][k] > 1) {
                 violations_++;
-                violations.push_back(ViolationInfo(ViolationInfo::Z_VIOLATION, i, k, i, k, std::abs(1 - t_z[i][k])));
             }
             float grad = 1 - t_z[i][k]; // z_ik=1
             float update = 0.0;
@@ -325,7 +305,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
                 if (z[i] != k) {
                     if (t_z[i][k] > 0) {
                         violations_++;
-                        violations.push_back(ViolationInfo(ViolationInfo::Z_VIOLATION, i, k, i, k, std::abs(t_z[i][k])));
                     }
                     float grad = -t_z[i][k]; // z_ik=0
                     float update = 0.0;
@@ -348,7 +327,6 @@ uint GradientManager::update_gradients_with_violations(const std::vector<CBP>& c
             const int z_ik = (z[i] == k) ? 1 : 0;
             if (z_ik - t_z[i][k] < 0) {
                 violations_++;
-                violations.push_back(ViolationInfo(ViolationInfo::Z_VIOLATION, i, k, i, k, std::abs(z_ik - t_z[i][k])));
             }
             float grad = z_ik - t_z[i][k];
             float update = 0.0;

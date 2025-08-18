@@ -48,7 +48,7 @@ endif()
 
 add_executable(
     dafs
-    alifold.cpp align.cpp boltzmann_param.c cbp_manager.cpp dafs.cpp fa.cpp fold.cpp
+    alifold.cpp align.cpp boltzmann_param.c dafs.cpp fa.cpp fold.cpp
     gradient_manager.cpp ip.cpp ipknot.cpp linfold_wrapper.cpp linearalign.cpp needleman_wunsch.cpp nussinov.cpp tree.cpp
 )
 target_link_libraries(dafs contrafold probcons contralign linearfold linearalign

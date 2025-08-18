@@ -38,16 +38,6 @@
 // Consensus base-pair indices
 typedef std::pair<std::pair<uint, uint>, std::pair<uint, uint>> CBP;
 
-// Violation information for column generation
-struct ViolationInfo {
-    enum Type { X_VIOLATION, Y_VIOLATION, Z_VIOLATION };
-    Type type;
-    uint i, j, k, l;
-    float violation_score;
-    
-    ViolationInfo(Type t, uint i_, uint j_, uint k_ = -1u, uint l_ = -1u, float score = 0.0f) 
-        : type(t), i(i_), j(j_), k(k_), l(l_), violation_score(score) {}
-};
 
 class GradientManager {
 public:
@@ -66,13 +56,6 @@ public:
                          const VU& x, const VU& y, const VU& z, const VU& w_cbp,
                          const VVU& c_x, const VVU& c_y, const VVU& c_z,
                          uint t, float score, float prev_score);
-    
-    // Update gradients and collect violation information
-    uint update_gradients_with_violations(const std::vector<CBP>& cbp,
-                         const VU& x, const VU& y, const VU& z, const VU& w_cbp,
-                         const VVU& c_x, const VVU& c_y, const VVU& c_z,
-                         uint t, float score, float prev_score,
-                         std::vector<ViolationInfo>& violations);
     
     // Get current violation count
     uint get_violations() const { return violations_; }
