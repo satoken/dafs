@@ -70,6 +70,17 @@ private:
   void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
   void output(std::ostream &os, const ALN &aln) const;
   void output(std::ostream &os, ALN::const_iterator b, ALN::const_iterator e) const;
+  
+  // Dynamic CBP generation methods
+  bool is_valid_cbp(uint i, uint j, uint k, uint l, 
+                    const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                    uint N1, uint N2, float min_th_s) const;
+  void add_cbp_if_new(const CBP& candidate, std::vector<CBP>& cbp, 
+                      VVU& c_x, VVU& c_y, VVU& c_z);
+  void generate_cbp_from_solution(const VU& x, const VU& y, const VU& z,
+                                  const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                                  uint N1, uint N2, float min_th_s,
+                                  std::vector<CBP>& cbp, VVU& c_x, VVU& c_y, VVU& c_z);
 
 private:
   float w_pct_a_;                   // the weight of PCT for alignment matching probabilities
@@ -91,6 +102,11 @@ private:
   std::vector<BP> bp_;              // base-pairing probability matrices
   VVF sim_;                         // simalarity matrix between input sequences
   std::vector<node_t> tree_;        // guide tree
+  
+  // Dynamic CBP generation
+  bool use_dynamic_cbp_;            // whether to use dynamic CBP generation
+  std::set<CBP> cbp_set_;           // for duplicate removal
+  
   bool use_alifold_;
   bool use_alifold1_;
   bool use_bp_update_;

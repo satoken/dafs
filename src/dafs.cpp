@@ -32,6 +32,7 @@
 #include <memory>
 #include <system_error>
 #include <random>
+#include <set>
 //#include <fstream>
 #include "fa.h"
 #include "fold.h"
@@ -74,7 +75,8 @@ namespace Vienna
 DAFS::DAFS()
     : use_alifold_(false),
       use_alifold1_(true),
-      g_(42)
+      g_(42),
+      use_dynamic_cbp_(false)
 {
 }
 
@@ -977,16 +979,46 @@ float DAFS::
   VU w_cbp;
   VVU c_x, c_y, c_z;
   
+  // Clear CBP set for dynamic generation
+  cbp_set_.clear();
   
-    // Enumerate all candidates
-    float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
+  float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
+  
+  if (use_dynamic_cbp_) {
+    // Dynamic CBP generation: start with empty sets
+    if (verbose_ >= 1) {
+      std::cout << "Using dynamic CBP generation" << std::endl;
+    }
 #ifdef SPARSE_UPDATE
     c_x.resize(L1);
     c_y.resize(L2);
     c_z.resize(L1);
 #endif
     
-  for (uint i = 0; i != L1 - 1; ++i)
+    // Generate initial CBPs from naive baseline solutions to ensure convergence
+    VU x_init(L1, -1u), y_init(L2, -1u), z_init(L1, -1u);
+    // Simple initial solutions: x[i] = i+1 for valid pairs, align sequentially
+    for (uint i = 0; i < L1-1; ++i) {
+      if (i+1 < L1) x_init[i] = i+1;
+      if (i < L2) z_init[i] = i;
+    }
+    for (uint k = 0; k < L2-1; ++k) {
+      if (k+1 < L2) y_init[k] = k+1;
+    }
+    
+    generate_cbp_from_solution(x_init, y_init, z_init, p_x, p_y, p_z, N1, N2, min_th_s, cbp, c_x, c_y, c_z);
+    if (verbose_ >= 1) {
+      std::cout << "Dynamic CBP: Generated " << cbp.size() << " initial CBPs" << std::endl;
+    }
+  } else {
+    // Original static pre-enumeration
+#ifdef SPARSE_UPDATE
+    c_x.resize(L1);
+    c_y.resize(L2);
+    c_z.resize(L1);
+#endif
+    
+    for (uint i = 0; i != L1 - 1; ++i)
     for (uint j = i + 1; j != L1; ++j)
       if (p_x[i][j] > CUTOFF)
         for (uint k = 0; k != L2 - 1; ++k)
@@ -1011,22 +1043,23 @@ float DAFS::
               }
   
 #ifdef SPARSE_UPDATE
-  for (uint i = 0; i != c_x.size(); ++i)
-  {
-    std::sort(c_x[i].begin(), c_x[i].end());
-    c_x[i].erase(std::unique(c_x[i].begin(), c_x[i].end()), c_x[i].end());
-  }
-  for (uint k = 0; k != c_y.size(); ++k)
-  {
-    std::sort(c_y[k].begin(), c_y[k].end());
-    c_y[k].erase(std::unique(c_y[k].begin(), c_y[k].end()), c_y[k].end());
-  }
-  for (uint i = 0; i != c_z.size(); ++i)
-  {
-    std::sort(c_z[i].begin(), c_z[i].end());
-    c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
-  }
+    for (uint i = 0; i != c_x.size(); ++i)
+    {
+      std::sort(c_x[i].begin(), c_x[i].end());
+      c_x[i].erase(std::unique(c_x[i].begin(), c_x[i].end()), c_x[i].end());
+    }
+    for (uint k = 0; k != c_y.size(); ++k)
+    {
+      std::sort(c_y[k].begin(), c_y[k].end());
+      c_y[k].erase(std::unique(c_y[k].begin(), c_y[k].end()), c_y[k].end());
+    }
+    for (uint i = 0; i != c_z.size(); ++i)
+    {
+      std::sort(c_z[i].begin(), c_z[i].end());
+      c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
+    }
 #endif
+  }  // end of else block for static pre-enumeration
   
   // precalculate the range for alignment, i.e. alignment envelope
   a_decoder_->initialize(p_z);
@@ -1058,6 +1091,32 @@ float DAFS::
 
     if (verbose_ >= 2)
       output_verbose(x, y, z, aln1, aln2);
+
+    // Dynamic CBP generation: add CBPs based on current solution
+    if (use_dynamic_cbp_) {
+      size_t cbp_before = cbp.size();
+      generate_cbp_from_solution(x, y, z, p_x, p_y, p_z, N1, N2, min_th_s, cbp, c_x, c_y, c_z);
+      if (verbose_ >= 2 && cbp.size() > cbp_before) {
+        std::cout << "Dynamic CBP: Added " << (cbp.size() - cbp_before) 
+                  << " new CBPs at iteration " << t << " (total: " << cbp.size() << ")" << std::endl;
+      }
+      
+      // Sort and remove duplicates in projection arrays after adding new CBPs
+#ifdef SPARSE_UPDATE
+      for (uint i = 0; i != c_x.size(); ++i) {
+        std::sort(c_x[i].begin(), c_x[i].end());
+        c_x[i].erase(std::unique(c_x[i].begin(), c_x[i].end()), c_x[i].end());
+      }
+      for (uint k = 0; k != c_y.size(); ++k) {
+        std::sort(c_y[k].begin(), c_y[k].end());
+        c_y[k].erase(std::unique(c_y[k].begin(), c_y[k].end()), c_y[k].end());
+      }
+      for (uint i = 0; i != c_z.size(); ++i) {
+        std::sort(c_z[i].begin(), c_z[i].end());
+        c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
+      }
+#endif
+    }
 
     // Calculate Lagrangian value
     w_cbp.clear();
@@ -1437,6 +1496,7 @@ parse_options(int& argc, char**& argv)
     ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
     ("f,fourway-pct", "Weight of four-way PCT", cxxopts::value<float>()->default_value("0.0"))
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"))
+    ("dynamic-cbp", "Use dynamic CBP generation instead of pre-enumeration")
     ;
 
   options.add_options("Aligning")
@@ -1488,6 +1548,7 @@ parse_options(int& argc, char**& argv)
     t_max_ = res["max-iter"].as<int>();
     w_pct_f_ = res["fourway-pct"].as<float>();
     verbose_ = res["verbose"].as<int>();
+    use_dynamic_cbp_ = res.count("dynamic-cbp") > 0;
     switch (verbose_)
     {
     default:
@@ -1748,4 +1809,61 @@ int main(int argc, char *argv[])
     std::cerr << e.what() << std::endl;
   }
   return EXIT_FAILURE;
+}
+
+// Dynamic CBP generation methods implementation
+
+bool DAFS::is_valid_cbp(uint i, uint j, uint k, uint l, 
+                        const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                        uint N1, uint N2, float min_th_s) const {
+    // Use the same logic as the original dafs.cpp:995-1001
+    if (p_x[i][j] > CUTOFF && p_z[i][k] > CUTOFF && 
+        p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF) {
+        
+        assert(p_x[i][j] <= 1.0);
+        assert(p_y[k][l] <= 1.0);
+        float p = (N1 * p_x[i][j] + N2 * p_y[k][l]) / (N1 + N2);
+        float q = (p_z[i][k] + p_z[j][l]) / 2;
+        return (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0);
+    }
+    return false;
+}
+
+void DAFS::add_cbp_if_new(const CBP& candidate, std::vector<CBP>& cbp, 
+                          VVU& c_x, VVU& c_y, VVU& c_z) {
+    if (cbp_set_.insert(candidate).second) {  // Only add if it's new
+        cbp.push_back(candidate);
+        auto [i, j] = candidate.first;
+        auto [k, l] = candidate.second;
+        
+#ifdef SPARSE_UPDATE
+        c_x[i].push_back(j);
+        c_y[k].push_back(l);
+        c_z[i].push_back(k);
+        c_z[j].push_back(l);
+#endif
+    }
+}
+
+void DAFS::generate_cbp_from_solution(const VU& x, const VU& y, const VU& z,
+                                      const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                                      uint N1, uint N2, float min_th_s,
+                                      std::vector<CBP>& cbp, VVU& c_x, VVU& c_y, VVU& c_z) {
+    const uint L1 = p_x.size();
+    
+    // Generate CBP candidates from current solution
+    for (uint i = 0; i < L1-1; ++i) {
+        uint j = x[i];  // Base pair in structure 1
+        if (j != -1u && j > i) {
+            uint k = z[i];  // Alignment
+            uint l = z[j];  // Alignment
+            if (k != -1u && l != -1u && k < l && y[k] == l) {
+                // Check if this CBP is valid using original logic
+                if (is_valid_cbp(i, j, k, l, p_x, p_y, p_z, N1, N2, min_th_s)) {
+                    CBP candidate = {{i,j}, {k,l}};
+                    add_cbp_if_new(candidate, cbp, c_x, c_y, c_z);
+                }
+            }
+        }
+    }
 }
