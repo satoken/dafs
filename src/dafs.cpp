@@ -986,9 +986,7 @@ float DAFS::
   
   if (use_dynamic_cbp_) {
     // Dynamic CBP generation: start with empty sets
-    if (verbose_ >= 1) {
-      std::cout << "Using dynamic CBP generation" << std::endl;
-    }
+    spdlog::info("Using dynamic CBP generation");
 #ifdef SPARSE_UPDATE
     c_x.resize(L1);
     c_y.resize(L2);
@@ -1005,11 +1003,9 @@ float DAFS::
     for (uint k = 0; k < L2-1; ++k) {
       if (k+1 < L2) y_init[k] = k+1;
     }
-    
+
     generate_cbp_from_solution(x_init, y_init, z_init, p_x, p_y, p_z, N1, N2, min_th_s, cbp, c_x, c_y, c_z);
-    if (verbose_ >= 1) {
-      std::cout << "Dynamic CBP: Generated " << cbp.size() << " initial CBPs" << std::endl;
-    }
+    spdlog::info("Dynamic CBP: Generated {} initial CBPs", cbp.size());
   } else {
     // Original static pre-enumeration
 #ifdef SPARSE_UPDATE
@@ -1019,29 +1015,29 @@ float DAFS::
 #endif
     
     for (uint i = 0; i != L1 - 1; ++i)
-    for (uint j = i + 1; j != L1; ++j)
-      if (p_x[i][j] > CUTOFF)
-        for (uint k = 0; k != L2 - 1; ++k)
-          if (p_z[i][k] > CUTOFF)
-            for (uint l = k + 1; l != L2; ++l)
-              if (p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF)
-              {
-                assert(p_x[i][j] <= 1.0);
-                assert(p_y[k][l] <= 1.0);
-                float p = (N1 * p_x[i][j] + N2 * p_y[k][l]) / (N1 + N2);
-                float q = (p_z[i][k] + p_z[j][l]) / 2;
-                if (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0)
+      for (uint j = i + 1; j != L1; ++j)
+        if (p_x[i][j] > CUTOFF)
+          for (uint k = 0; k != L2 - 1; ++k)
+            if (p_z[i][k] > CUTOFF)
+              for (uint l = k + 1; l != L2; ++l)
+                if (p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF)
                 {
-                  cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
-#ifdef SPARSE_UPDATE
-                  c_x[i].push_back(j);
-                  c_y[k].push_back(l);
-                  c_z[i].push_back(k);
-                  c_z[j].push_back(l);
-#endif
+                  assert(p_x[i][j] <= 1.0);
+                  assert(p_y[k][l] <= 1.0);
+                  float p = (N1 * p_x[i][j] + N2 * p_y[k][l]) / (N1 + N2);
+                  float q = (p_z[i][k] + p_z[j][l]) / 2;
+                  if (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0)
+                  {
+                    cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
+  #ifdef SPARSE_UPDATE
+                    c_x[i].push_back(j);
+                    c_y[k].push_back(l);
+                    c_z[i].push_back(k);
+                    c_z[j].push_back(l);
+  #endif
+                  }
                 }
-              }
-  
+              
 #ifdef SPARSE_UPDATE
     for (uint i = 0; i != c_x.size(); ++i)
     {
@@ -1096,9 +1092,9 @@ float DAFS::
     if (use_dynamic_cbp_) {
       size_t cbp_before = cbp.size();
       generate_cbp_from_solution(x, y, z, p_x, p_y, p_z, N1, N2, min_th_s, cbp, c_x, c_y, c_z);
-      if (verbose_ >= 2 && cbp.size() > cbp_before) {
-        std::cout << "Dynamic CBP: Added " << (cbp.size() - cbp_before) 
-                  << " new CBPs at iteration " << t << " (total: " << cbp.size() << ")" << std::endl;
+      if (cbp.size() > cbp_before) {
+        spdlog::debug("Dynamic CBP: Added {} new CBPs at iteration {} (total: {})",
+                      cbp.size() - cbp_before, t, cbp.size());
       }
       
       // Sort and remove duplicates in projection arrays after adding new CBPs
