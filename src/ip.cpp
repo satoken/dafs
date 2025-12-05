@@ -36,6 +36,14 @@ extern "C" {
 #ifdef WITH_GUROBI
 #include "gurobi_c++.h"
 #endif
+#ifdef WITH_SCIP
+#include <scip/scip.h>
+#include <scip/scipdefplugins.h>
+#endif
+#ifdef WITH_HIGHS
+#include <Highs.h>
+#endif
+
 #include <cfloat>
 
 #ifdef WITH_GLPK
@@ -273,7 +281,7 @@ public:
       case IP::UP: bnd_[row]='L'; rhs_[row]=u; break;
       case IP::DB: bnd_[row]='R'; rhs_[row]=l; rngval_[row]=u-l; break;
       case IP::FX: bnd_[row]='E'; rhs_[row]=l; break;
-      case IP::FR: bnd_[row]='R'; rhs_[row]=DBL_MIN; rngval_[row]=DBL_MAX; break;
+      case IP::FR: bnd_[row]='R'; rhs_[row]=-DBL_MAX; rngval_[row]=DBL_MAX; break;
     }
     return row;
   }
@@ -365,7 +373,282 @@ private:
 };
 #endif  // WITH_CPLEX
 
-#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
+#ifdef WITH_SCIP
+class IPimpl
+{
+public:
+  IPimpl(IP::DirType dir, int n_th)
+    : scip_(nullptr), sol_(nullptr)
+    //: ip_(NULL), ia_(1), ja_(1), ar_(1)
+  {
+    SCIPcreate(&scip_);
+    SCIPincludeDefaultPlugins(scip_);
+    SCIPcreateProbBasic(scip_, "IPknot");
+    switch (dir)
+    {
+      case IP::MIN: SCIPsetObjsense(scip_, SCIP_OBJSENSE_MINIMIZE); break;
+      case IP::MAX: SCIPsetObjsense(scip_, SCIP_OBJSENSE_MAXIMIZE); break;
+    }
+  }
+
+  ~IPimpl()
+  {
+    for (auto& v: vars_)
+      SCIPreleaseVar(scip_, &v);
+    for (auto& c: cons_)
+      SCIPreleaseCons(scip_, &c);
+    if (scip_) SCIPfree(&scip_);
+  }
+
+  int make_variable(double coef, int lo=0, int hi=1)
+  {
+    int col = vars_.size();
+    SCIP_VAR *var = nullptr;
+    char buf[16];
+    snprintf(buf, sizeof(buf), "var[%d]", col);
+    SCIPcreateVarBasic(scip_,                // SCIP environment
+                       &var,                 // reference to the variable
+                       buf,                  // name of the variable
+                       lo,                   // Lower bound of the variable
+                       hi,                   // upper bound of the variable
+                       coef,                 // Obj. coefficient. 
+                       SCIP_VARTYPE_BINARY   // Binary variable
+                      );
+    SCIPaddVar(scip_, var);
+    vars_.push_back(var);
+    return col;
+  }
+
+  int make_constraint(IP::BoundType bnd, double l, double u)
+  {
+    int row = cons_.size();
+    SCIP_CONS *cons = nullptr;
+    char buf[16];
+    snprintf(buf, sizeof(buf), "cons[%d]", row);
+    double lhs = -SCIPinfinity(scip_); 
+    double rhs =  SCIPinfinity(scip_);
+    switch (bnd)
+    {
+      case IP::FR: break;
+      case IP::LO: lhs = l; break; 
+      case IP::UP: rhs = u; break;
+      case IP::DB: lhs = l; rhs = u; break;
+      case IP::FX: lhs = rhs = l; break;
+    }
+    SCIPcreateConsBasicLinear(scip_,        // SCIP pointer
+                              &cons,        // reference to the constraint
+                              buf,          // name of the constraint
+                              0,            // How many variables are you adding  now
+                              nullptr,      // an array of pointers to various variables
+                              nullptr,      // an array of values of the coefficients of the corresponding vars
+                              lhs,          // LHS of the constraint 
+                              rhs           // RHS of the constraint
+                             );
+    SCIPaddCons(scip_, cons);
+    cons_.push_back(cons);
+    return row;
+  }
+
+  void add_constraint(int row, int col, double val)
+  {
+    assert(row>=0);
+    assert(col>=0);
+    SCIPaddCoefLinear(scip_, cons_[row], vars_[col], val);
+  }
+
+  void update()
+  {
+    for (auto c: cons_)
+      SCIPaddCons(scip_, c);
+  }
+
+
+  double solve()
+  {
+    // SCIP_CALL((SCIPwriteOrigProblem(scip, "ipknot.lp", nullptr, FALSE)));
+    SCIPsetIntParam(scip_, "display/verblevel", 0);   // We use SCIPsetIntParams to turn off the logging. 
+    SCIPsolve(scip_);
+    SCIP_STATUS soln_status = SCIPgetStatus(scip_); 
+    sol_ = SCIPgetBestSol(scip_);
+    return SCIPgetSolOrigObj(scip_, sol_);
+  }
+
+  double get_value(int col) const
+  {
+    return SCIPgetSolVal(scip_, sol_, vars_[col]);
+  }
+
+private:
+  SCIP *scip_;
+  std::vector<SCIP_VAR *> vars_;
+  std::vector<SCIP_CONS *> cons_;
+  SCIP_SOL *sol_;
+};
+#endif // WITH_SCIP
+
+#ifdef WITH_HIGHS
+class IPimpl
+{
+public:
+  IPimpl(IP::DirType dir, int n_th)
+    : model_()
+  {
+    highs_.setOptionValue("output_flag", false);
+    highs_.setOptionValue("threads", n_th);
+    switch (dir)
+    {
+      default:
+      case IP::MAX: model_.lp_.sense_ = ObjSense::kMaximize; break;
+      case IP::MIN: model_.lp_.sense_ = ObjSense::kMinimize; break;
+    }
+  }
+
+  ~IPimpl()
+  {
+  }
+
+  int make_variable(double coef, double l=0, double u=1)
+  {
+    int col = col_cost_.size();
+    col_cost_.push_back(coef);
+    col_lower_.push_back(l);
+    col_upper_.push_back(u);
+    m_.resize(col_cost_.size());
+    return col;
+  }
+
+  int make_constraint(IP::BoundType bnd, double l, double u)
+  {
+    int row = row_lower_.size();
+    switch (bnd)
+    {
+      case IP::LO: u=DBL_MAX; break;
+      case IP::UP: l=-DBL_MAX; break;
+      case IP::DB: break;
+      case IP::FX: u=l; break;
+      case IP::FR: l=-DBL_MAX; u=DBL_MAX; break;
+    }
+    row_lower_.push_back(l);
+    row_upper_.push_back(u);
+    return row;
+  }
+
+  void add_constraint(int row, int col, double val)
+  {
+    m_[col].emplace_back(row, val);
+  }
+
+  void update()
+  {
+    m_.resize(col_cost_.size());
+  }
+
+  double solve()
+  {
+    const int numcols = col_cost_.size();
+    const int numrows = row_lower_.size();
+    std::vector<HighsInt> start(numcols+1);
+    start[0] = 0;
+    for (auto i=1; i!=start.size(); i++)
+      start[i] = start[i-1] + m_[i-1].size();
+    auto non_zeros = start[start.size()-1];
+    std::vector<HighsInt> index(non_zeros);
+    std::vector<double> value(non_zeros);
+    for (auto i=0, k=0; i!=numcols; i++)
+    {
+      for (auto j=0; j!=m_[i].size(); j++, k++)
+      {
+        index[k] = m_[i][j].first;
+        value[k] = m_[i][j].second;
+      }
+    }
+    m_.clear();
+
+    model_.lp_.num_col_ = numcols;
+    model_.lp_.num_row_ = numrows;
+    model_.lp_.col_cost_ = col_cost_;
+    model_.lp_.col_lower_ = col_lower_;
+    model_.lp_.col_upper_ = col_upper_;
+    model_.lp_.row_lower_ = row_lower_;
+    model_.lp_.row_upper_ = row_upper_;
+    model_.lp_.a_matrix_.start_ = start;
+    model_.lp_.a_matrix_.index_ = index;
+    model_.lp_.a_matrix_.value_ = value;
+
+    // To indicate that variables must take integer values use the HighsLp::integrality vector.
+    model_.lp_.integrality_.resize(numcols);
+    for (int col=0; col < numcols; col++)
+      model_.lp_.integrality_[col] = HighsVarType::kInteger;
+
+    HighsStatus return_status;
+  
+    // Pass the model to HiGHS
+    return_status = highs_.passModel(model_);
+    assert(return_status==HighsStatus::kOk);
+
+    // Get a const reference to the LP data in HiGHS
+    // const HighsLp& lp = highs_.getLp();
+  
+    // Solve the model
+    return_status = highs_.run();
+    if (return_status != HighsStatus::kOk) {
+      throw std::runtime_error("HiGHS solver returned non-OK status");
+    }
+
+    // Get the model status
+    const HighsModelStatus& model_status = highs_.getModelStatus();
+    // TODO: Investigate why stack constraints with non-overlap make the model infeasible
+    // For now, just warn instead of throwing
+    if (model_status != HighsModelStatus::kOptimal) {
+      std::string status_str;
+      switch (model_status) {
+        case HighsModelStatus::kNotset: status_str = "Not set"; break;
+        case HighsModelStatus::kLoadError: status_str = "Load error"; break;
+        case HighsModelStatus::kModelError: status_str = "Model error"; break;
+        case HighsModelStatus::kPresolveError: status_str = "Presolve error"; break;
+        case HighsModelStatus::kSolveError: status_str = "Solve error"; break;
+        case HighsModelStatus::kPostsolveError: status_str = "Postsolve error"; break;
+        case HighsModelStatus::kModelEmpty: status_str = "Model empty"; break;
+        case HighsModelStatus::kInfeasible: status_str = "Infeasible"; break;
+        case HighsModelStatus::kUnboundedOrInfeasible: status_str = "Unbounded or infeasible"; break;
+        case HighsModelStatus::kUnbounded: status_str = "Unbounded"; break;
+        case HighsModelStatus::kObjectiveBound: status_str = "Objective bound"; break;
+        case HighsModelStatus::kObjectiveTarget: status_str = "Objective target"; break;
+        case HighsModelStatus::kTimeLimit: status_str = "Time limit"; break;
+        case HighsModelStatus::kIterationLimit: status_str = "Iteration limit"; break;
+        case HighsModelStatus::kUnknown: status_str = "Unknown"; break;
+        default: status_str = "Other"; break;
+      }
+      // spdlog might not be available here, so just use std::cerr
+      std::cerr << "WARNING: HiGHS model status is not optimal: " << status_str << std::endl;
+    }
+
+    const HighsInfo& info = highs_.getInfo();
+    return info.objective_function_value;
+  }
+
+  double get_value(int col) const
+  {
+    // Get the solution values and basis
+    const HighsSolution& solution = highs_.getSolution();
+    return solution.col_value[col];
+  }
+
+private:
+  IP::DirType dir_;
+  HighsModel model_;
+  Highs highs_;
+  std::vector<double> col_cost_;
+  std::vector<double> col_lower_;
+  std::vector<double> col_upper_;
+  std::vector<double> row_lower_;
+  std::vector<double> row_upper_;
+  std::vector< std::vector< std::pair<int,double> > > m_;
+};
+#endif
+
+
+#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI) || defined(WITH_SCIP) || defined(WITH_HIGHS)
 
 IP::
 IP(DirType dir, int n_th)
@@ -439,7 +722,7 @@ IP(DirType dir, int n_th)
 IP::
 ~IP()
 {
-  throw "no IP solver is linked.";
+  //throw "no IP solver is linked.";
 }
 
 int
@@ -451,7 +734,6 @@ make_variable(double coef)
 }
 
 int
-IP::
 make_variable(double coef, int lo, int hi)
 {
   throw "no IP solver is linked.";
