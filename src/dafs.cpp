@@ -977,43 +977,19 @@ float DAFS::
 
   std::vector<CBP> cbp;
   VU w_cbp;
-  VVU c_x, c_y, c_z;
+  VVU c_x(L1), c_y(L2), c_z(L1);
   
   // Clear CBP set for dynamic generation
   cbp_set_.clear();
   
   float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
-  
-  if (use_dynamic_cbp_) {
-    // Dynamic CBP generation: start with empty sets
-    spdlog::info("Using dynamic CBP generation");
-#ifdef SPARSE_UPDATE
-    c_x.resize(L1);
-    c_y.resize(L2);
-    c_z.resize(L1);
-#endif
-    
-    // Generate initial CBPs from naive baseline solutions to ensure convergence
-    VU x_init(L1, -1u), y_init(L2, -1u), z_init(L1, -1u);
-    // Simple initial solutions: x[i] = i+1 for valid pairs, align sequentially
-    for (uint i = 0; i < L1-1; ++i) {
-      if (i+1 < L1) x_init[i] = i+1;
-      if (i < L2) z_init[i] = i;
-    }
-    for (uint k = 0; k < L2-1; ++k) {
-      if (k+1 < L2) y_init[k] = k+1;
-    }
 
-    generate_cbp_from_solution(x_init, y_init, z_init, p_x, p_y, p_z, N1, N2, min_th_s, cbp, c_x, c_y, c_z);
-    spdlog::info("Dynamic CBP: Generated {} initial CBPs", cbp.size());
-  } else {
+  // precalculate the range for alignment, i.e. alignment envelope
+  // (moved before dynamic CBP generation to enable decoder-based initial solution)
+  a_decoder_->initialize(p_z);
+
+  if (!use_dynamic_cbp_) {
     // Original static pre-enumeration
-#ifdef SPARSE_UPDATE
-    c_x.resize(L1);
-    c_y.resize(L2);
-    c_z.resize(L1);
-#endif
-    
     for (uint i = 0; i != L1 - 1; ++i)
       for (uint j = i + 1; j != L1; ++j)
         if (p_x[i][j] > CUTOFF)
@@ -1056,9 +1032,6 @@ float DAFS::
     }
 #endif
   }  // end of else block for static pre-enumeration
-  
-  // precalculate the range for alignment, i.e. alignment envelope
-  a_decoder_->initialize(p_z);
 
   // Initialize gradient manager
   GradientManager gm(eta0_);
@@ -1813,8 +1786,8 @@ bool DAFS::is_valid_cbp(uint i, uint j, uint k, uint l,
                         const VVF& p_x, const VVF& p_y, const VVF& p_z,
                         uint N1, uint N2, float min_th_s) const {
     // Use the same logic as the original dafs.cpp:995-1001
-    if (p_x[i][j] > CUTOFF && p_z[i][k] > CUTOFF && 
-        p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF) {
+    if (/*p_x[i][j] > CUTOFF && p_z[i][k] > CUTOFF && 
+        p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF*/ true) {
         
         assert(p_x[i][j] <= 1.0);
         assert(p_y[k][l] <= 1.0);
