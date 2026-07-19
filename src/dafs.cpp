@@ -33,6 +33,7 @@
 #include <system_error>
 #include <random>
 #include <set>
+#include <unordered_map>
 #include <cstdint>
 #include <limits>
 #include <array>
@@ -48,6 +49,7 @@
 #include "ip.h"
 #include "typedefs.h"
 #include "gradient_manager.h"
+#include "relaxed_bounds.h"
 #include "dafs.h"
 #include "linfold_wrapper.h"
 
@@ -72,7 +74,8 @@ namespace Vienna
 #define CUTOFF 0.01
 
 DAFS::DAFS()
-    : use_dynamic_cbp_(false),
+    : w_ribosum_(0.1f),
+      use_dynamic_cbp_(false),
       use_sparse_structure_lagrangian_(false),
       use_sparse_alignment_lagrangian_(false),
       use_linear_structure_decoder_(false),
@@ -94,9 +97,14 @@ float DAFS::solve(VU &x, VU &y, VU &z,
                   const SparseFloatMatrix &p_z,
                   const ALN &aln1, const ALN &aln2)
 {
-#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI)
+#if defined(WITH_GLPK) || defined(WITH_CPLEX) || defined(WITH_GUROBI) || \
+    defined(WITH_SCIP) || defined(WITH_HIGHS)
   return t_max_ != 0 ? solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2) : solve_by_ip(x, y, z, p_x, p_y, p_z, aln1, aln2);
 #else
+  if (t_max_ == 0)
+    throw std::runtime_error(
+        "--max-iter=0 requires an integer-programming backend "
+        "(GLPK, CPLEX, Gurobi, SCIP, or HiGHS)");
   return solve_by_dd(x, y, z, p_x, p_y, p_z, aln1, aln2);
 #endif
 }
@@ -1006,7 +1014,9 @@ float DAFS::
                              const SparseFloatMatrix& p_x,
                              const SparseFloatMatrix& p_y,
                              const SparseFloatMatrix& p_z,
-                             uint N1, uint N2, float min_th_s) const
+                             uint N1, uint N2, float min_th_s,
+                             const RibosumProfile& ribosum_x,
+                             const RibosumProfile& ribosum_y) const
 {
   const uint L1 = p_x.rows();
   const uint L2 = p_y.rows();
@@ -1040,14 +1050,17 @@ float DAFS::
     const uint l = z[j];
     if (k == -1u || l == -1u || k >= l || l >= L2 || y[k] != l)
       continue;
+    const float pair_match_score = w_ribosum_ *
+        ribosum_x.pair_score(i, j, ribosum_y, k, l);
     if (!is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
-                      N1, N2, min_th_s))
+                      N1, N2, min_th_s, pair_match_score))
       continue;
 
     repaired_x[i] = j;
     repaired_y[k] = l;
     score += x_weight * (p_x.get(i, j) - repair_th);
     score += y_weight * (p_y.get(k, l) - repair_th);
+    score += pair_match_score;
   }
 
   return score;
@@ -1064,6 +1077,21 @@ float DAFS::
   const uint L2 = p_y.rows();
   const uint N1 = aln1.size();
   const uint N2 = aln2.size();
+  const RibosumProfile ribosum_x(aln1, fa_);
+  const RibosumProfile ribosum_y(aln2, fa_);
+  std::unordered_map<CBP, float, CBPHash> pair_match_cache;
+  const auto pair_match_score = [&](uint i, uint j, uint k, uint l) {
+    if (w_ribosum_ == 0.0f)
+      return 0.0f;
+    const CBP candidate = {{i, j}, {k, l}};
+    const auto found = pair_match_cache.find(candidate);
+    if (found != pair_match_cache.end())
+      return found->second;
+    const float score = w_ribosum_ *
+        ribosum_x.pair_score(i, j, ribosum_y, k, l);
+    pair_match_cache.emplace(candidate, score);
+    return score;
+  };
 
   std::vector<CBP> cbp;
   VU w_cbp;
@@ -1132,11 +1160,9 @@ float DAFS::
           for (const uint l : p_z_forward[j])
             if (k < l && p_y.get(k, l) > CUTOFF)
                 {
-                  assert(p_x.get(i, j) <= 1.0);
-                  assert(p_y.get(k, l) <= 1.0);
-                  float p = (N1 * p_x.get(i, j) + N2 * p_y.get(k, l)) / (N1 + N2);
-                  float q = (p_z.get(i, k) + p_z.get(j, l)) / 2;
-                  if (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0)
+                  const float ribosum = pair_match_score(i, j, k, l);
+                  if (is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
+                                   N1, N2, min_th_s, ribosum))
                   {
                     cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
                     c_x[i].push_back(j);
@@ -1161,7 +1187,42 @@ float DAFS::
       std::sort(c_z[i].begin(), c_z[i].end());
       c_z[i].erase(std::unique(c_z[i].begin(), c_z[i].end()), c_z[i].end());
     }
-  }  // end of else block for static pre-enumeration
+  } else if (w_ribosum_ > 0.0f) {
+    // A positive intrinsic w coefficient can have positive reduced cost even
+    // while every multiplier is zero.  Materialize all such columns once and
+    // retain them, preserving exact pricing without a dense four-dimensional
+    // scan in every iteration.  Sparse probability degrees bound this scan by
+    // O(|p_x| / th_a^2), hence it is linear in sequence length for fixed
+    // thresholds.
+    for (const auto& [i, j] : p_x_support) {
+      for (const uint k : p_z_forward[i]) {
+        for (const uint l : p_z_forward[j]) {
+          if (k >= l || p_y.get(k, l) <= CUTOFF)
+            continue;
+          const float ribosum = pair_match_score(i, j, k, l);
+          if (ribosum > 0.0f &&
+              is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
+                           N1, N2, min_th_s, ribosum))
+            add_cbp_if_new({{i, j}, {k, l}}, cbp, c_x, c_y, c_z);
+        }
+      }
+    }
+    for (VU& projection : c_x) {
+      std::sort(projection.begin(), projection.end());
+      projection.erase(std::unique(projection.begin(), projection.end()),
+                       projection.end());
+    }
+    for (VU& projection : c_y) {
+      std::sort(projection.begin(), projection.end());
+      projection.erase(std::unique(projection.begin(), projection.end()),
+                       projection.end());
+    }
+    for (VU& projection : c_z) {
+      std::sort(projection.begin(), projection.end());
+      projection.erase(std::unique(projection.begin(), projection.end()),
+                       projection.end());
+    }
+  }
 
   // Initialize gradient manager
   GradientManager gm(eta0_, 0.0f, 1.0f,
@@ -1221,43 +1282,34 @@ float DAFS::
     float s = s_x + s_y + s_z;
 
     // Beam maxima are feasible subproblem values, not certified maxima.
-    // For each Linear component, independently selecting every positive
-    // local item is a relaxation and therefore a safe upper bound.
+    // Keep the one-partner capacity constraints while relaxing structural
+    // non-crossing and alignment monotonicity.  These matching relaxations
+    // are still linear in the sparse support, but are substantially tighter
+    // than independently selecting every positive local item.
     const float x_weight = w_ * 2 * N1 / (N1 + N2);
     const float y_weight = w_ * 2 * N2 / (N1 + N2);
-    const auto relaxed_structure_bound = [](const auto& support,
-                                            const SparseFloatMatrix& p, float weight,
-                                            float threshold,
-                                            const auto& multiplier) {
-      float bound = 0.0f;
-      for (const auto& [i, j] : support)
-        bound += std::max(0.0f, weight * (p.get(i, j) - threshold)
-                                - multiplier(i, j));
-      return bound;
-    };
-    const auto relaxed_alignment_bound = [](const auto& support,
-                                            const SparseFloatMatrix& p, float threshold,
-                                            const auto& multiplier) {
-      float bound = 0.0f;
-      for (const auto& [i, k] : support)
-        bound += std::max(0.0f, p.get(i, k) - threshold + multiplier(i, k));
-      return bound;
-    };
     float certified_s = s;
     if (use_linear_structure_decoder_) {
       certified_s -= s_x + s_y;
-      certified_s += relaxed_structure_bound(
-          p_x_support, p_x, x_weight, th_s_[0],
-          [&](uint i, uint j) { return gm.q_x(i, j); });
-      certified_s += relaxed_structure_bound(
-          p_y_support, p_y, y_weight, th_s_[0],
-          [&](uint k, uint l) { return gm.q_y(k, l); });
+      const float x_bound = RelaxedBounds::structure(
+          p_x_support, L1, [&](uint i, uint j) {
+            return x_weight * (p_x.get(i, j) - th_s_[0]) - gm.q_x(i, j);
+          });
+      const float y_bound = RelaxedBounds::structure(
+          p_y_support, L2, [&](uint k, uint l) {
+            return y_weight * (p_y.get(k, l) - th_s_[0]) - gm.q_y(k, l);
+          });
+      // The beam result is feasible.  This maximum is normally redundant,
+      // and protects certification against implementation or rounding drift.
+      certified_s += std::max(x_bound, s_x) + std::max(y_bound, s_y);
     }
     if (use_linear_alignment_decoder_) {
       certified_s -= s_z;
-      certified_s += relaxed_alignment_bound(
-          p_z_support, p_z, th_a_,
-          [&](uint i, uint k) { return gm.q_z(i, k); });
+      const float z_bound = RelaxedBounds::alignment(
+          p_z_support, L1, L2, [&](uint i, uint k) {
+            return p_z.get(i, k) - th_a_ + gm.q_z(i, k);
+          });
+      certified_s += std::max(z_bound, s_z);
     }
 
     if (verbose_ >= 2)
@@ -1277,7 +1329,10 @@ float DAFS::
         if (y[k] != -1u && y[k] > k)
           add_support(q_y_support, q_y_support_set, k, y[k]);
 
-      generate_cbp_from_solution(x, y, z, p_x, p_y, p_z, N1, N2, min_th_s, cbp, c_x, c_y, c_z);
+      generate_cbp_from_solution(x, y, z, p_x, p_y, p_z,
+                                 N1, N2, min_th_s,
+                                 ribosum_x, ribosum_y,
+                                 cbp, c_x, c_y, c_z);
 
       // Exact pricing is required for the restricted Lagrangian to remain an
       // upper bound for the original problem.  Materialize every missing
@@ -1287,6 +1342,7 @@ float DAFS::
                                          p_z_forward, p_z_reverse,
                                          q_x_support, q_y_support,
                                          N1, N2, min_th_s,
+                                         ribosum_x, ribosum_y,
                                          cbp, c_x, c_y, c_z);
       for (size_t u = cbp_before; u < cbp.size(); ++u) {
         add_support(q_x_support, q_x_support_set,
@@ -1326,7 +1382,8 @@ float DAFS::
     {
       const auto &[i, j] = cbp[u].first;
       const auto &[k, l] = cbp[u].second;
-      const float s_w = gm.q_x(i, j) + gm.q_y(k, l)
+      const float s_w = pair_match_score(i, j, k, l)
+                      + gm.q_x(i, j) + gm.q_y(k, l)
                       - gm.q_z(i, k) - gm.q_z(j, l);
       cbp_reduced_cost[u] = s_w;
       if (s_w > 0.0f)
@@ -1342,7 +1399,7 @@ float DAFS::
     VU repaired_x, repaired_y, repaired_z;
     const float feasible_score = repair_feasible_solution(
         repaired_x, repaired_y, repaired_z, x, y, z,
-        p_x, p_y, p_z, N1, N2, min_th_s);
+        p_x, p_y, p_z, N1, N2, min_th_s, ribosum_x, ribosum_y);
     if (feasible_score > best_feasible_score) {
       best_feasible_score = feasible_score;
       best_x.swap(repaired_x);
@@ -1383,13 +1440,15 @@ float DAFS::
         const auto& [ij, kl] = cbp[u];
         const auto& [i, j] = ij;
         const auto& [k, l] = kl;
+        const float ribosum = pair_match_score(i, j, k, l);
         const bool participates = selected_w[u] || x[i] == j || y[k] == l;
         if (participates || cbp_reduced_cost[u] > 0.0f)
           cbp_inactive_steps[u] = 0;
         else
           ++cbp_inactive_steps[u];
 
-        if (cbp_inactive_steps[u] >= CBP_INACTIVE_PATIENCE &&
+        if (ribosum <= 0.0f &&
+            cbp_inactive_steps[u] >= CBP_INACTIVE_PATIENCE &&
             cbp_reduced_cost[u] <= 0.0f) {
           ++removed;
           continue;
@@ -1458,6 +1517,12 @@ float DAFS::
 {
   const uint L1 = p_x.rows();
   const uint L2 = p_y.rows();
+  const uint N1 = aln1.size();
+  const uint N2 = aln2.size();
+  const RibosumProfile ribosum_x(aln1, fa_);
+  const RibosumProfile ribosum_y(aln2, fa_);
+  const float x_weight = w_ * 2.0f * N1 / (N1 + N2);
+  const float y_weight = w_ * 2.0f * N2 / (N1 + N2);
 
   // integer programming
   IP ip(IP::MAX, 1);
@@ -1488,18 +1553,19 @@ float DAFS::
             for (uint l = k + 1; l != L2; ++l)
               if (p_y.get(k, l) > CUTOFF && p_z.get(j, l) > CUTOFF)
               {
-                assert(p_x.get(i, j) <= 1.0);
-                assert(p_y.get(k, l) <= 1.0);
-                float p = (p_x.get(i, j) + p_y.get(k, l)) / 2;
-                float q = (p_z.get(i, k) + p_z.get(j, l)) / 2;
-                if (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0)
+                const float ribosum = w_ribosum_ *
+                    ribosum_x.pair_score(i, j, ribosum_y, k, l);
+                if (is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
+                                 N1, N2, min_th_s, ribosum))
                 {
                   cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
-                  v_w.push_back(ip.make_variable(0.0));
+                  v_w.push_back(ip.make_variable(ribosum));
                   if (v_x[i][j] < 0)
-                    v_x[i][j] = ip.make_variable(w_ * (p_x.get(i, j) - min_th_s));
+                    v_x[i][j] = ip.make_variable(
+                        x_weight * (p_x.get(i, j) - min_th_s));
                   if (v_y[k][l] < 0)
-                    v_y[k][l] = ip.make_variable(w_ * (p_y.get(k, l) - min_th_s));
+                    v_y[k][l] = ip.make_variable(
+                        y_weight * (p_y.get(k, l) - min_th_s));
                 }
               }
   ip.update();
@@ -1796,6 +1862,7 @@ parse_options(int& argc, char**& argv)
     ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
     ("seed", "Random seed for shuffling", cxxopts::value<int>()->default_value("42"), "N")
     ("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
+    ("ribosum-weight", "Weight of RIBOSUM85-60 pair-pair match scores", cxxopts::value<float>()->default_value("0.1"))
     ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.5"))
     ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
     ("f,fourway-pct", "Weight of four-way PCT", cxxopts::value<float>()->default_value("0.0"))
@@ -1849,8 +1916,14 @@ parse_options(int& argc, char**& argv)
     n_refinement_ = res["refinement"].as<int>();
     g_ = std::mt19937(res["seed"].as<int>());
     w_ = res["weight"].as<float>();
+    w_ribosum_ = res["ribosum-weight"].as<float>();
+    if (!std::isfinite(w_ribosum_) || w_ribosum_ < 0.0f)
+      throw std::invalid_argument("--ribosum-weight must be finite and non-negative");
     eta0_ = res["eta"].as<float>();
-    t_max_ = res["max-iter"].as<int>();
+    const int requested_max_iter = res["max-iter"].as<int>();
+    if (requested_max_iter < 0)
+      throw std::invalid_argument("--max-iter must be non-negative");
+    t_max_ = static_cast<uint>(requested_max_iter);
     w_pct_f_ = res["fourway-pct"].as<float>();
     verbose_ = res["verbose"].as<int>();
     use_dynamic_cbp_ = res.count("dynamic-cbp") > 0;
@@ -2026,6 +2099,7 @@ parse_options(int& argc, char**& argv)
                  !use_alifold_ ? "disabled" :
                  (use_linear_profile_folding_ ? "linear-consensus" :
                                                 "Vienna-RNAalifold"));
+    spdlog::info("RIBOSUM85-60 pair-pair weight: {}", w_ribosum_);
 
     use_bp_update_ = res["bp-update"].count() > 0;
     use_bp_update1_ = res["bp-update1"].count() > 0 ^ res["ipknot"].count() > 0;
@@ -2181,6 +2255,10 @@ int main(int argc, char *argv[])
   {
     std::cerr << e.what() << std::endl;
   }
+  catch (const std::exception& e)
+  {
+    std::cerr << e.what() << std::endl;
+  }
   return EXIT_FAILURE;
 }
 
@@ -2190,7 +2268,8 @@ bool DAFS::is_valid_cbp(uint i, uint j, uint k, uint l,
                         const SparseFloatMatrix& p_x,
                         const SparseFloatMatrix& p_y,
                         const SparseFloatMatrix& p_z,
-                        uint N1, uint N2, float min_th_s) const {
+                        uint N1, uint N2, float min_th_s,
+                        float pair_match_score) const {
     // Use the same logic as the original dafs.cpp:995-1001
     if (p_x.get(i, j) > CUTOFF && p_z.get(i, k) > CUTOFF &&
         p_y.get(k, l) > CUTOFF && p_z.get(j, l) > CUTOFF) {
@@ -2199,7 +2278,16 @@ bool DAFS::is_valid_cbp(uint i, uint j, uint k, uint l,
         assert(p_y.get(k, l) <= 1.0);
         float p = (N1 * p_x.get(i, j) + N2 * p_y.get(k, l)) / (N1 + N2);
         float q = (p_z.get(i, k) + p_z.get(j, l)) / 2;
-        return (p - min_th_s > 0.0 && w_ * (p - min_th_s) + (q - th_a_) > 0.0);
+        // The probability terms occur once for each profile/endpoint in the
+        // primal objective, whereas a pair-pair match is attached once to w.
+        // Retain a candidate when its total unshifted contribution can be
+        // positive.  A zero RIBOSUM weight preserves the historical candidate
+        // set for exact backward compatibility.
+        const float probability_score =
+            w_ * (p - min_th_s) + (q - th_a_);
+        if (w_ribosum_ == 0.0f)
+          return p - min_th_s > 0.0f && probability_score > 0.0f;
+        return 2.0f * probability_score + pair_match_score > 0.0f;
     }
     return false;
 }
@@ -2223,6 +2311,8 @@ void DAFS::generate_cbp_from_solution(const VU& x, const VU& y, const VU& z,
                                       const SparseFloatMatrix& p_y,
                                       const SparseFloatMatrix& p_z,
                                       uint N1, uint N2, float min_th_s,
+                                      const RibosumProfile& ribosum_x,
+                                      const RibosumProfile& ribosum_y,
                                       std::vector<CBP>& cbp, VVU& c_x, VVU& c_y, VVU& c_z) {
     const uint L1 = p_x.rows();
     const uint L2 = p_y.rows();
@@ -2238,7 +2328,9 @@ void DAFS::generate_cbp_from_solution(const VU& x, const VU& y, const VU& z,
         const uint l = z[j];
         if (k != -1u && l != -1u && k < l &&
             is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
-                         N1, N2, min_th_s)) {
+                         N1, N2, min_th_s,
+                         w_ribosum_ * ribosum_x.pair_score(
+                             i, j, ribosum_y, k, l))) {
             add_cbp_if_new({{i, j}, {k, l}}, cbp, c_x, c_y, c_z);
         }
     }
@@ -2258,7 +2350,9 @@ void DAFS::generate_cbp_from_solution(const VU& x, const VU& y, const VU& z,
         const uint j = inverse_z[l];
         if (i != -1u && j != -1u && i < j &&
             is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
-                         N1, N2, min_th_s)) {
+                         N1, N2, min_th_s,
+                         w_ribosum_ * ribosum_x.pair_score(
+                             i, j, ribosum_y, k, l))) {
             add_cbp_if_new({{i, j}, {k, l}}, cbp, c_x, c_y, c_z);
         }
     }
@@ -2273,6 +2367,8 @@ void DAFS::generate_positive_reduced_cost_cbp(
     const std::vector<std::pair<uint, uint>>& q_x_support,
     const std::vector<std::pair<uint, uint>>& q_y_support,
     uint N1, uint N2, float min_th_s,
+    const RibosumProfile& ribosum_x,
+    const RibosumProfile& ribosum_y,
     std::vector<CBP>& cbp, VVU& c_x, VVU& c_y, VVU& c_z) {
     const uint L1 = p_x.rows();
     const uint L2 = p_y.rows();
@@ -2285,19 +2381,23 @@ void DAFS::generate_positive_reduced_cost_cbp(
         const CBP candidate = {{i, j}, {k, l}};
         if (cbp_set_.find(candidate) != cbp_set_.end())
             return;
+        const float pair_score = w_ribosum_ *
+            ribosum_x.pair_score(i, j, ribosum_y, k, l);
         if (!is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
-                          N1, N2, min_th_s))
+                          N1, N2, min_th_s, pair_score))
             return;
-        const float reduced_cost = gm.q_x(i, j) + gm.q_y(k, l)
+        const float reduced_cost = pair_score
+                                 + gm.q_x(i, j) + gm.q_y(k, l)
                                  - gm.q_z(i, k) - gm.q_z(j, l);
         if (reduced_cost > 0.0f)
             add_cbp_if_new(candidate, cbp, c_x, c_y, c_z);
     };
 
-    // Since q_z is projected onto the non-negative orthant, a positive
-    // reduced cost implies q_x(i,j)>0 or q_y(k,l)>0.  Searching from both
-    // positive supports is therefore exhaustive, while the two alignment
-    // adjacency lists avoid the four-dimensional dense scan.
+    // All positive intrinsic pair-score columns were inserted before the
+    // iterations and are never pruned.  For every other missing column the
+    // intrinsic score is non-positive; since q_z is non-negative, positive
+    // reduced cost therefore implies q_x(i,j)>0 or q_y(k,l)>0.  Searching
+    // both supports is exhaustive without a four-dimensional dense scan.
     for (const auto& [i, j] : q_x_support) {
         if (gm.q_x(i, j) <= 0.0f || p_x.get(i, j) <= CUTOFF)
             continue;

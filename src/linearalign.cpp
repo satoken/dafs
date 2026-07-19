@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <iomanip>
+#include <stdexcept>
 
 // Include the original BeamAlign implementation
 #include "linearalign/BeamAlign.h"
@@ -151,18 +152,21 @@ void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP
     std::replace(seq1_copy.begin(), seq1_copy.end(), 'T', 'U');
     std::replace(seq2_copy.begin(), seq2_copy.end(), 'T', 'U');
     
-    // Check parameters are initialized
-    if (!trans_probs_ || !emit_probs_) {
-        std::cerr << "HMM parameters not initialized in LinearAlign::calculate" << std::endl;
-        return;
-    }
-    
     try {
+        // Invalid model state is a hard failure.  Continuing with an empty
+        // posterior matrix makes downstream output look successful.
+        if (!trans_probs_ || !emit_probs_)
+            throw std::logic_error("HMM parameters are not initialized");
+
         // Step 1: Run forward algorithm
         double forward_score = beam_align_->forward(seq1_copy, seq2_copy, trans_probs_, emit_probs_, use_prior_);
+        if (!std::isfinite(forward_score))
+            throw std::runtime_error("forward algorithm returned a non-finite score");
         
         // Step 2: Run backward algorithm  
         double backward_score = beam_align_->backward(trans_probs_, emit_probs_, use_prior_);
+        if (!std::isfinite(backward_score))
+            throw std::runtime_error("backward algorithm returned a non-finite score");
         
         // Step 3: Calculate posterior alignment probabilities
         std::unordered_map<int, aln_ret>* aln_results = nullptr;  // Always start with nullptr
@@ -171,31 +175,21 @@ void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP
         aln_results = beam_align_->cal_align_prob(forward_score, log_threshold, aln_results);
         
         // Step 4: Convert results to DAFS sparse matrix format
-        if (aln_results != nullptr) {
-            try {
-                convertToSparseMatrix(aln_results, seq1_copy, seq2_copy, mp);
-                
-                // Debug output can be enabled by uncommenting the following lines
-                // int total_entries = 0;
-                // for (const auto& row : mp) {
-                //     total_entries += row.size();
-                // }
-                // std::cerr << "LinearAlign: Generated " << total_entries << " alignment probabilities" << std::endl;
-                
-            } catch (...) {
-                // Ensure cleanup even if conversion fails
-                delete[] aln_results;
-                throw;
-            }
-            // Safely delete the array
-            delete[] aln_results;
-            aln_results = nullptr;
-        }
+        if (aln_results == nullptr)
+            throw std::runtime_error("posterior calculation returned no result matrix");
+        std::unique_ptr<std::unordered_map<int, aln_ret>[]> result_owner(aln_results);
+        convertToSparseMatrix(result_owner.get(), seq1_copy, seq2_copy, mp);
         
     } catch (const std::exception& e) {
-        std::cerr << "Error in LinearAlign::calculate: " << e.what() << std::endl;
+        throw std::runtime_error(
+            "LinearAlign failed for sequence lengths " +
+            std::to_string(seq1.size()) + " and " +
+            std::to_string(seq2.size()) + ": " + e.what());
     } catch (...) {
-        std::cerr << "Unknown error in LinearAlign::calculate" << std::endl;
+        throw std::runtime_error(
+            "LinearAlign failed for sequence lengths " +
+            std::to_string(seq1.size()) + " and " +
+            std::to_string(seq2.size()) + ": unknown exception");
     }
 }
 

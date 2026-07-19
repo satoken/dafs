@@ -5,6 +5,7 @@
 #include "linfold_wrapper.h"
 #include <algorithm>
 #include <cassert>
+#include <stdexcept>
 
 namespace
 {
@@ -18,6 +19,21 @@ void allow_canonical_pairs(Options& options)
   options.set_allowed_pair('a', 'u');
   options.set_allowed_pair('c', 'g');
   options.set_allowed_pair('g', 'u');
+}
+
+const char* model_name(LinFoldWrapper::ModelType model_type)
+{
+  return model_type == LinFoldWrapper::ModelType::LPV ? "LPV" : "LPC";
+}
+
+[[noreturn]] void rethrow_linfold_failure(
+    LinFoldWrapper::ModelType model_type, size_t sequence_length,
+    const char* detail)
+{
+  throw std::runtime_error(
+      std::string("LinearPartition ") + model_name(model_type) +
+      " failed for sequence length " + std::to_string(sequence_length) +
+      ": " + detail);
 }
 }
 
@@ -78,7 +94,8 @@ LinFoldWrapper::calculate(const std::string& seq, BP& bp)
     
     // LinFold returns a 1-based (L+1)-row matrix and 1-based partner
     // coordinates; DAFS BP is 0-based with exactly L rows.
-    assert(bpp.size() == L + 1);
+    if (bpp.size() != L + 1)
+      throw std::runtime_error("unexpected base-pair probability dimensions");
     for (uint i = 1; i <= L; ++i)
     {
       for (const auto& pair : bpp[i])
@@ -94,9 +111,9 @@ LinFoldWrapper::calculate(const std::string& seq, BP& bp)
       }
     }
   } catch (const std::exception& e) {
-    // If LinFold fails, return empty BP
-    bp.clear();
-    bp.resize(seq.size());
+    rethrow_linfold_failure(model_type_, seq.size(), e.what());
+  } catch (...) {
+    rethrow_linfold_failure(model_type_, seq.size(), "unknown exception");
   }
 }
 
@@ -104,6 +121,10 @@ void
 LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp)
 {
   try {
+    if (str.size() != seq.size())
+      throw std::invalid_argument(
+          "structure constraint length differs from sequence length");
+
     std::vector<std::vector<std::pair<u_int32_t, float>>> bpp;
     
     // Convert structure constraint to LinFold format
@@ -121,14 +142,13 @@ LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp
       }
       else if (str[i] == ')')
       {
-        if (!stack.empty())
-        {
-          int j = stack.back();
-          stack.pop_back();
-          // LinFold uses 1-based indexing for constraints
-          constraint[j + 1] = i + 1;
-          constraint[i + 1] = j + 1;
-        }
+        if (stack.empty())
+          throw std::invalid_argument("unmatched ')' in structure constraint");
+        int j = stack.back();
+        stack.pop_back();
+        // LinFold uses 1-based indexing for constraints
+        constraint[j + 1] = i + 1;
+        constraint[i + 1] = j + 1;
       }
       else if (str[i] == '.')
       {
@@ -136,6 +156,8 @@ LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp
       }
       // '?' remains as ANY
     }
+    if (!stack.empty())
+      throw std::invalid_argument("unmatched '(' in structure constraint");
     
     if (model_type_ == ModelType::LPV) {
       // Initialize LinFold with TurnerNearestNeighbor parameters for this sequence
@@ -182,7 +204,8 @@ LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp
     bp.clear();
     bp.resize(L);
     
-    assert(bpp.size() == L + 1);
+    if (bpp.size() != L + 1)
+      throw std::runtime_error("unexpected base-pair probability dimensions");
     for (uint i = 1; i <= L; ++i)
     {
       for (const auto& pair : bpp[i])
@@ -198,8 +221,8 @@ LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp
       }
     }
   } catch (const std::exception& e) {
-    // If LinFold fails, return empty BP
-    bp.clear();
-    bp.resize(seq.size());
+    rethrow_linfold_failure(model_type_, seq.size(), e.what());
+  } catch (...) {
+    rethrow_linfold_failure(model_type_, seq.size(), "unknown exception");
   }
 }

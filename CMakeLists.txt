@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 #set(CMAKE_CXX_EXTENSIONS OFF)
 
 project(DAFS CXX C)
+include(CTest)
 option(ENABLE_CPLEX "Enable CPLEX backend" OFF)
 option(ENABLE_GUROBI "Enable Gurobi backend" OFF)
 option(ENABLE_SCIP "Enable SCIP backend" OFF)

@@ -28,8 +28,11 @@ Usage
   	  dafs [OPTION...] FILE
     	
   	  -h, --help             Print usage
-  	  -w, --weight arg       Weight of the expected accuracy score for 
-                         	  secondary structures (default: 4.0)
+	  -w, --weight arg       Weight of the expected accuracy score for
+	                         secondary structures (default: 4.0)
+	      --ribosum-weight arg
+	                         Weight of RIBOSUM85-60 pair-pair match scores
+	                         (default: 0.1; use 0 to disable)
   	  -m, --max-iter T       The maximum number of iteration of the subgradient 
                          	  optimization (default: 600)
   	  -v, --verbose arg      The level of verbose outputs (default: 0)
@@ -85,3 +88,4 @@ References
 ----------
 
 * Sato, K., Kato, Y., Akutsu, T., Asai, K., Sakakibara, Y.: DAFS: simultaneous aligning and folding RNA sequences via dual decomposition. *Bioinformatics*, 28(24):3218-3224, 2012.
+* Klein, R. J., Eddy, S. R.: RSEARCH: finding homologs of single structured RNA sequences. *BMC Bioinformatics*, 4:44, 2003.

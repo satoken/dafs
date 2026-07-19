@@ -30,6 +30,7 @@
 #include "fold.h"
 #include "align.h"
 #include "gradient_manager.h"
+#include "ribosum.h"
 
 
 class DAFS
@@ -81,7 +82,9 @@ private:
                                  const SparseFloatMatrix& p_x,
                                  const SparseFloatMatrix& p_y,
                                  const SparseFloatMatrix& p_z,
-                                 uint N1, uint N2, float min_th_s) const;
+                                 uint N1, uint N2, float min_th_s,
+                                 const RibosumProfile& ribosum_x,
+                                 const RibosumProfile& ribosum_y) const;
   float solve(VU &x, VU &y, VU &z, const SparseFloatMatrix &p_x,
               const SparseFloatMatrix &p_y, const SparseFloatMatrix &p_z,
               const ALN &aln1, const ALN &aln2);
@@ -103,7 +106,8 @@ private:
                     const SparseFloatMatrix& p_x,
                     const SparseFloatMatrix& p_y,
                     const SparseFloatMatrix& p_z,
-                    uint N1, uint N2, float min_th_s) const;
+                    uint N1, uint N2, float min_th_s,
+                    float pair_match_score) const;
   void add_cbp_if_new(const CBP& candidate, std::vector<CBP>& cbp, 
                       VVU& c_x, VVU& c_y, VVU& c_z);
   void generate_cbp_from_solution(const VU& x, const VU& y, const VU& z,
@@ -111,6 +115,8 @@ private:
                                   const SparseFloatMatrix& p_y,
                                   const SparseFloatMatrix& p_z,
                                   uint N1, uint N2, float min_th_s,
+                                  const RibosumProfile& ribosum_x,
+                                  const RibosumProfile& ribosum_y,
                                   std::vector<CBP>& cbp, VVU& c_x, VVU& c_y, VVU& c_z);
   void generate_positive_reduced_cost_cbp(const GradientManager& gm,
                                           const SparseFloatMatrix& p_x,
@@ -121,6 +127,8 @@ private:
                                           const std::vector<std::pair<uint, uint>>& q_x_support,
                                           const std::vector<std::pair<uint, uint>>& q_y_support,
                                           uint N1, uint N2, float min_th_s,
+                                          const RibosumProfile& ribosum_x,
+                                          const RibosumProfile& ribosum_y,
                                           std::vector<CBP>& cbp,
                                           VVU& c_x, VVU& c_y, VVU& c_z);
 
@@ -133,6 +141,7 @@ private:
   float th_a_;                      // the threshold for base-pairing probabilities
   VF th_s_;                         // the threshold for alignment matching probabilities
   float w_;                         // the weight for base pairs in the objective function
+  float w_ribosum_;                 // the weight for RIBOSUM pair-pair matches
   float eta0_;                      // the initial step width of the subgradient update
   std::unique_ptr<Align::Model> a_model_;           // alignment model
   std::unique_ptr<Align::Decoder> a_decoder_;       // alignment decoder
