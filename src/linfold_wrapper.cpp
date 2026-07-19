@@ -6,6 +6,21 @@
 #include <algorithm>
 #include <cassert>
 
+namespace
+{
+template <typename Options>
+void allow_canonical_pairs(Options& options)
+{
+  // _Fold::Options starts with an empty allowed-pair table.  LinFold's
+  // constraint construction consults this table even without explicit
+  // structure constraints, so leaving it empty reduces the ensemble to the
+  // all-unpaired structure.  set_allowed_pair() is symmetric.
+  options.set_allowed_pair('a', 'u');
+  options.set_allowed_pair('c', 'g');
+  options.set_allowed_pair('g', 'u');
+}
+}
+
 LinFoldWrapper::LinFoldWrapper(float th, ModelType model_type, uint32_t beam_size)
   : Fold::Model(th), beam_size_(beam_size), model_type_(model_type), 
     linfold_turner_(nullptr), linfold_contra_(nullptr)
@@ -26,6 +41,7 @@ LinFoldWrapper::calculate(const std::string& seq, BP& bp)
       // Set up options with beam size
       LinFold<TurnerNearestNeighbor>::Options opt;
       opt.beam_size(beam_size_);
+      allow_canonical_pairs(opt);
       
       // First compute inside algorithm (forward pass)
       linfold_turner_->compute_inside(seq, opt);
@@ -43,6 +59,7 @@ LinFoldWrapper::calculate(const std::string& seq, BP& bp)
       // Set up options with beam size
       LinFold<CONTRAfoldNearestNeighbor>::Options opt;
       opt.beam_size(beam_size_);
+      allow_canonical_pairs(opt);
       
       // First compute inside algorithm (forward pass)
       linfold_contra_->compute_inside(seq, opt);
@@ -59,7 +76,10 @@ LinFoldWrapper::calculate(const std::string& seq, BP& bp)
     bp.clear();
     bp.resize(L);
     
-    for (uint i = 0; i < L; ++i)
+    // LinFold returns a 1-based (L+1)-row matrix and 1-based partner
+    // coordinates; DAFS BP is 0-based with exactly L rows.
+    assert(bpp.size() == L + 1);
+    for (uint i = 1; i <= L; ++i)
     {
       for (const auto& pair : bpp[i])
       {
@@ -67,9 +87,9 @@ LinFoldWrapper::calculate(const std::string& seq, BP& bp)
         float prob = pair.second;
         
         // Only store probabilities above threshold
-        if (prob > threshold() && j > i)
+        if (prob > threshold() && j > i && j <= L)
         {
-          bp[i].push_back(std::make_pair(j, prob));
+          bp[i - 1].push_back(std::make_pair(j - 1, prob));
         }
       }
     }
@@ -126,6 +146,7 @@ LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp
       LinFold<TurnerNearestNeighbor>::Options opt;
       opt.beam_size(beam_size_);
       opt.constraints(constraint);
+      allow_canonical_pairs(opt);
       
       // First compute inside algorithm (forward pass)
       linfold_turner_->compute_inside(seq, opt);
@@ -144,6 +165,7 @@ LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp
       LinFold<CONTRAfoldNearestNeighbor>::Options opt;
       opt.beam_size(beam_size_);
       opt.constraints(constraint);
+      allow_canonical_pairs(opt);
       
       // First compute inside algorithm (forward pass)
       linfold_contra_->compute_inside(seq, opt);
@@ -160,7 +182,8 @@ LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp
     bp.clear();
     bp.resize(L);
     
-    for (uint i = 0; i < L; ++i)
+    assert(bpp.size() == L + 1);
+    for (uint i = 1; i <= L; ++i)
     {
       for (const auto& pair : bpp[i])
       {
@@ -168,9 +191,9 @@ LinFoldWrapper::calculate(const std::string& seq, const std::string& str, BP& bp
         float prob = pair.second;
         
         // Only store probabilities above threshold
-        if (prob > threshold() && j > i)
+        if (prob > threshold() && j > i && j <= L)
         {
-          bp[i].push_back(std::make_pair(j, prob));
+          bp[i - 1].push_back(std::make_pair(j - 1, prob));
         }
       }
     }

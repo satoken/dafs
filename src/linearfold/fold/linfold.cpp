@@ -122,11 +122,18 @@ beam_prune(std::unordered_map<u_int32_t, State>& states, u_int32_t beam_size) ->
         v.emplace_back(newscore, i); 
     }
 
-    std::sort(std::begin(v), std::end(v), [](const auto& x, const auto& y) { return x.first > y.first; });
-    auto th = v[std::min<u_int32_t>(beam_size, v.size())-1].first;
-    for (const auto& [s, i] : v)
-        if (s < th)
-            states.erase(i);
+    std::sort(std::begin(v), std::end(v), [](const auto& x, const auto& y) {
+        return x.first != y.first ? x.first > y.first : x.second < y.second;
+    });
+    const auto keep = std::min<size_t>(beam_size, v.size());
+    const auto th = v[keep-1].first;
+    // A score-threshold-only prune can retain more than beam_size states when
+    // many candidates tie.  That happens systematically for an external
+    // pair-only objective, whose hairpin states all have zero loop energy.
+    // Hard-capping with a stable key tie-break is required for O(L * beam)
+    // storage and fixed-beam linearity.
+    for (size_t rank = keep; rank < v.size(); ++rank)
+        states.erase(v[rank].second);
 
     return th;
 }
@@ -776,11 +783,13 @@ beam_prune(std::unordered_map<u_int32_t, AlphaBeta>& states, u_int32_t beam_size
         v.emplace_back(newscore, i); 
     }
 
-    std::sort(std::begin(v), std::end(v), [](const auto& x, const auto& y) { return x.first > y.first; });
-    auto th = v[std::min<u_int32_t>(beam_size, v.size())-1].first;
-    for (const auto& [s, i] : v)
-        if (s < th)
-            states.erase(i);
+    std::sort(std::begin(v), std::end(v), [](const auto& x, const auto& y) {
+        return x.first != y.first ? x.first > y.first : x.second < y.second;
+    });
+    const auto keep = std::min<size_t>(beam_size, v.size());
+    const auto th = v[keep-1].first;
+    for (size_t rank = keep; rank < v.size(); ++rank)
+        states.erase(v[rank].second);
 
     return th;
 }
@@ -1242,9 +1251,17 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
 {
     // auto wtime = omp_get_wtime();
     const auto L = seq.size();
-    const ScoreType NEG_INF = std::numeric_limits<ScoreType>::lowest();
     const auto log_partition_coefficient = Fio_[L].alpha;
     std::vector<std::unordered_map<u_int32_t, float>> bpp(L+1);
+    // Exact inside/outside values make every individual posterior log-weight
+    // non-positive.  Beam pruning computes an approximation and can violate
+    // that inequality slightly (especially under hard constraints).  Clamp
+    // each contribution before exponentiation; aggregate probabilities are
+    // capped again when the sparse result is emitted below.
+    const auto posterior_contribution = [&](ScoreType log_weight) {
+        const ScoreType log_probability = log_weight - log_partition_coefficient;
+        return std::exp(std::min(ScoreType(0), log_probability));
+    };
 
     const auto [next_pair, allow_unpaired_range, allow_unpaired_position] = opts.make_constraint(seq /*, "acgu"s */); // TODO: reuse these values from inside computation
 
@@ -1256,12 +1273,11 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
 #ifdef HELIX_LENGTH
             // N -> ( ... )
             auto newscore = st.alpha + opts.additional_paired_score(i, j);
-            assert(newscore + Nio_[j][i].beta <= log_partition_coefficient);
-            bpp[i][j] += exp(newscore + Nio_[j][i].beta - log_partition_coefficient); // TBType::N_HAIRPIN_LOOP
+            bpp[i][j] += posterior_contribution(newscore + Nio_[j][i].beta); // TBType::N_HAIRPIN_LOOP
 #else
             // C -> ( ... )
             auto newscore = st.alpha + opts.additional_paired_score(i, j);
-            bpp[i][j] += exp(newscore + Cio_[j][i].beta - log_partition_coefficient); // TBType::C_HAIRPIN_LOOP
+            bpp[i][j] += posterior_contribution(newscore + Cio_[j][i].beta); // TBType::C_HAIRPIN_LOOP
 #endif
         }
         if (j==1) continue; // TODO: really need this line?
@@ -1272,11 +1288,11 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
 #ifdef HELIX_LENGTH
             // N -> ( M )
             auto newscore = st.alpha + param_->score_multi_loop(i, j) + opts.additional_paired_score(i, j);
-            bpp[i][j] += exp(newscore + Nio_[j][i].beta - log_partition_coefficient); // TBType::N_MULTI_LOOP
+            bpp[i][j] += posterior_contribution(newscore + Nio_[j][i].beta); // TBType::N_MULTI_LOOP
 #else
             // C -> ( M )
             auto newscore = st.alpha + param_->score_multi_loop(i, j) + opts.additional_paired_score(i, j);
-            bpp[i][j] += exp(newscore + Cio_[j][i].beta - log_partition_coefficient); // TBType::C_MULTI_LOOP
+            bpp[i][j] += posterior_contribution(newscore + Cio_[j][i].beta); // TBType::C_MULTI_LOOP
 #endif
         }
 
@@ -1293,7 +1309,7 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
                     if (i-(m-1)<1 || j+(m-1)>L || !opts.allow_paired(seq, i-(m-1), j+(m-1))) break;
                     lp += opts.additional_paired_score(i-(m-1), j+(m-1));
                     auto newscore = st.alpha + param_->score_helix(i-(m-1), j+(m-1), m) + lp;
-                    auto p = exp(newscore + Cio_[j+(m-1)][i-(m-1)].beta - log_partition_coefficient); // TBType::C_HELIX
+                    auto p = posterior_contribution(newscore + Cio_[j+(m-1)][i-(m-1)].beta); // TBType::C_HELIX
                     for (auto k=2; k<=m; k++)
                         bpp[i-(k-1)][j+(k-1)] += p;
                 }
@@ -1307,7 +1323,7 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
             if (i-1>=1 && j+1<=L && opts.allow_paired(seq, i-1, j+1))
             {
                 auto newscore = st.alpha + param_->score_single_loop(i-1, j+1, i, j) + opts.additional_paired_score(i-1, j+1);
-                bpp[i-1][j+1] += exp(newscore + Eio_[j+1][i-1].beta - log_partition_coefficient); // TBType::E_HELIX
+                bpp[i-1][j+1] += posterior_contribution(newscore + Eio_[j+1][i-1].beta); // TBType::E_HELIX
             }
 
             if (opts.max_helix > 0)
@@ -1324,7 +1340,7 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
                 {
                     lp += opts.additional_paired_score(i-(m-1), j+(m-1));
                     auto newscore = st.alpha + param_->score_helix(i-(m-1), j+(m-1), m) + lp;
-                    auto p = exp(newscore + Cio_[j+(m-1)][i-(m-1)].beta - log_partition_coefficient); // TBType::C_HELIX_E
+                    auto p = posterior_contribution(newscore + Cio_[j+(m-1)][i-(m-1)].beta); // TBType::C_HELIX_E
                     for (auto k=2; k<=m; k++)
                         bpp[i-(k-1)][j+(k-1)] += p;
                 }
@@ -1347,7 +1363,7 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
                         if (opts.allow_paired(seq, p, q) && (i-p>1 || q-j>1))
                         {
                             auto newscore = st.alpha + param_->score_single_loop(p, q, i, j) + opts.additional_paired_score(p, q);
-                            bpp[p][q] += exp(newscore + Nio_[q][p].beta - log_partition_coefficient); // TBType::N_INTERNAL_LOOP
+                            bpp[p][q] += posterior_contribution(newscore + Nio_[q][p].beta); // TBType::N_INTERNAL_LOOP
                         }
                         q = next_pair[seq[p-1]][q];
                     }
@@ -1365,7 +1381,7 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
                         if (opts.allow_paired(seq, p, q))
                         {
                             auto newscore = st.alpha + param_->score_single_loop(p, q, i, j) + opts.additional_paired_score(p, q);
-                            bpp[p][q] += exp(newscore + Cio_[q][p].beta - log_partition_coefficient); // TBType::C_INTERNAL_LOOP
+                            bpp[p][q] += posterior_contribution(newscore + Cio_[q][p].beta); // TBType::C_INTERNAL_LOOP
                         }
                         q = next_pair[seq[p-1]][q];
                     }
@@ -1376,11 +1392,32 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
     }
 
     // std::cout << omp_get_wtime()-wtime << std::endl;
+    // Restore the defining marginal constraint of a base-pair probability
+    // matrix after beam approximation: the total probability incident on any
+    // nucleotide must not exceed one.  Scaling each edge by the larger of its
+    // two endpoint masses guarantees that bound in one sparse pass.
+    std::vector<float> incident_mass(L+1, 0.0f);
+    for (auto i=1; i!=bpp.size(); ++i)
+        for (const auto& [j, probability]: bpp[i])
+            if (j <= L && std::isfinite(probability) && probability > 0.0f) {
+                const float capped_probability = std::min(probability, 1.0f);
+                incident_mass[i] += capped_probability;
+                incident_mass[j] += capped_probability;
+            }
+
     std::vector<std::vector<std::pair<u_int32_t, float>>> bpp2(L+1);
     for (auto i=1; i!=bpp.size(); ++i)
     {
-        for (const auto& [j, p]: bpp[i])
-            if (p>=0.01) bpp2[i].emplace_back(j, std::min(p, 1.0f));
+        for (const auto& [j, probability]: bpp[i]) {
+            if (j > L || !std::isfinite(probability) || probability <= 0.0f)
+                continue;
+            const float normalization = std::max(
+                1.0f, std::max(incident_mass[i], incident_mass[j]));
+            const float normalized_probability =
+                std::min(probability, 1.0f) / normalization;
+            if (normalized_probability>=0.01)
+                bpp2[i].emplace_back(j, normalized_probability);
+        }
         std::sort(std::begin(bpp2[i]), std::end(bpp2[i]));
     }
     return bpp2;
@@ -1389,11 +1426,13 @@ compute_basepairing_probabilities(const std::string& seq, const Options& opts) -
 // instantiation
 #include "../param/turner.h"
 #include "../param/contrafold.h"
+#include "../param/pair_objective.h"
 // #include "../param/positional_bl.h"
 // #include "../param/positional.h"
 // #include "../param/mix.h"
 template class LinFold<TurnerNearestNeighbor>;
 template class LinFold<CONTRAfoldNearestNeighbor>;
+template class LinFold<PairObjectiveNearestNeighbor>;
 // template class LinFold<PositionalNearestNeighborBL>;
 // template class LinFold<MixedNearestNeighborBL>;
 // template class LinFold<PositionalNearestNeighbor>;

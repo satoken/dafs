@@ -40,12 +40,35 @@ class SparseNussinov : public Fold::Decoder
 public:
   SparseNussinov(float th) : Fold::Decoder(), th_(th) { }
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
+  float decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss);
   float score(float w, const VVF& p, const VVF& q, const VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 
 private:
   float th_;
+};
+
+class LinearNussinov : public Fold::Decoder
+{
+public:
+  LinearNussinov(float th, uint beam_size) : th_(th), beam_size_(beam_size) { }
+  float decode(float w, const VVF& p, const VVF& q, VU& ss);
+  float decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss);
+  float decode(float w, const SparseFloatMatrix& p, const VVF& q, VU& ss);
+  float decode(float w, const SparseFloatMatrix& p,
+               const SparseFloatMatrix& q, VU& ss);
+  float decode(const VVF& p, VU& ss, std::string& str);
+  float decode(const SparseFloatMatrix& p, VU& ss, std::string& str);
+  void make_brackets(const VU& ss, std::string& str) const;
+
+private:
+  template <typename Probability, typename Multiplier>
+  float decode_impl(float w, const Probability& p, uint length,
+                    Multiplier multiplier, VU& ss);
+
+  float th_;
+  uint beam_size_;
 };
 
 #endif  //  __INC_NUSSINOV_H__

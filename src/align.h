@@ -21,9 +21,11 @@
 #define __INC_ALIGN_H__
 
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 #include "typedefs.h"
+#include "sparse_matrix.h"
 #include "fa.h"
 #include "probconsRNA/probcons.h"
 #include "contralign/contralign.h"
@@ -60,8 +62,30 @@ namespace Align
     Decoder() { }
     virtual ~Decoder() { }
     virtual void initialize(const VVF& p) { }
+    virtual void initialize(const SparseFloatMatrix& p)
+    {
+      const VVF dense_p = p.dense();
+      initialize(dense_p);
+    }
     virtual float decode(const VVF& p, const VVF& q, VU& al) const = 0;
+    virtual float decode(const VVF& p, const SparseFloatMatrix& q, VU& al) const
+    {
+      throw std::logic_error("sparse Lagrange multipliers are unsupported by this decoder");
+    }
     virtual float decode(const VVF& p, VU& al) const = 0;
+    virtual float decode(const SparseFloatMatrix& p, const VVF& q, VU& al) const
+    {
+      return decode(p.dense(), q, al);
+    }
+    virtual float decode(const SparseFloatMatrix& p,
+                         const SparseFloatMatrix& q, VU& al) const
+    {
+      return decode(p.dense(), q, al);
+    }
+    virtual float decode(const SparseFloatMatrix& p, VU& al) const
+    {
+      return decode(p.dense(), al);
+    }
   };
 }
 

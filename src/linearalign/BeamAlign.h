@@ -80,6 +80,9 @@ public:
     void setMatchScoreFunction(MatchScoreFunction func) { match_score_func_ = func; }
 
     void ml_alignment(string &seq1, string &seq2, vector<char> &aln1, vector<char> &aln2, double** &transprobs, double** &emitprobs, bool prior);
+	double max_alignment(unsigned length1, unsigned length2,
+	                     std::vector<unsigned>& mapping,
+	                     MatchScoreFunction match_score);
 	double forward(string seq1, string seq2, double** &trans_probs, double** &emit_probs, bool prior);
 	double backward(double** &transprobs, double** &emitprobs, bool prior);
 	std::unordered_map<int, aln_ret>* cal_align_prob(double forward_score, double threshold, std::unordered_map<int, aln_ret>* &aln_ret);
@@ -103,8 +106,6 @@ private:
     
     // Match score function (can be customized)
     MatchScoreFunction match_score_func_;
-    double quickselect(vector<pair<double, int>>& scores, unsigned long lower, unsigned long upper, unsigned long k);
-    unsigned long quickselect_partition(vector<pair<double, int>>& scores, unsigned long lower, unsigned long upper);
 };
 
 #endif

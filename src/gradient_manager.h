@@ -21,6 +21,7 @@
 #define __INC_GRADIENT_MANAGER_H__
 
 #include "typedefs.h"
+#include "sparse_matrix.h"
 #include <map>
 #include <memory>
 #include <cmath>
@@ -29,19 +30,15 @@
 //#define USE_ADAM
 #define USE_ADAPTIVE
 
-// Define SPARSE_UPDATE if not defined elsewhere
-// This should match the setting in dafs.cpp
-#ifndef SPARSE_UPDATE
-#define SPARSE_UPDATE
-#endif
-
 // Consensus base-pair indices
 typedef std::pair<std::pair<uint, uint>, std::pair<uint, uint>> CBP;
 
 
 class GradientManager {
 public:
-    GradientManager(float eta0, float lb = 0.0, float gradient_clip = 1.0);
+    GradientManager(float eta0, float lb = 0.0, float gradient_clip = 1.0,
+                    bool sparse_structure_storage = false,
+                    bool sparse_alignment_storage = false);
     ~GradientManager() = default;
     
     // Initialize gradient matrices
@@ -50,17 +47,29 @@ public:
     // Set/Get Lagrange multipliers
     void set_multipliers(const VVF& q_x, const VVF& q_y, const VVF& q_z);
     void get_multipliers(VVF& q_x, VVF& q_y, VVF& q_z) const;
+    bool uses_sparse_structure_storage() const { return sparse_structure_storage_; }
+    bool uses_sparse_alignment_storage() const { return sparse_alignment_storage_; }
+    const VVF& dense_q_x() const { return q_x_; }
+    const VVF& dense_q_y() const { return q_y_; }
+    const VVF& dense_q_z() const { return q_z_; }
+    const SparseFloatMatrix& sparse_q_x() const { return sparse_q_x_; }
+    const SparseFloatMatrix& sparse_q_y() const { return sparse_q_y_; }
+    const SparseFloatMatrix& sparse_q_z() const { return sparse_q_z_; }
+    float q_x(uint i, uint j) const;
+    float q_y(uint i, uint j) const;
+    float q_z(uint i, uint j) const;
     
     // Update gradients based on constraint violations
     uint update_gradients(const std::vector<CBP>& cbp,
                          const VU& x, const VU& y, const VU& z, const VU& w_cbp,
                          const VVU& c_x, const VVU& c_y, const VVU& c_z,
-                         uint t, float score, float prev_score);
+                         uint t, float score);
     
     // Get current violation count
     uint get_violations() const { return violations_; }
     
-    // Get current step size
+    // Get the current Polyak scaling coefficient alpha_t.  The actual step is
+    // alpha_t * (L(q_t) - LB) / ||g_t||^2.
     float get_step_size() const { return current_eta_; }
     
     // Set lower bound for adaptive method
@@ -76,19 +85,22 @@ private:
     float current_eta_;   // Current step size
     uint violations_;     // Number of constraint violations
     float gradient_clip_; // Gradient clipping threshold
+    bool sparse_structure_storage_; // Sparse q_x/q_y for LinearFold models
+    bool sparse_alignment_storage_; // Sparse q_z for LinearAlign
     
     // Lagrange multipliers
     VVF q_x_, q_y_, q_z_;
+    SparseFloatMatrix sparse_q_x_, sparse_q_y_, sparse_q_z_;
     
     // For adaptive methods
 #if defined(USE_ADAGRAD)
     VVF g2_x_, g2_y_, g2_z_;                    // AdaGrad: accumulated squared gradients
+    SparseFloatMatrix sparse_g2_x_, sparse_g2_y_, sparse_g2_z_;
 #elif defined(USE_ADAM)
     VVF m_x_, m_y_, v_x_, v_y_, m_z_, v_z_;    // Adam: first and second moment estimates
+    SparseFloatMatrix sparse_m_x_, sparse_m_y_, sparse_v_x_, sparse_v_y_;
+    SparseFloatMatrix sparse_m_z_, sparse_v_z_;
 #endif
-    
-    // Step size adaptation for standard method
-    float step_count_;
     
     // Helper functions for different update methods
 #if defined(USE_ADAGRAD)

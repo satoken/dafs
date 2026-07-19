@@ -24,10 +24,12 @@
 #include <memory>
 #include <iostream>
 #include <random>
+#include <unordered_set>
 #include "typedefs.h"
 #include "fa.h"
 #include "fold.h"
 #include "align.h"
+#include "gradient_manager.h"
 
 
 class DAFS
@@ -35,6 +37,17 @@ class DAFS
 private:
   // nodes in the guide tree
   typedef std::pair<float, std::pair<uint, uint>> node_t;
+
+  struct CBPHash {
+    size_t operator()(const CBP& candidate) const noexcept {
+      const auto& [ij, kl] = candidate;
+      size_t seed = std::hash<uint>{}(ij.first);
+      seed ^= std::hash<uint>{}(ij.second) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed ^= std::hash<uint>{}(kl.first) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed ^= std::hash<uint>{}(kl.second) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      return seed;
+    }
+  };
 
 public:
   DAFS();
@@ -51,18 +64,32 @@ private:
   void print_tree(std::ostream &os, int i) const;
   void project_alignment(ALN &aln, const ALN &aln1, const ALN &aln2, const VU &z) const;
   void project_secondary_structure(VU &xx, VU &yy, const VU &x, const VU &y, const VU &z) const;
-  void average_matching_probability(VVF &posterior, const ALN &aln1, const ALN &aln2) const;
-  void average_basepairing_probability(VVF &posterior, const ALN &aln, bool use_alifold) const;
-  void update_basepairing_probability(VVF &posterior, const VU &ss, const std::string &str,
+  void average_matching_probability(SparseFloatMatrix &posterior, const ALN &aln1, const ALN &aln2) const;
+  void average_basepairing_probability(SparseFloatMatrix &posterior, const ALN &aln, bool use_alifold) const;
+  void update_basepairing_probability(SparseFloatMatrix &posterior, const VU &ss, const std::string &str,
                                       const ALN &aln, bool use_alifold) const;
+  std::string profile_consensus_sequence(const ALN &aln) const;
+  void calculate_profile_basepairing_probability(const ALN &aln, BP &bp) const;
+  void calculate_profile_basepairing_probability(const ALN &aln,
+                                                  const std::string &constraint,
+                                                  BP &bp) const;
   void align_alignments(ALN &aln, const ALN &aln1, const ALN &aln2);
   float align_alignments(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2);
   float calculate_alignment_only_score(VU &ss, ALN &aln, const ALN &aln1, const ALN &aln2) const;
-  float solve(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
+  float repair_feasible_solution(VU& repaired_x, VU& repaired_y, VU& repaired_z,
+                                 const VU& x, const VU& y, const VU& z,
+                                 const SparseFloatMatrix& p_x,
+                                 const SparseFloatMatrix& p_y,
+                                 const SparseFloatMatrix& p_z,
+                                 uint N1, uint N2, float min_th_s) const;
+  float solve(VU &x, VU &y, VU &z, const SparseFloatMatrix &p_x,
+              const SparseFloatMatrix &p_y, const SparseFloatMatrix &p_z,
               const ALN &aln1, const ALN &aln2);
-  float solve_by_dd(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
+  float solve_by_dd(VU &x, VU &y, VU &z, const SparseFloatMatrix &p_x,
+                    const SparseFloatMatrix &p_y, const SparseFloatMatrix &p_z,
                     const ALN &aln1, const ALN &aln2);
-  float solve_by_ip(VU &x, VU &y, VU &z, const VVF &p_x, const VVF &p_y, const VVF &p_z,
+  float solve_by_ip(VU &x, VU &y, VU &z, const SparseFloatMatrix &p_x,
+                    const SparseFloatMatrix &p_y, const SparseFloatMatrix &p_z,
                     const ALN &aln1, const ALN &aln2) const;
   void align(ALN &aln, int ch);
   float align(VU &ss, ALN &aln, int ch);
@@ -73,14 +100,29 @@ private:
   
   // Dynamic CBP generation methods
   bool is_valid_cbp(uint i, uint j, uint k, uint l, 
-                    const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                    const SparseFloatMatrix& p_x,
+                    const SparseFloatMatrix& p_y,
+                    const SparseFloatMatrix& p_z,
                     uint N1, uint N2, float min_th_s) const;
   void add_cbp_if_new(const CBP& candidate, std::vector<CBP>& cbp, 
                       VVU& c_x, VVU& c_y, VVU& c_z);
   void generate_cbp_from_solution(const VU& x, const VU& y, const VU& z,
-                                  const VVF& p_x, const VVF& p_y, const VVF& p_z,
+                                  const SparseFloatMatrix& p_x,
+                                  const SparseFloatMatrix& p_y,
+                                  const SparseFloatMatrix& p_z,
                                   uint N1, uint N2, float min_th_s,
                                   std::vector<CBP>& cbp, VVU& c_x, VVU& c_y, VVU& c_z);
+  void generate_positive_reduced_cost_cbp(const GradientManager& gm,
+                                          const SparseFloatMatrix& p_x,
+                                          const SparseFloatMatrix& p_y,
+                                          const SparseFloatMatrix& p_z,
+                                          const VVU& p_z_forward,
+                                          const VVU& p_z_reverse,
+                                          const std::vector<std::pair<uint, uint>>& q_x_support,
+                                          const std::vector<std::pair<uint, uint>>& q_y_support,
+                                          uint N1, uint N2, float min_th_s,
+                                          std::vector<CBP>& cbp,
+                                          VVU& c_x, VVU& c_y, VVU& c_z);
 
 private:
   float w_pct_a_;                   // the weight of PCT for alignment matching probabilities
@@ -105,10 +147,15 @@ private:
   
   // Dynamic CBP generation
   bool use_dynamic_cbp_;            // whether to use dynamic CBP generation
-  std::set<CBP> cbp_set_;           // for duplicate removal
+  bool use_sparse_structure_lagrangian_; // sparse q_x/q_y for LinearFold
+  bool use_sparse_alignment_lagrangian_; // sparse q_z for LinearAlign
+  bool use_linear_structure_decoder_;    // beam max decoder for folding
+  bool use_linear_alignment_decoder_;    // beam max decoder for alignment
+  std::unordered_set<CBP, CBPHash> cbp_set_; // for expected O(1) duplicate removal
   
   bool use_alifold_;
   bool use_alifold1_;
+  bool use_linear_profile_folding_;
   bool use_bp_update_;
   bool use_bp_update1_;
   // bool use_bpscore_;

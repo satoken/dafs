@@ -21,9 +21,11 @@
 #define __INC_FOLD_H__
 
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 #include "typedefs.h"
+#include "sparse_matrix.h"
 #include "contrafold/contrafold.h"
 #include "fa.h"
 
@@ -55,7 +57,26 @@ namespace Fold
     Decoder() { }
     virtual ~Decoder() { }
     virtual float decode(float w, const VVF& p, const VVF& q, VU& ss) = 0;
+    virtual float decode(float w, const VVF& p, const SparseFloatMatrix& q,
+                         VU& ss)
+    {
+      throw std::logic_error("sparse Lagrange multipliers are unsupported by this decoder");
+    }
     virtual float decode(const VVF& p, VU& ss, std::string& str) = 0;
+    virtual float decode(float w, const SparseFloatMatrix& p, const VVF& q,
+                         VU& ss)
+    {
+      return decode(w, p.dense(), q, ss);
+    }
+    virtual float decode(float w, const SparseFloatMatrix& p,
+                         const SparseFloatMatrix& q, VU& ss)
+    {
+      return decode(w, p.dense(), q, ss);
+    }
+    virtual float decode(const SparseFloatMatrix& p, VU& ss, std::string& str)
+    {
+      return decode(p.dense(), ss, str);
+    }
     virtual void make_brackets(const VU& ss, std::string& str) const = 0;
   };
 }

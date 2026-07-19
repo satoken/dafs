@@ -20,6 +20,7 @@
 #include <map>
 #include <stdio.h> 
 #include <set> 
+#include <cstdint>
 
 #include "BeamAlign.h"
 
@@ -54,27 +55,6 @@ void quickSort(vector<int>& A, int p,int q)
     }
 }
 
-unsigned long BeamAlign::quickselect_partition(vector<pair<double, int>>& scores, unsigned long lower, unsigned long upper) {
-    double pivot = scores[upper].first;
-    while (lower < upper) {
-        while (scores[lower].first < pivot) ++lower;
-        while (scores[upper].first > pivot) --upper;
-        if (scores[lower].first == scores[upper].first) ++lower;
-        else if (lower < upper) swap(scores[lower], scores[upper]);
-    }
-    return upper;
-}
-
-// in-place quick-select
-double BeamAlign::quickselect(vector<pair<double, int>>& scores, unsigned long lower, unsigned long upper, unsigned long k) {
-    if ( lower == upper ) return scores[lower].first;
-    unsigned long split = quickselect_partition(scores, lower, upper);
-    unsigned long length = split - lower + 1;
-    if (length == k) return scores[split].first;
-    else if (k  < length) return quickselect(scores, lower, split-1, k);
-    else return quickselect(scores, split+1, upper, k - length);
-}
-
 double BeamAlign::beam_prune(std::unordered_map<int, AlignState> &beamstep){
     scores.clear();
     for (auto &item : beamstep) {
@@ -83,10 +63,16 @@ double BeamAlign::beam_prune(std::unordered_map<int, AlignState> &beamstep){
         scores.push_back(make_pair(cand.alpha, ik));
     }
     if (scores.size() <= beam) return VALUE_MIN;
-    double threshold = quickselect(scores, 0, scores.size() - 1, scores.size() - beam);
-    for (auto &p : scores) {
-        if (p.first < threshold) beamstep.erase(p.second);
-    }
+    sort(scores.begin(), scores.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.first != rhs.first
+             ? lhs.first > rhs.first
+             : lhs.second < rhs.second;
+    });
+    const double threshold = scores[beam-1].first;
+    // Keep the beam a hard bound even when several candidates have exactly
+    // the cutoff score; retaining all ties can otherwise become quadratic.
+    for (size_t rank = beam; rank < scores.size(); ++rank)
+        beamstep.erase(scores[rank].second);
 
     return threshold;
 }
@@ -344,6 +330,94 @@ void BeamAlign::ml_alignment(string &seq1, string &seq2, vector<char> &aln1, vec
 
     double forward_score = bestALN[seq1_len + seq2_len][seq1_len * max_len + seq2_len].alpha;
     traceback(aln1, aln2);
+}
+
+double BeamAlign::max_alignment(unsigned length1, unsigned length2,
+                                std::vector<unsigned>& mapping,
+                                MatchScoreFunction match_score)
+{
+    struct MaxNode {
+        double score = VALUE_MIN;
+        uint64_t previous = 0;
+        char operation = 0;
+    };
+
+    const unsigned stride = length2 + 1;
+    const auto key_of = [stride](unsigned i, unsigned k) {
+        return static_cast<uint64_t>(i) * stride + k;
+    };
+    std::vector<std::unordered_map<uint64_t, MaxNode>> layers(length1 + length2 + 1);
+    layers[0][0].score = 0.0;
+
+    const auto update_max = [](MaxNode& node, double score,
+                               uint64_t previous, char operation) {
+        if (node.score < score) {
+            node.score = score;
+            node.previous = previous;
+            node.operation = operation;
+        }
+    };
+
+    for (unsigned step = 0; step < length1 + length2; ++step) {
+        auto& layer = layers[step];
+        if (beam > 0 && layer.size() > static_cast<size_t>(beam)) {
+            std::vector<std::pair<double, uint64_t>> ranked;
+            ranked.reserve(layer.size());
+            for (const auto& [key, node] : layer)
+                ranked.emplace_back(node.score, key);
+            std::sort(ranked.begin(), ranked.end(),
+                      [](const auto& lhs, const auto& rhs) {
+                        return lhs.first != rhs.first
+                             ? lhs.first > rhs.first
+                             : lhs.second < rhs.second;
+                      });
+            for (size_t r = beam; r < ranked.size(); ++r)
+                layer.erase(ranked[r].second);
+        }
+
+        std::vector<uint64_t> keys;
+        keys.reserve(layer.size());
+        for (const auto& [key, node] : layer) keys.push_back(key);
+        std::sort(keys.begin(), keys.end());
+        for (const uint64_t key : keys) {
+            const MaxNode& node = layer.at(key);
+            const unsigned i = key / stride;
+            const unsigned k = key % stride;
+            if (i < length1 && k < length2) {
+                const uint64_t next = key_of(i + 1, k + 1);
+                update_max(layers[step + 2][next],
+                           node.score + match_score(i, k), key, 'M');
+            }
+            if (i < length1) {
+                const uint64_t next = key_of(i + 1, k);
+                update_max(layers[step + 1][next], node.score, key, 'X');
+            }
+            if (k < length2) {
+                const uint64_t next = key_of(i, k + 1);
+                update_max(layers[step + 1][next], node.score, key, 'Y');
+            }
+        }
+    }
+
+    mapping.assign(length1, -1u);
+    uint64_t key = key_of(length1, length2);
+    unsigned step = length1 + length2;
+    const auto terminal = layers[step].find(key);
+    if (terminal == layers[step].end()) return VALUE_MIN;
+    const double score = terminal->second.score;
+    while (step > 0) {
+        const MaxNode& node = layers[step].at(key);
+        const unsigned i = key / stride;
+        const unsigned k = key % stride;
+        if (node.operation == 'M') {
+            mapping[i - 1] = k - 1;
+            step -= 2;
+        } else {
+            --step;
+        }
+        key = node.previous;
+    }
+    return score;
 }
 
 

@@ -5,6 +5,8 @@
 #include <tuple>
 #include <variant>
 #include <memory>
+#include <functional>
+#include <utility>
 #include "trimatrix.h"
 using namespace std::literals::string_literals;
 
@@ -33,6 +35,7 @@ class _Fold
             float pos_unpaired;
             float neg_unpaired;
             std::vector<float> score_paired_position_;
+            std::function<float(u_int32_t, u_int32_t)> pair_score_;
             std::vector<std::vector<bool>> allowed_pairs_;
 
             Options() : 
@@ -89,6 +92,12 @@ class _Fold
                 return *this;
             }
 
+            Options& pair_score(std::function<float(u_int32_t, u_int32_t)> sc)
+            {
+                pair_score_ = std::move(sc);
+                return *this;
+            }
+
             Options& set_allowed_pair(char x, char y)
             {
                 allowed_pairs_[x][y] = allowed_pairs_[y][x] = true;
@@ -102,6 +111,8 @@ class _Fold
                     s += ref[i]==j ? -pos_paired : neg_paired;
                 if (score_paired_position_.size() > 0)
                     s += score_paired_position_[i-1] + score_paired_position_[j-1];
+                if (pair_score_)
+                    s += pair_score_(i, j);
                 return s;
             }
 
