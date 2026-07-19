@@ -978,6 +978,7 @@ float DAFS::
   std::vector<CBP> cbp;
   VU w_cbp;
   VVU c_x(L1), c_y(L2), c_z(L1);
+  std::vector<uint> cbp_inactive_steps;
   
   // Clear CBP set for dynamic generation
   cbp_set_.clear();
@@ -1065,6 +1066,7 @@ float DAFS::
     if (use_dynamic_cbp_) {
       size_t cbp_before = cbp.size();
       generate_cbp_from_solution(x, y, z, p_x, p_y, p_z, N1, N2, min_th_s, cbp, c_x, c_y, c_z);
+      cbp_inactive_steps.resize(cbp.size(), 0);
       if (cbp.size() > cbp_before) {
         spdlog::debug("Dynamic CBP: Added {} new CBPs at iteration {} (total: {})",
                       cbp.size() - cbp_before, t, cbp.size());
@@ -1089,11 +1091,13 @@ float DAFS::
 
     // Calculate Lagrangian value
     w_cbp.clear();
+    VF cbp_reduced_cost(cbp.size(), 0.0f);
     for (uint u = 0; u != cbp.size(); ++u)
     {
       const auto &[i, j] = cbp[u].first;
       const auto &[k, l] = cbp[u].second;
       const float s_w = q_x[i][j] + q_y[k][l] - q_z[i][k] - q_z[j][l];
+      cbp_reduced_cost[u] = s_w;
       if (s_w > 0.0f)
       {
         s += s_w;
@@ -1106,10 +1110,77 @@ float DAFS::
 
     spdlog::debug("Step: {}, eta: {}, L: {}, Violated: {}", t, gm.get_step_size(), s, violated);
 
+    // Preserve the Lagrangian value from the current iteration, including
+    // when the algorithm converges on the first iteration.
+    s_prev = s;
+
+    if (use_dynamic_cbp_ && !cbp.empty()) {
+      // Keep the dynamic CBP set as a compact working set.  A column is stale
+      // only when it has not participated in the auxiliary solution or either
+      // folding solution and its reduced cost is non-positive.  Alignment
+      // endpoints alone do not activate a consensus base pair.
+      // Eight iterations avoids deleting columns during short oscillations.
+      constexpr uint CBP_INACTIVE_PATIENCE = 8;
+      std::vector<char> selected_w(cbp.size(), false);
+      for (const uint u : w_cbp)
+        selected_w[u] = true;
+
+      size_t write = 0;
+      size_t removed = 0;
+      for (size_t u = 0; u < cbp.size(); ++u) {
+        const auto& [ij, kl] = cbp[u];
+        const auto& [i, j] = ij;
+        const auto& [k, l] = kl;
+        const bool participates = selected_w[u] || x[i] == j || y[k] == l;
+        if (participates || cbp_reduced_cost[u] > 0.0f)
+          cbp_inactive_steps[u] = 0;
+        else
+          ++cbp_inactive_steps[u];
+
+        if (cbp_inactive_steps[u] >= CBP_INACTIVE_PATIENCE &&
+            cbp_reduced_cost[u] <= 0.0f) {
+          ++removed;
+          continue;
+        }
+        if (write != u) {
+          cbp[write] = cbp[u];
+          cbp_inactive_steps[write] = cbp_inactive_steps[u];
+        }
+        ++write;
+      }
+
+      if (removed != 0) {
+        cbp.resize(write);
+        cbp_inactive_steps.resize(write);
+        cbp_set_.clear();
+        c_x.assign(L1, VU());
+        c_y.assign(L2, VU());
+        c_z.assign(L1, VU());
+        for (const CBP& candidate : cbp) {
+          cbp_set_.insert(candidate);
+          const auto& [ij, kl] = candidate;
+          const auto& [i, j] = ij;
+          const auto& [k, l] = kl;
+          c_x[i].push_back(j);
+          c_y[k].push_back(l);
+          c_z[i].push_back(k);
+          c_z[j].push_back(l);
+        }
+        const auto sort_unique = [](VU& projection) {
+          std::sort(projection.begin(), projection.end());
+          projection.erase(std::unique(projection.begin(), projection.end()),
+                           projection.end());
+        };
+        for (VU& projection : c_x) sort_unique(projection);
+        for (VU& projection : c_y) sort_unique(projection);
+        for (VU& projection : c_z) sort_unique(projection);
+        spdlog::debug("Dynamic CBP: Removed {} stale CBPs at iteration {} (total: {})",
+                      removed, t, cbp.size());
+      }
+    }
+
     if (violated == 0)
       break; // all constraints were satisfied.
-
-    s_prev = s;
   }
   spdlog::info("Step: {}, L: {}, Violated: {}, LB: {}", t, s_prev, violated, lb);
 
@@ -1786,8 +1857,8 @@ bool DAFS::is_valid_cbp(uint i, uint j, uint k, uint l,
                         const VVF& p_x, const VVF& p_y, const VVF& p_z,
                         uint N1, uint N2, float min_th_s) const {
     // Use the same logic as the original dafs.cpp:995-1001
-    if (/*p_x[i][j] > CUTOFF && p_z[i][k] > CUTOFF && 
-        p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF*/ true) {
+    if (p_x[i][j] > CUTOFF && p_z[i][k] > CUTOFF &&
+        p_y[k][l] > CUTOFF && p_z[j][l] > CUTOFF) {
         
         assert(p_x[i][j] <= 1.0);
         assert(p_y[k][l] <= 1.0);
@@ -1819,20 +1890,41 @@ void DAFS::generate_cbp_from_solution(const VU& x, const VU& y, const VU& z,
                                       uint N1, uint N2, float min_th_s,
                                       std::vector<CBP>& cbp, VVU& c_x, VVU& c_y, VVU& c_z) {
     const uint L1 = p_x.size();
-    
-    // Generate CBP candidates from current solution
+    const uint L2 = p_y.size();
+
+    // Forward separation: project each base pair selected in x through the
+    // current alignment.  Do not require y to have selected the projected base
+    // pair; that disagreement is what the multipliers need to resolve.
     for (uint i = 0; i < L1-1; ++i) {
-        uint j = x[i];  // Base pair in structure 1
-        if (j != -1u && j > i) {
-            uint k = z[i];  // Alignment
-            uint l = z[j];  // Alignment
-            if (k != -1u && l != -1u && k < l && y[k] == l) {
-                // Check if this CBP is valid using original logic
-                if (is_valid_cbp(i, j, k, l, p_x, p_y, p_z, N1, N2, min_th_s)) {
-                    CBP candidate = {{i,j}, {k,l}};
-                    add_cbp_if_new(candidate, cbp, c_x, c_y, c_z);
-                }
-            }
+        const uint j = x[i];
+        if (j == -1u || j <= i)
+            continue;
+        const uint k = z[i];
+        const uint l = z[j];
+        if (k != -1u && l != -1u && k < l &&
+            is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
+                         N1, N2, min_th_s)) {
+            add_cbp_if_new({{i, j}, {k, l}}, cbp, c_x, c_y, c_z);
+        }
+    }
+
+    // Reverse separation catches the symmetric case: a base pair selected in
+    // y whose aligned endpoints are not selected as a base pair in x.
+    VU inverse_z(L2, -1u);
+    for (uint i = 0; i < L1; ++i)
+        if (z[i] != -1u && z[i] < L2)
+            inverse_z[z[i]] = i;
+
+    for (uint k = 0; k < L2-1; ++k) {
+        const uint l = y[k];
+        if (l == -1u || l <= k)
+            continue;
+        const uint i = inverse_z[k];
+        const uint j = inverse_z[l];
+        if (i != -1u && j != -1u && i < j &&
+            is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
+                         N1, N2, min_th_s)) {
+            add_cbp_if_new({{i, j}, {k, l}}, cbp, c_x, c_y, c_z);
         }
     }
 }
