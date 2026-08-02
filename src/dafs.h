@@ -23,6 +23,7 @@
 #include <vector>
 #include <memory>
 #include <iostream>
+#include <fstream>
 #include <random>
 #include <unordered_set>
 #include "typedefs.h"
@@ -100,6 +101,10 @@ private:
   void output_verbose(const VU &x, const VU &y, const VU &z, const ALN &aln1, const ALN &aln2) const;
   void output(std::ostream &os, const ALN &aln) const;
   void output(std::ostream &os, ALN::const_iterator b, ALN::const_iterator e) const;
+  void write_metric(
+      const std::string& event,
+      const std::vector<std::pair<std::string, std::string>>& raw_fields = {},
+      const std::vector<std::pair<std::string, std::string>>& text_fields = {}) const;
   
   // Dynamic CBP generation methods
   bool is_valid_cbp(uint i, uint j, uint k, uint l, 
@@ -143,6 +148,20 @@ private:
   float w_;                         // the weight for base pairs in the objective function
   float w_ribosum_;                 // the weight for RIBOSUM pair-pair matches
   float eta0_;                      // the initial step width of the subgradient update
+  std::string input_path_;
+  std::string align_model_name_;
+  std::string fold_model_name_;
+  std::string metrics_jsonl_path_;
+  mutable std::ofstream metrics_stream_;
+  uint align_beam_;
+  uint fold_beam_;
+  mutable uint metrics_merge_id_;
+  mutable size_t metrics_dd_iterations_;
+  mutable size_t metrics_cbp_peak_;
+  mutable size_t metrics_cbp_added_;
+  mutable size_t metrics_cbp_priced_;
+  mutable size_t metrics_cbp_removed_;
+  mutable double metrics_dd_seconds_;
   std::unique_ptr<Align::Model> a_model_;           // alignment model
   std::unique_ptr<Align::Decoder> a_decoder_;       // alignment decoder
   std::unique_ptr<Fold::Model> s_model_;            // folding model

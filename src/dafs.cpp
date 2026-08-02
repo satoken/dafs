@@ -37,7 +37,10 @@
 #include <cstdint>
 #include <limits>
 #include <array>
-//#include <fstream>
+#include <chrono>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include "fa.h"
 #include "fold.h"
 #include "nussinov.h"
@@ -73,8 +76,67 @@ namespace Vienna
 #include "spdlog/stopwatch.h"
 #define CUTOFF 0.01
 
+namespace
+{
+using Clock = std::chrono::steady_clock;
+
+double elapsed_seconds(const Clock::time_point& start)
+{
+  return std::chrono::duration<double>(Clock::now() - start).count();
+}
+
+std::string json_escape(const std::string& value)
+{
+  std::ostringstream out;
+  for (const unsigned char ch : value) {
+    switch (ch) {
+    case '"': out << "\\\""; break;
+    case '\\': out << "\\\\"; break;
+    case '\b': out << "\\b"; break;
+    case '\f': out << "\\f"; break;
+    case '\n': out << "\\n"; break;
+    case '\r': out << "\\r"; break;
+    case '\t': out << "\\t"; break;
+    default:
+      if (ch < 0x20)
+        out << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+            << static_cast<unsigned>(ch) << std::dec;
+      else
+        out << ch;
+    }
+  }
+  return out.str();
+}
+
+std::string json_number(double value)
+{
+  if (!std::isfinite(value))
+    return "null";
+  std::ostringstream out;
+  out << std::setprecision(17) << value;
+  return out.str();
+}
+
+size_t sparse_entries(const std::vector<SV>& matrix)
+{
+  size_t count = 0;
+  for (const SV& row : matrix)
+    count += row.size();
+  return count;
+}
+} // namespace
+
 DAFS::DAFS()
     : w_ribosum_(0.1f),
+      align_beam_(100),
+      fold_beam_(100),
+      metrics_merge_id_(0),
+      metrics_dd_iterations_(0),
+      metrics_cbp_peak_(0),
+      metrics_cbp_added_(0),
+      metrics_cbp_priced_(0),
+      metrics_cbp_removed_(0),
+      metrics_dd_seconds_(0.0),
       use_dynamic_cbp_(false),
       use_sparse_structure_lagrangian_(false),
       use_sparse_alignment_lagrangian_(false),
@@ -1073,6 +1135,8 @@ float DAFS::
                 const SparseFloatMatrix &p_z,
                 const ALN &aln1, const ALN &aln2)
 {
+  const auto dd_start = Clock::now();
+  const uint merge_id = ++metrics_merge_id_;
   const uint L1 = p_x.rows();
   const uint L2 = p_y.rows();
   const uint N1 = aln1.size();
@@ -1224,6 +1288,11 @@ float DAFS::
     }
   }
 
+  const size_t initial_cbp = cbp.size();
+  metrics_cbp_peak_ = std::max(metrics_cbp_peak_, initial_cbp);
+  if (use_dynamic_cbp_)
+    metrics_cbp_added_ += initial_cbp;
+
   // Initialize gradient manager
   GradientManager gm(eta0_, 0.0f, 1.0f,
                      use_sparse_structure_lagrangian_,
@@ -1241,8 +1310,13 @@ float DAFS::
   float s_prev = 0.0;
   uint violated = 0;
   uint t;
+  uint iterations_completed = 0;
+  std::string stop_reason = "max_iterations";
   for (t = 0; t != t_max_; ++t)
   {
+    size_t iteration_added = 0;
+    size_t iteration_priced = 0;
+    size_t iteration_removed = 0;
     // solve the subproblems
     float s_x = 0.0f, s_y = 0.0f, s_z = 0.0f;
     if (gm.uses_sparse_structure_storage()) {
@@ -1351,6 +1425,11 @@ float DAFS::
                     cbp[u].second.first, cbp[u].second.second);
       }
       cbp_inactive_steps.resize(cbp.size(), 0);
+      iteration_added = heuristic_cbp_end - cbp_before;
+      iteration_priced = cbp.size() - heuristic_cbp_end;
+      metrics_cbp_added_ += iteration_added + iteration_priced;
+      metrics_cbp_priced_ += iteration_priced;
+      metrics_cbp_peak_ = std::max(metrics_cbp_peak_, cbp.size());
       if (cbp.size() > cbp_before) {
         spdlog::debug("Dynamic CBP: Added {} new CBPs at iteration {} (total: {})",
                       cbp.size() - cbp_before, t, cbp.size());
@@ -1488,13 +1567,45 @@ float DAFS::
         spdlog::debug("Dynamic CBP: Removed {} stale CBPs at iteration {} (total: {})",
                       removed, t, cbp.size());
       }
+      iteration_removed = removed;
+      metrics_cbp_removed_ += removed;
     }
 
     const float certified_gap = best_ub - lb;
     const float gap_tolerance = 1e-4f * std::max(1.0f, std::abs(lb));
-    if (violated == 0 ||
-        (certified_gap >= 0.0f && certified_gap <= gap_tolerance))
+    ++iterations_completed;
+    ++metrics_dd_iterations_;
+    write_metric(
+        "dd_iteration",
+        {{"merge_id", std::to_string(merge_id)},
+         {"iteration", std::to_string(t)},
+         {"beam_lagrangian", json_number(s)},
+         {"certified_lagrangian", json_number(certified_s)},
+         {"best_ub", json_number(best_ub)},
+         {"lb", json_number(lb)},
+         {"gap", json_number(certified_gap)},
+         {"violated", std::to_string(violated)},
+         {"polyak_scale", json_number(gm.get_step_size())},
+         {"polyak_update", json_number(gm.get_last_update_size())},
+         {"q_x_nnz", gm.uses_sparse_structure_storage()
+                         ? std::to_string(gm.sparse_q_x().nonzeros()) : "null"},
+         {"q_y_nnz", gm.uses_sparse_structure_storage()
+                         ? std::to_string(gm.sparse_q_y().nonzeros()) : "null"},
+         {"q_z_nnz", gm.uses_sparse_alignment_storage()
+                         ? std::to_string(gm.sparse_q_z().nonzeros()) : "null"},
+         {"cbp_total", std::to_string(cbp.size())},
+         {"cbp_heuristic_added", std::to_string(iteration_added)},
+         {"cbp_priced", std::to_string(iteration_priced)},
+         {"cbp_removed", std::to_string(iteration_removed)},
+         {"selected_pair_matches", std::to_string(w_cbp.size())}});
+    if (violated == 0) {
+      stop_reason = "agreement";
       break; // exact agreement or a sufficiently small certified gap
+    }
+    if (certified_gap >= 0.0f && certified_gap <= gap_tolerance) {
+      stop_reason = "certified_gap";
+      break;
+    }
   }
 
   if (!best_z.empty()) {
@@ -1504,6 +1615,21 @@ float DAFS::
   }
   spdlog::info("Step: {}, BestUB: {}, Violated: {}, LB: {}, Gap: {}",
                t, best_ub, violated, lb, best_ub - lb);
+
+  const double dd_seconds = elapsed_seconds(dd_start);
+  metrics_dd_seconds_ += dd_seconds;
+  write_metric(
+      "dd_summary",
+      {{"merge_id", std::to_string(merge_id)},
+       {"iterations", std::to_string(iterations_completed)},
+       {"seconds", json_number(dd_seconds)},
+       {"initial_cbp", std::to_string(initial_cbp)},
+       {"final_cbp", std::to_string(cbp.size())},
+       {"best_ub", json_number(best_ub)},
+       {"lb", json_number(lb)},
+       {"gap", json_number(best_ub - lb)},
+       {"violated", std::to_string(violated)}},
+      {{"stop_reason", stop_reason}});
 
   return std::isfinite(best_ub) ? best_ub : s_prev;
 }
@@ -1850,6 +1976,32 @@ void DAFS::
   }
 }
 
+void DAFS::write_metric(
+    const std::string& event,
+    const std::vector<std::pair<std::string, std::string>>& raw_fields,
+    const std::vector<std::pair<std::string, std::string>>& text_fields) const
+{
+  if (!metrics_stream_.is_open())
+    return;
+
+  metrics_stream_ << "{\"schema_version\":1,\"event\":\""
+                  << json_escape(event) << '"';
+  for (const auto& [name, value] : raw_fields)
+    metrics_stream_ << ",\"" << json_escape(name) << "\":" << value;
+  for (const auto& [name, value] : text_fields)
+    metrics_stream_ << ",\"" << json_escape(name) << "\":\""
+                    << json_escape(value) << '"';
+  metrics_stream_ << "}\n";
+  // Per-iteration flushing would materially perturb the runtime being
+  // measured.  Keep iteration events buffered, but make stage/summary events
+  // available promptly so interrupted runs still retain useful diagnostics.
+  if (event != "dd_iteration")
+    metrics_stream_.flush();
+  if (!metrics_stream_)
+    throw std::runtime_error("failed to write benchmark metrics to " +
+                             metrics_jsonl_path_);
+}
+
 DAFS&
 DAFS::
 parse_options(int& argc, char**& argv)
@@ -1869,6 +2021,8 @@ parse_options(int& argc, char**& argv)
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"))
     ("dynamic-cbp", "Use dynamic CBP generation instead of pre-enumeration")
     ("dense-lagrangian", "Force dense Lagrange multiplier storage")
+    ("metrics-jsonl", "Write machine-readable benchmark metrics to FILE",
+      cxxopts::value<std::string>(), "FILE")
     ;
 
   options.add_options("Aligning")
@@ -1945,8 +2099,10 @@ parse_options(int& argc, char**& argv)
     w_pct_a_ = res["align-pct"].as<float>();
     th_a_ = res["align-th"].as<float>();
     const std::string align_model = res["align-model"].as<std::string>();
+    align_model_name_ = align_model;
     const int requested_align_beam = res["align-beam"].as<int>();
     const uint align_beam = std::max(1, requested_align_beam);
+    align_beam_ = align_beam;
     if (requested_align_beam <= 0 && align_model == "LinearAlign")
       spdlog::warn("--align-beam must be positive for linear complexity; using 1");
 
@@ -1973,8 +2129,10 @@ parse_options(int& argc, char**& argv)
     w_pct_s_ = res["fold-pct"].as<float>();
     use_alifold_ = res["no-alifold"].count() == 0;
     const std::string fold_model = res["fold-model"].as<std::string>();
+    fold_model_name_ = fold_model;
     const int requested_fold_beam = res["linfold-beam"].as<int>();
     const uint fold_beam = std::max(1, requested_fold_beam);
+    fold_beam_ = fold_beam;
     if (requested_fold_beam <= 0 &&
         (fold_model == "lpv" || fold_model == "lpc" || fold_model == "LinFold"))
       spdlog::warn("--linfold-beam must be positive for linear complexity; using 1");
@@ -2104,8 +2262,18 @@ parse_options(int& argc, char**& argv)
     use_bp_update_ = res["bp-update"].count() > 0;
     use_bp_update1_ = res["bp-update1"].count() > 0 ^ res["ipknot"].count() > 0;
 
-    // read sequences
-    Fasta::load(fa_, res["input"].as<std::string>().c_str());
+    // Read sequences only after all options have been validated.  Metrics are
+    // opened last so a successful parse always produces a self-contained
+    // trace, without mixing it into the prediction written to stdout.
+    input_path_ = res["input"].as<std::string>();
+    Fasta::load(fa_, input_path_.c_str());
+    if (res["metrics-jsonl"].count()) {
+      metrics_jsonl_path_ = res["metrics-jsonl"].as<std::string>();
+      metrics_stream_.open(metrics_jsonl_path_, std::ios::out | std::ios::trunc);
+      if (!metrics_stream_)
+        throw std::runtime_error("cannot open --metrics-jsonl file: " +
+                                 metrics_jsonl_path_);
+    }
   }
   catch (const cxxopts::exceptions::exception& e)
   {
@@ -2119,10 +2287,56 @@ parse_options(int& argc, char**& argv)
 int DAFS::
     run()
 {
+  const auto run_start = Clock::now();
   const uint N = fa_.size();
+  size_t total_residues = 0;
+  size_t minimum_length = N == 0 ? 0 : std::numeric_limits<size_t>::max();
+  size_t maximum_length = 0;
+  for (const Fasta& sequence : fa_) {
+    total_residues += sequence.size();
+    minimum_length = std::min(minimum_length,
+                              static_cast<size_t>(sequence.size()));
+    maximum_length = std::max(maximum_length,
+                              static_cast<size_t>(sequence.size()));
+  }
+  metrics_merge_id_ = 0;
+  metrics_dd_iterations_ = 0;
+  metrics_cbp_peak_ = 0;
+  metrics_cbp_added_ = 0;
+  metrics_cbp_priced_ = 0;
+  metrics_cbp_removed_ = 0;
+  metrics_dd_seconds_ = 0.0;
+  write_metric(
+      "run_start",
+      {{"sequence_count", std::to_string(N)},
+       {"total_residues", std::to_string(total_residues)},
+       {"minimum_length", std::to_string(minimum_length)},
+       {"maximum_length", std::to_string(maximum_length)},
+       {"structure_weight", json_number(w_)},
+       {"ribosum_weight", json_number(w_ribosum_)},
+       {"alignment_threshold", json_number(th_a_)},
+       {"max_iterations", std::to_string(t_max_)},
+       {"alignment_beam", std::to_string(align_beam_)},
+       {"folding_beam", std::to_string(fold_beam_)},
+       {"dynamic_cbp", use_dynamic_cbp_ ? "true" : "false"},
+       {"sparse_structure_lagrangian",
+        use_sparse_structure_lagrangian_ ? "true" : "false"},
+       {"sparse_alignment_lagrangian",
+        use_sparse_alignment_lagrangian_ ? "true" : "false"}},
+      {{"input", input_path_},
+       {"alignment_model", align_model_name_},
+       {"folding_model", fold_model_name_}});
 
   // calculate base-pairing probabilities
+  auto stage_start = Clock::now();
   s_model_->calculate(fa_, bp_);
+  size_t base_pair_probability_nnz = 0;
+  for (const BP& probability : bp_)
+    base_pair_probability_nnz += sparse_entries(probability);
+  write_metric("stage",
+               {{"seconds", json_number(elapsed_seconds(stage_start))},
+                {"nnz", std::to_string(base_pair_probability_nnz)}},
+               {{"name", "base_pair_probabilities"}});
 #if 0
   {
     std::ofstream os("bp");
@@ -2131,10 +2345,19 @@ int DAFS::
 #endif
 
   // calculate matching probabilities
+  stage_start = Clock::now();
   a_model_->calculate(fa_, mp_);
+  size_t matching_probability_nnz = 0;
+  for (uint i = 0; i != N; ++i)
+    for (uint j = i + 1; j != N; ++j)
+      matching_probability_nnz += sparse_entries(mp_[i][j]);
   for (uint i = 0; i != N; ++i)
     for (uint j = i + 1; j != N; ++j)
       transpose_mp(mp_[i][j], mp_[j][i], fa_[i].size(), fa_[j].size());
+  write_metric("stage",
+               {{"seconds", json_number(elapsed_seconds(stage_start))},
+                {"nnz", std::to_string(matching_probability_nnz)}},
+               {{"name", "alignment_probabilities"}});
 #if 0
   {
     std::ofstream os("mp");
@@ -2143,6 +2366,7 @@ int DAFS::
 #endif
 
   // four-way probabilistic consistency tranformation
+  stage_start = Clock::now();
   if (w_pct_f_ != 0.0)
     relax_fourway_consistency();
 
@@ -2163,17 +2387,39 @@ int DAFS::
           : calculate_similarity_score(
                 mp_[i][j], fa_[i].size(), fa_[j].size());
   }
+  write_metric("stage",
+               {{"seconds", json_number(elapsed_seconds(stage_start))}},
+               {{"name", "similarity_and_fourway_pct"}});
 
   // probabilistic consistency tranformation for base-pairing probabilitiy matrix
+  stage_start = Clock::now();
   if (w_pct_s_ != 0.0)
     relax_basepairing_probability();
 
   // probabilistic consistency tranformation for matching probability matrix
   if (w_pct_a_ != 0.0)
     relax_matching_probability();
+  write_metric("stage",
+               {{"seconds", json_number(elapsed_seconds(stage_start))}},
+               {{"name", "probabilistic_consistency"}});
+  size_t final_base_pair_probability_nnz = 0;
+  for (const BP& probability : bp_)
+    final_base_pair_probability_nnz += sparse_entries(probability);
+  size_t final_matching_probability_nnz = 0;
+  for (uint i = 0; i != N; ++i)
+    for (uint j = i + 1; j != N; ++j)
+      final_matching_probability_nnz += sparse_entries(mp_[i][j]);
+  write_metric(
+      "probability_support",
+      {{"base_pair_nnz", std::to_string(final_base_pair_probability_nnz)},
+       {"alignment_nnz", std::to_string(final_matching_probability_nnz)}});
 
   // compute the guide tree
+  stage_start = Clock::now();
   build_tree();
+  write_metric("stage",
+               {{"seconds", json_number(elapsed_seconds(stage_start))}},
+               {{"name", "guide_tree"}});
   print_tree(std::cout, tree_.size() - 1);
   std::cout << std::endl;
 
@@ -2181,7 +2427,11 @@ int DAFS::
   VU ss;
   ALN aln;
   float s;
+  stage_start = Clock::now();
   s = align(ss, aln, tree_.size() - 1);
+  write_metric("stage",
+               {{"seconds", json_number(elapsed_seconds(stage_start))}},
+               {{"name", "progressive_alignment"}});
 
 #if 0
   // iterative refinement
@@ -2203,6 +2453,7 @@ int DAFS::
 #endif
 
   std::string str;
+  stage_start = Clock::now();
   if (s_decoder1_)
   {
     // compute the common secondary structures from the averaged base-pairing matrix
@@ -2219,6 +2470,36 @@ int DAFS::
   }
   else
     s_decoder_->make_brackets(ss, str);
+  const double final_folding_seconds = elapsed_seconds(stage_start);
+  write_metric("stage",
+               {{"seconds", json_number(final_folding_seconds)}},
+               {{"name", "final_consensus_folding"}});
+
+  size_t consensus_pairs = 0;
+  for (uint i = 0; i < ss.size(); ++i)
+    if (ss[i] != -1u && ss[i] > i)
+      ++consensus_pairs;
+  write_metric(
+      "run_summary",
+      {{"seconds", json_number(elapsed_seconds(run_start))},
+       {"progressive_score", json_number(s)},
+       {"alignment_columns", std::to_string(str.size())},
+       {"consensus_pairs", std::to_string(consensus_pairs)},
+       {"base_pair_probability_initial_nnz",
+        std::to_string(base_pair_probability_nnz)},
+       {"alignment_probability_initial_nnz",
+        std::to_string(matching_probability_nnz)},
+       {"base_pair_probability_final_nnz",
+        std::to_string(final_base_pair_probability_nnz)},
+       {"alignment_probability_final_nnz",
+        std::to_string(final_matching_probability_nnz)},
+       {"dd_calls", std::to_string(metrics_merge_id_)},
+       {"dd_iterations", std::to_string(metrics_dd_iterations_)},
+       {"dd_seconds", json_number(metrics_dd_seconds_)},
+       {"cbp_peak", std::to_string(metrics_cbp_peak_)},
+       {"cbp_added", std::to_string(metrics_cbp_added_)},
+       {"cbp_priced", std::to_string(metrics_cbp_priced_)},
+       {"cbp_removed", std::to_string(metrics_cbp_removed_)}});
 
   // output the alignment
   std::sort(aln.begin(), aln.end());

@@ -79,6 +79,7 @@ endif()
 target_link_libraries(dafs PRIVATE contrafold probcons contralign linearfold linearalign)
 
 if(BUILD_TESTING)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
   add_executable(
       linear_models_fail_fast_test
       ../tests/linear_models_fail_fast.cpp
@@ -99,6 +100,21 @@ if(BUILD_TESTING)
   target_include_directories(ribosum_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_compile_features(ribosum_test PRIVATE cxx_std_17)
   add_test(NAME ribosum_pair_match COMMAND ribosum_test)
+
+  add_test(
+      NAME benchmark_scorer
+      COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/test_benchmark_scorer.py)
+
+  add_test(
+      NAME benchmark_runner_smoke
+      COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/benchmarks/run.py
+        --config ${PROJECT_SOURCE_DIR}/benchmarks/configs/smoke.json
+        --binary $<TARGET_FILE:dafs>
+        --output-dir ${CMAKE_CURRENT_BINARY_DIR}/benchmark-smoke
+        --rerun)
+  set_tests_properties(benchmark_runner_smoke PROPERTIES TIMEOUT 120)
 
   add_test(
       NAME reject_negative_max_iter

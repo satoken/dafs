@@ -47,8 +47,8 @@ struct GradientEntry {
 GradientManager::GradientManager(float eta0, float lb, float gradient_clip,
                                  bool sparse_structure_storage,
                                  bool sparse_alignment_storage)
-    : eta0_(eta0), lb_(lb), current_eta_(eta0), 
-      violations_(0), gradient_clip_(gradient_clip),
+    : eta0_(eta0), lb_(lb), current_eta_(eta0),
+      last_update_size_(0.0f), violations_(0), gradient_clip_(gradient_clip),
       sparse_structure_storage_(sparse_structure_storage),
       sparse_alignment_storage_(sparse_alignment_storage)
 {
@@ -285,6 +285,7 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
     const float eta = g2 > 0.0f
                     ? current_eta_ * duality_gap / g2
                     : 0.0f;
+    last_update_size_ = eta;
     spdlog::debug("eta: {}, gap: {}, g^2: {}, score: {}, lb_: {}",
                   eta, duality_gap, g2, score, lb_);
 

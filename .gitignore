@@ -2,7 +2,7 @@
 *.o
 *.Po
 *.a
-data
+/data/
 autom4te.cache
 Makefile
 config.h
@@ -18,3 +18,5 @@ build
 exp
 .cache
 .vscode/
+/benchmarks/results*/
+__pycache__/

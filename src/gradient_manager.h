@@ -71,6 +71,10 @@ public:
     // Get the current Polyak scaling coefficient alpha_t.  The actual step is
     // alpha_t * (L(q_t) - LB) / ||g_t||^2.
     float get_step_size() const { return current_eta_; }
+    // Actual multiplier applied to the materialized subgradient in the most
+    // recent update.  Unlike get_step_size(), this includes the duality gap
+    // and squared-gradient denominator.
+    float get_last_update_size() const { return last_update_size_; }
     
     // Set lower bound for adaptive method
     void set_lower_bound(float lb) { lb_ = lb; }
@@ -83,6 +87,7 @@ private:
     float eta0_;          // Initial step size
     float lb_;            // Lower bound
     float current_eta_;   // Current step size
+    float last_update_size_; // Actual Polyak multiplier used most recently
     uint violations_;     // Number of constraint violations
     float gradient_clip_; // Gradient clipping threshold
     bool sparse_structure_storage_; // Sparse q_x/q_y for LinearFold models
