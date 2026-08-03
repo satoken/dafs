@@ -20,7 +20,18 @@
 #ifndef __INC_NUSSINOV_H__
 #define __INC_NUSSINOV_H__
 
+#include <cstddef>
+
 #include "fold.h"
+
+struct LinearNussinovResult
+{
+  float score = 0.0f;
+  float upper_bound = 0.0f;
+  float pruned_upper_bound = 0.0f;
+  float additive_upper_bound = 0.0f;
+  size_t pruned_states = 0;
+};
 
 class Nussinov : public Fold::Decoder
 {
@@ -58,14 +69,27 @@ public:
   float decode(float w, const SparseFloatMatrix& p, const VVF& q, VU& ss);
   float decode(float w, const SparseFloatMatrix& p,
                const SparseFloatMatrix& q, VU& ss);
+  LinearNussinovResult decode_certified(
+      float w, const SparseFloatMatrix& p, const VVF& q, VU& ss);
+  LinearNussinovResult decode_certified(
+      float w, const SparseFloatMatrix& p,
+      const SparseFloatMatrix& q, VU& ss);
+  LinearNussinovResult decode_certified(
+      float w, const SparseFloatMatrix& p, const VVF& q,
+      const std::vector<std::vector<uint>>& pairs_by_right, VU& ss);
+  LinearNussinovResult decode_certified(
+      float w, const SparseFloatMatrix& p, const SparseFloatMatrix& q,
+      const std::vector<std::vector<uint>>& pairs_by_right, VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
   float decode(const SparseFloatMatrix& p, VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 
 private:
-  template <typename Probability, typename Multiplier>
-  float decode_impl(float w, const Probability& p, uint length,
-                    Multiplier multiplier, VU& ss);
+  template <typename PairScore>
+  LinearNussinovResult decode_impl(
+      uint length,
+      const std::vector<std::vector<uint>>& pairs_by_right,
+      PairScore pair_score, VU& ss, bool certify);
 
   float th_;
   uint beam_size_;

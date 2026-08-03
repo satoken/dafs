@@ -32,7 +32,7 @@ Usage
 	                         secondary structures (default: 4.0)
 	      --ribosum-weight arg
 	                         Weight of RIBOSUM85-60 pair-pair match scores
-	                         (default: 0.1; use 0 to disable)
+	                         (default: 0.075; use 0 to disable)
   	  -m, --max-iter T       The maximum number of iteration of the subgradient 
                          	  optimization (default: 600)
   	  -v, --verbose arg      The level of verbose outputs (default: 0)
@@ -50,8 +50,12 @@ Usage
                            	  CONTRAfold) (default: Boltzmann)
   	  -t, --fold-th arg        Threshold for base-pairing probabilities 
                            	  (default: 0.2)
-  	  -T, --fold-th1 arg       Threshold for base-pairing probabilities of the 
-                           	  conclusive common secondary structures
+      -T, --fold-th1 arg       Threshold for base-pairing probabilities of the
+                              conclusive common secondary structures
+          --alifold           Use RNAalifold for profile base-pairing
+                              probabilities (disabled by default)
+          --no-alifold        Disable RNAalifold for profile base-pairing
+                              probabilities (default)
       	  --ipknot             Set optimized parameters for IPknot decoding 
                            	  (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)
 

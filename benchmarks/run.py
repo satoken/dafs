@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import csv
 import hashlib
 import json
@@ -89,6 +90,53 @@ def load_metrics(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 previous_ub = ub
             if lb is not None:
                 previous_lb = lb
+            for name in ("certified_lagrangian",
+                         "certified_track_lagrangian"):
+                candidate_ub = event.get(name)
+                if (candidate_ub is not None and lb is not None and
+                        lb > candidate_ub +
+                        1e-5 * max(1.0, abs(candidate_ub))):
+                    invariant_errors.append(
+                        f"merge {merge_id}: LB {lb} exceeds {name} "
+                        f"{candidate_ub}")
+            for prefix in ("x", "y", "z"):
+                beam = event.get(f"{prefix}_beam")
+                bound = event.get(f"{prefix}_bound")
+                if (beam is not None and bound is not None and
+                        beam > bound + 1e-5 * max(1.0, abs(bound))):
+                    invariant_errors.append(
+                        f"merge {merge_id}: {prefix} beam {beam} exceeds "
+                        f"certified bound {bound}")
+            for prefix in ("x", "y"):
+                beam = event.get(f"{prefix}_beam")
+                beam_certificate = event.get(
+                    f"{prefix}_bound_beam_certificate")
+                additive_certificate = event.get(
+                    f"{prefix}_bound_additive_certificate")
+                if (beam is not None and beam_certificate is not None and
+                        beam > beam_certificate +
+                        1e-5 * max(1.0, abs(beam_certificate))):
+                    invariant_errors.append(
+                        f"merge {merge_id}: {prefix} beam {beam} exceeds "
+                        f"beam certificate {beam_certificate}")
+                if (beam_certificate is not None and
+                        additive_certificate is not None and
+                        beam_certificate > additive_certificate +
+                        1e-5 * max(1.0, abs(additive_certificate))):
+                    invariant_errors.append(
+                        f"merge {merge_id}: {prefix} beam certificate "
+                        f"{beam_certificate} exceeds additive certificate "
+                        f"{additive_certificate}")
+            repair = event.get("feasible_repair")
+            intersection = event.get("intersection_repair")
+            consensus = event.get("consensus_repair")
+            if all(value is not None for value in
+                   (repair, intersection, consensus)):
+                expected = max(intersection, consensus)
+                if abs(repair - expected) > 1e-5 * max(1.0, abs(expected)):
+                    invariant_errors.append(
+                        f"merge {merge_id}: feasible repair {repair} does not "
+                        f"match max(intersection, consensus) {expected}")
     summary = next((event for event in reversed(events)
                     if event.get("event") == "run_summary"), {})
     validation = {
@@ -184,7 +232,11 @@ def main() -> int:
     parser.add_argument("--rerun", action="store_true", help="rerun completed cases")
     parser.add_argument("--rerun-failed", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--jobs", type=int, default=1,
+                        help="number of benchmark cases to run concurrently")
     args = parser.parse_args()
+    if args.jobs <= 0:
+        parser.error("--jobs must be positive")
 
     config_path = args.config.resolve()
     config_base = config_path.parent
@@ -217,8 +269,17 @@ def main() -> int:
             if dataset.get("reference"):
                 resolved["reference"] = str(resolve_path(dataset["reference"], manifest_base))
             datasets.append(resolved)
+    dataset_filter = config.get("dataset_filter", {})
+    if dataset_filter.get("collections"):
+        collections = set(map(str, dataset_filter["collections"]))
+        datasets = [dataset for dataset in datasets
+                    if str(dataset.get("collection")) in collections]
+    if dataset_filter.get("ids"):
+        dataset_ids = set(map(str, dataset_filter["ids"]))
+        datasets = [dataset for dataset in datasets
+                    if str(dataset.get("id")) in dataset_ids]
     if not datasets:
-        raise ValueError("config must define datasets or dataset_manifests")
+        raise ValueError("config and dataset_filter selected no datasets")
     conditions = config["conditions"]
     jobs = [(dataset, condition, repetition)
             for dataset in datasets for condition in conditions
@@ -246,7 +307,8 @@ def main() -> int:
         }
         atomic_json(output_dir / "manifest.json", manifest)
 
-    for dataset, condition, repetition in jobs:
+    def run_job(job: tuple[dict[str, Any], dict[str, Any], int]) -> None:
+        dataset, condition, repetition = job
         dataset_id = validate_id(str(dataset["id"]), "dataset")
         condition_id = validate_id(str(condition["id"]), "condition")
         input_path = resolve_path(dataset["input"], config_base)
@@ -270,10 +332,10 @@ def main() -> int:
             failed = previous.get("status") != "success"
             if previous.get("command_sha256") == digest and not (args.rerun_failed and failed):
                 print(f"SKIP {condition_id}/{dataset_id}/rep-{repetition:02d}")
-                continue
-        print("RUN ", shlex.join(dafs_command))
+                return
+        print(f"RUN  {shlex.join(dafs_command)}", flush=True)
         if args.dry_run:
-            continue
+            return
         run_dir.mkdir(parents=True, exist_ok=True)
         time_format = ("{\"wall_seconds\":%e,\"user_seconds\":%U,"
                        "\"system_seconds\":%S,\"max_rss_kb\":%M,"
@@ -324,6 +386,15 @@ def main() -> int:
         }
         atomic_json(result_path, result)
         print(f"{result['status'].upper()} {condition_id}/{dataset_id}/rep-{repetition:02d}")
+
+    if args.jobs == 1:
+        for job in jobs:
+            run_job(job)
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:
+            futures = [executor.submit(run_job, job) for job in jobs]
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
 
     if not args.dry_run:
         write_summaries(output_dir)

@@ -22,10 +22,14 @@
 #endif
 
 #include "nussinov.h"
-#include "linearfold/fold/linfold.h"
-#include "linearfold/param/pair_objective.h"
+#include "relaxed_bounds.h"
+#include <algorithm>
 #include <cassert>
+#include <limits>
+#include <numeric>
 #include <stack>
+#include <unordered_map>
+#include <unordered_set>
 
 static
 std::string
@@ -523,82 +527,500 @@ make_brackets(const VU& ss, std::string& str) const
   str=::make_brackets(ss);
 }
 
-template <typename Probability, typename Multiplier>
-float
-LinearNussinov::
-decode_impl(float w, const Probability& probability, uint L,
-            Multiplier multiplier, VU& ss)
+namespace {
+struct LinearNussinovCell
 {
-  if (L == 0) {
-    ss.clear();
-    return 0.0f;
+  uint start;
+  double score;
+  uint pair_left;
+  uint inside_start;
+  bool paired;
+};
+
+using LinearNussinovBeam = std::vector<LinearNussinovCell>;
+
+const LinearNussinovCell*
+find_linear_nussinov_cell(const LinearNussinovBeam& beam, uint start)
+{
+  const auto it = std::lower_bound(
+      beam.begin(), beam.end(), start,
+      [](const LinearNussinovCell& cell, uint value) {
+        return cell.start < value;
+      });
+  return it != beam.end() && it->start == start ? &*it : nullptr;
+}
+
+const LinearNussinovCell*
+find_linear_nussinov_suffix_cell(
+    const LinearNussinovBeam& beam, uint minimum_start)
+{
+  const LinearNussinovCell* best = nullptr;
+  for (const auto& cell : beam) {
+    if (cell.start < minimum_start)
+      continue;
+    if (!best || cell.score > best->score ||
+        (cell.score == best->score && cell.start > best->start))
+      best = &cell;
+  }
+  return best;
+}
+
+std::vector<std::vector<uint>>
+dense_pair_support(uint length)
+{
+  std::vector<std::vector<uint>> pairs_by_right(length);
+  for (uint right = 3; right < length; ++right)
+    for (uint left = 0; left + 2 < right; ++left)
+      pairs_by_right[right].push_back(left);
+  return pairs_by_right;
+}
+
+void
+add_sparse_pair_support(const SparseFloatMatrix& matrix,
+                        std::vector<std::vector<uint>>& pairs_by_right)
+{
+  const uint length = pairs_by_right.size();
+  assert(matrix.rows() == length && matrix.columns() == length);
+  for (uint left = 0; left < length; ++left)
+    for (const auto [right, value] : matrix.ordered_row(left))
+      if (value != 0.0f && left + 2 < right && right < length)
+        pairs_by_right[right].push_back(left);
+}
+
+void
+deduplicate_pair_support(std::vector<std::vector<uint>>& pairs_by_right)
+{
+  for (auto& lefts : pairs_by_right) {
+    std::sort(lefts.begin(), lefts.end());
+    lefts.erase(std::unique(lefts.begin(), lefts.end()), lefts.end());
+  }
+}
+
+struct LinearNussinovCertificate
+{
+  std::vector<std::vector<double>> prefix_potentials;
+  double additive_upper_bound = 0.0;
+  double pruned_upper_bound = -std::numeric_limits<double>::infinity();
+  size_t pruned_states = 0;
+
+  double completion_bound(const LinearNussinovCell& cell,
+                          uint right, uint length) const
+  {
+    double outside = std::numeric_limits<double>::infinity();
+    for (const auto& prefix : prefix_potentials) {
+      outside = std::min(outside,
+          prefix[cell.start] + prefix[length] - prefix[right+1]);
+    }
+    return cell.score + outside;
   }
 
-  const std::string dummy_sequence(L, 'a');
-  auto params = std::make_unique<PairObjectiveNearestNeighbor>(dummy_sequence);
-  LinFold<PairObjectiveNearestNeighbor> decoder(std::move(params));
-  LinFold<PairObjectiveNearestNeighbor>::Options options;
-  options.beam_size(beam_size_)
-         .min_hairpin_loop_length(2)
-         .set_allowed_pair('a', 'a')
-         .pair_score([&](u_int32_t i, u_int32_t j) {
-           return w * (probability(i-1, j-1) - th_) - multiplier(i-1, j-1);
-         });
+  void record(const LinearNussinovCell& cell, uint right, uint length)
+  {
+    pruned_upper_bound = std::max(
+        pruned_upper_bound, completion_bound(cell, right, length));
+    ++pruned_states;
+  }
+};
 
-  decoder.compute_viterbi(dummy_sequence, options);
-  const std::vector<u_int32_t> pairs = decoder.traceback_viterbi();
-  ss.assign(L, -1u);
-  float score = 0.0f;
-  for (uint i = 1; i <= L; ++i) {
-    const uint j = pairs[i];
-    if (j > i) {
-      ss[i-1] = j-1;
-      score += w * (probability(i-1, j-1) - th_) - multiplier(i-1, j-1);
+std::vector<double>
+tightened_vertex_cover(
+    const std::vector<std::vector<std::pair<uint, double>>>& adjacency,
+    const std::vector<double>& initial, bool reverse_first)
+{
+  std::vector<double> potential = initial;
+  std::vector<double> best = initial;
+  double best_total = std::accumulate(best.begin(), best.end(), 0.0);
+  constexpr uint sweeps = 4;
+  for (uint sweep = 0; sweep < sweeps; ++sweep) {
+    const bool reverse = reverse_first != ((sweep & 1u) != 0);
+    for (uint step = 0; step < potential.size(); ++step) {
+      const uint i = reverse
+          ? static_cast<uint>(potential.size()) - 1 - step : step;
+      double tightened = 0.0;
+      for (const auto& [j, value] : adjacency[i])
+        tightened = std::max(tightened, value - potential[j]);
+      potential[i] = tightened;
+    }
+    const double total =
+        std::accumulate(potential.begin(), potential.end(), 0.0);
+    if (total < best_total) {
+      best_total = total;
+      best = potential;
     }
   }
-  return score;
+  return best;
+}
+
+template <typename PairScore>
+LinearNussinovCertificate
+make_linear_nussinov_certificate(
+    uint length, const std::vector<std::vector<uint>>& pairs_by_right,
+    PairScore pair_score)
+{
+  std::vector<double> left(length, 0.0);
+  std::vector<double> right(length, 0.0);
+  std::vector<double> incident(length, 0.0);
+  std::vector<std::vector<std::pair<uint, double>>> adjacency(length);
+
+  for (uint j = 0; j < length; ++j) {
+    for (const uint i : pairs_by_right[j]) {
+      if (i >= length || j <= i + 2)
+        continue;
+      const double value = std::max(0.0,
+          static_cast<double>(pair_score(i, j)));
+      if (!(value > 0.0))
+        continue;
+      left[i] = std::max(left[i], value);
+      right[j] = std::max(right[j], value);
+      incident[i] = std::max(incident[i], value);
+      incident[j] = std::max(incident[j], value);
+      adjacency[i].push_back({j, value});
+      adjacency[j].push_back({i, value});
+    }
+  }
+
+  std::vector<double> half_incident(length, 0.0);
+  for (uint i = 0; i < length; ++i)
+    half_incident[i] = 0.5 * incident[i];
+  std::vector<std::vector<double>> covers;
+  covers.push_back(std::move(left));
+  covers.push_back(std::move(right));
+  covers.push_back(half_incident);
+  covers.push_back(
+      tightened_vertex_cover(adjacency, half_incident, false));
+  covers.push_back(
+      tightened_vertex_cover(adjacency, half_incident, true));
+
+#ifndef NDEBUG
+  for (const auto& cover : covers)
+    for (uint i = 0; i < length; ++i)
+      for (const auto& [j, value] : adjacency[i])
+        assert(cover[i] + cover[j] + 1e-10 >= value);
+#endif
+
+  LinearNussinovCertificate certificate;
+  certificate.additive_upper_bound =
+      std::numeric_limits<double>::infinity();
+  for (const auto& cover : covers) {
+    std::vector<double> prefix(length+1, 0.0);
+    for (uint i = 0; i < length; ++i)
+      prefix[i+1] = prefix[i] + cover[i];
+    certificate.additive_upper_bound = std::min(
+        certificate.additive_upper_bound, prefix.back());
+    certificate.prefix_potentials.push_back(std::move(prefix));
+  }
+  if (length == 0)
+    certificate.additive_upper_bound = 0.0;
+  return certificate;
+}
+} // namespace
+
+template <typename PairScore>
+LinearNussinovResult
+LinearNussinov::
+decode_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
+            PairScore pair_score, VU& ss, bool certify)
+{
+  ss.assign(L, -1u);
+  if (L == 0)
+    return {};
+
+  LinearNussinovCertificate certificate;
+  if (certify)
+    certificate = make_linear_nussinov_certificate(
+        L, pairs_by_right, pair_score);
+
+  // D(i,j) is the best non-crossing matching on [i,j].  At each right
+  // endpoint retain only the most promising interval starts.  With a fixed
+  // beam and threshold-sparse pair support this is linear in sequence length.
+  std::vector<LinearNussinovBeam> beams(L);
+  const uint beam_limit = std::max(1u, beam_size_);
+
+  for (uint right = 0; right < L; ++right) {
+    std::unordered_map<uint, LinearNussinovCell> candidates;
+    candidates.reserve(beam_limit * 2 + pairs_by_right[right].size());
+
+    const auto offer = [&](uint start, double score, bool paired, uint left,
+                           uint inside_start) {
+      const auto it = candidates.find(start);
+      if (it == candidates.end()) {
+        candidates.emplace(start, LinearNussinovCell{
+            start, score, left, inside_start, paired});
+      } else if (score > it->second.score) {
+        it->second = LinearNussinovCell{
+            start, score, left, inside_start, paired};
+      }
+    };
+
+    // Leave the new right endpoint unpaired, including the new singleton
+    // interval.  Offering these first makes ties deterministic.
+    offer(right, 0.0, false, -1u, -1u);
+    if (right > 0)
+      for (const auto& previous : beams[right-1])
+        offer(previous.start, previous.score, false, -1u, -1u);
+
+    for (const uint left : pairs_by_right[right]) {
+      const double local_score = pair_score(left, right);
+      if (!(local_score > 0.0))
+        continue;
+
+      // A structure whose first used base is later than left+1 is a valid
+      // inside structure with the skipped leading bases left unpaired.  This
+      // suffix dominance removes the O(length) family of equivalent empty or
+      // leading-unpaired states without losing an exact derivation.
+      const LinearNussinovCell* inside =
+          find_linear_nussinov_suffix_cell(beams[right-1], left+1);
+      if (!inside)
+        continue;
+
+      // The pair can begin the interval (empty prefix), or follow any
+      // retained interval ending immediately before its left endpoint.
+      offer(left, inside->score + local_score, true, left, inside->start);
+      if (left > 0) {
+        for (const auto& prefix_interval : beams[left-1])
+          offer(prefix_interval.start,
+                prefix_interval.score + inside->score + local_score,
+                true, left, inside->start);
+      }
+    }
+
+    LinearNussinovBeam beam;
+    beam.reserve(candidates.size());
+    for (const auto& entry : candidates)
+      beam.push_back(entry.second);
+
+    // If a later-starting state has at least the same score, an earlier state
+    // represents the same structure plus unused leading bases and is
+    // dominated for every future suffix query.  Root is retained because it
+    // is the reported prefix optimum, but a dominated state is not a lost
+    // derivation and therefore needs no pruning certificate.
+    std::sort(beam.begin(), beam.end(),
+              [](const LinearNussinovCell& lhs,
+                 const LinearNussinovCell& rhs) {
+                return lhs.start > rhs.start;
+              });
+    std::unordered_set<uint> dominated;
+    double best_suffix_score = -std::numeric_limits<double>::infinity();
+    LinearNussinovBeam nondominated;
+    nondominated.reserve(beam.size());
+    for (const auto& cell : beam) {
+      if (cell.start != 0 && cell.score <= best_suffix_score) {
+        dominated.insert(cell.start);
+        continue;
+      }
+      best_suffix_score = std::max(best_suffix_score, cell.score);
+      nondominated.push_back(cell);
+    }
+    beam.swap(nondominated);
+
+    const auto priority = [&](const LinearNussinovCell& cell) {
+      if (cell.start == 0)
+        return cell.score;
+      const LinearNussinovCell* prefix =
+          find_linear_nussinov_cell(beams[cell.start-1], 0);
+      assert(prefix);
+      return prefix->score + cell.score;
+    };
+    const auto better = [&](const LinearNussinovCell& lhs,
+                            const LinearNussinovCell& rhs) {
+      const double lhs_priority = priority(lhs);
+      const double rhs_priority = priority(rhs);
+      return lhs_priority != rhs_priority ? lhs_priority > rhs_priority
+                                          : lhs.start < rhs.start;
+    };
+
+    const auto root_it = std::find_if(
+        beam.begin(), beam.end(),
+        [](const LinearNussinovCell& cell) { return cell.start == 0; });
+    assert(root_it != beam.end());
+    const LinearNussinovCell root = *root_it;
+    std::sort(beam.begin(), beam.end(), better);
+    if (beam.size() > beam_limit)
+      beam.resize(beam_limit);
+    if (std::none_of(beam.begin(), beam.end(),
+                     [](const LinearNussinovCell& cell) {
+                       return cell.start == 0;
+                     }))
+      beam.back() = root;
+    if (certify) {
+      std::unordered_set<uint> retained;
+      retained.reserve(beam.size());
+      for (const auto& cell : beam)
+        retained.insert(cell.start);
+      for (const auto& [start, cell] : candidates)
+        if (retained.find(start) == retained.end() &&
+            dominated.find(start) == dominated.end())
+          certificate.record(cell, right, L);
+    }
+    std::sort(beam.begin(), beam.end(),
+              [](const LinearNussinovCell& lhs,
+                 const LinearNussinovCell& rhs) {
+                return lhs.start < rhs.start;
+              });
+    beams[right] = std::move(beam);
+  }
+
+  std::stack<std::pair<uint, uint>> pending;
+  pending.push({0, L-1});
+  while (!pending.empty()) {
+    const auto [start, right] = pending.top();
+    pending.pop();
+    if (start > right)
+      continue;
+    const LinearNussinovCell* cell =
+        find_linear_nussinov_cell(beams[right], start);
+    assert(cell);
+    if (!cell->paired) {
+      if (start < right)
+        pending.push({start, right-1});
+      continue;
+    }
+
+    const uint left = cell->pair_left;
+    ss[left] = right;
+    if (start < left)
+      pending.push({start, left-1});
+    if (cell->inside_start != -1u)
+      pending.push({cell->inside_start, right-1});
+  }
+
+  const LinearNussinovCell* root =
+      find_linear_nussinov_cell(beams[L-1], 0);
+  assert(root);
+  LinearNussinovResult result;
+  result.score = static_cast<float>(root->score);
+  if (!certify) {
+    result.upper_bound = result.score;
+    result.pruned_upper_bound = result.score;
+    result.additive_upper_bound = result.score;
+    return result;
+  }
+
+  const double pruned_upper_bound = std::max(
+      root->score, certificate.pruned_upper_bound);
+  const double upper_bound = std::min(
+      pruned_upper_bound, certificate.additive_upper_bound);
+  result.pruned_upper_bound =
+      RelaxedBounds::round_up_to_float(pruned_upper_bound);
+  result.additive_upper_bound =
+      RelaxedBounds::round_up_to_float(certificate.additive_upper_bound);
+  result.upper_bound = RelaxedBounds::round_up_to_float(upper_bound);
+  result.pruned_states = certificate.pruned_states;
+  return result;
 }
 
 float
 LinearNussinov::
 decode(float w, const VVF& p, const VVF& q, VU& ss)
 {
-  return decode_impl(w, [&](uint i, uint j) { return p[i][j]; }, p.size(),
-                     [&](uint i, uint j) { return q[i][j]; }, ss);
+  const uint length = p.size();
+  return decode_impl(length, dense_pair_support(length),
+                     [&](uint i, uint j) {
+                       return w * (p[i][j] - th_) - q[i][j];
+                     }, ss, false).score;
 }
 
 float
 LinearNussinov::
 decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss)
 {
-  return decode_impl(w, [&](uint i, uint j) { return p[i][j]; }, p.size(),
-                     [&](uint i, uint j) { return q.get(i, j); }, ss);
+  const uint length = p.size();
+  return decode_impl(length, dense_pair_support(length),
+                     [&](uint i, uint j) {
+                       return w * (p[i][j] - th_) - q.get(i, j);
+                     }, ss, false).score;
 }
 
 float
 LinearNussinov::
 decode(float w, const SparseFloatMatrix& p, const VVF& q, VU& ss)
 {
-  return decode_impl(w, [&](uint i, uint j) { return p.get(i, j); }, p.rows(),
-                     [&](uint i, uint j) { return q[i][j]; }, ss);
+  const uint length = p.rows();
+  return decode_impl(length, dense_pair_support(length),
+                     [&](uint i, uint j) {
+                       return w * (p.get(i, j) - th_) - q[i][j];
+                     }, ss, false).score;
 }
 
 float
 LinearNussinov::
 decode(float w, const SparseFloatMatrix& p, const SparseFloatMatrix& q, VU& ss)
 {
-  return decode_impl(w, [&](uint i, uint j) { return p.get(i, j); }, p.rows(),
-                     [&](uint i, uint j) { return q.get(i, j); }, ss);
+  const uint length = p.rows();
+  std::vector<std::vector<uint>> support(length);
+  add_sparse_pair_support(p, support);
+  add_sparse_pair_support(q, support);
+  deduplicate_pair_support(support);
+  return decode_impl(length, support,
+                     [&](uint i, uint j) {
+                       return w * (p.get(i, j) - th_) - q.get(i, j);
+                     }, ss, false).score;
+}
+
+LinearNussinovResult
+LinearNussinov::
+decode_certified(float w, const SparseFloatMatrix& p,
+                 const VVF& q, VU& ss)
+{
+  const uint length = p.rows();
+  return decode_impl(length, dense_pair_support(length),
+                     [&](uint i, uint j) {
+                       return w * (p.get(i, j) - th_) - q[i][j];
+                     }, ss, true);
+}
+
+LinearNussinovResult
+LinearNussinov::
+decode_certified(float w, const SparseFloatMatrix& p,
+                 const SparseFloatMatrix& q, VU& ss)
+{
+  const uint length = p.rows();
+  std::vector<std::vector<uint>> support(length);
+  add_sparse_pair_support(p, support);
+  add_sparse_pair_support(q, support);
+  deduplicate_pair_support(support);
+  return decode_impl(length, support,
+                     [&](uint i, uint j) {
+                       return w * (p.get(i, j) - th_) - q.get(i, j);
+                     }, ss, true);
+}
+
+LinearNussinovResult
+LinearNussinov::
+decode_certified(
+    float w, const SparseFloatMatrix& p, const VVF& q,
+    const std::vector<std::vector<uint>>& pairs_by_right, VU& ss)
+{
+  const uint length = p.rows();
+  assert(pairs_by_right.size() == length);
+  return decode_impl(length, pairs_by_right,
+                     [&](uint i, uint j) {
+                       return w * (p.get(i, j) - th_) - q[i][j];
+                     }, ss, true);
+}
+
+LinearNussinovResult
+LinearNussinov::
+decode_certified(
+    float w, const SparseFloatMatrix& p, const SparseFloatMatrix& q,
+    const std::vector<std::vector<uint>>& pairs_by_right, VU& ss)
+{
+  const uint length = p.rows();
+  assert(pairs_by_right.size() == length);
+  return decode_impl(length, pairs_by_right,
+                     [&](uint i, uint j) {
+                       return w * (p.get(i, j) - th_) - q.get(i, j);
+                     }, ss, true);
 }
 
 float
 LinearNussinov::
 decode(const VVF& p, VU& ss, std::string& str)
 {
-  const auto zero = [](uint, uint) { return 0.0f; };
-  const float score = decode_impl(1.0f,
-                                  [&](uint i, uint j) { return p[i][j]; },
-                                  p.size(), zero, ss);
+  const uint length = p.size();
+  const float score = decode_impl(
+      length, dense_pair_support(length),
+      [&](uint i, uint j) { return p[i][j] - th_; }, ss, false).score;
   make_brackets(ss, str);
   return score;
 }
@@ -607,10 +1029,12 @@ float
 LinearNussinov::
 decode(const SparseFloatMatrix& p, VU& ss, std::string& str)
 {
-  const auto zero = [](uint, uint) { return 0.0f; };
-  const float score = decode_impl(1.0f,
-                                  [&](uint i, uint j) { return p.get(i, j); },
-                                  p.rows(), zero, ss);
+  const uint length = p.rows();
+  std::vector<std::vector<uint>> support(length);
+  add_sparse_pair_support(p, support);
+  const float score = decode_impl(
+      length, support,
+      [&](uint i, uint j) { return p.get(i, j) - th_; }, ss, false).score;
   make_brackets(ss, str);
   return score;
 }

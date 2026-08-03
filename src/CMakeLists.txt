@@ -96,6 +96,13 @@ if(BUILD_TESTING)
   target_compile_features(relaxed_bounds_test PRIVATE cxx_std_17)
   add_test(NAME relaxed_bounds COMMAND relaxed_bounds_test)
 
+  add_executable(linear_nussinov_test
+      ../tests/linear_nussinov_test.cpp nussinov.cpp)
+  target_include_directories(linear_nussinov_test PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(linear_nussinov_test PRIVATE cxx_std_17)
+  add_test(NAME linear_nussinov COMMAND linear_nussinov_test)
+
   add_executable(ribosum_test ../tests/ribosum_test.cpp ribosum.cpp)
   target_include_directories(ribosum_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_compile_features(ribosum_test PRIVATE cxx_std_17)
@@ -113,6 +120,7 @@ if(BUILD_TESTING)
         --config ${PROJECT_SOURCE_DIR}/benchmarks/configs/smoke.json
         --binary $<TARGET_FILE:dafs>
         --output-dir ${CMAKE_CURRENT_BINARY_DIR}/benchmark-smoke
+        --jobs 2
         --rerun)
   set_tests_properties(benchmark_runner_smoke PROPERTIES TIMEOUT 120)
 

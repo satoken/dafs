@@ -24,6 +24,7 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
+#include <functional>
 #include <random>
 #include <unordered_set>
 #include "typedefs.h"
@@ -70,7 +71,6 @@ private:
   void average_basepairing_probability(SparseFloatMatrix &posterior, const ALN &aln, bool use_alifold) const;
   void update_basepairing_probability(SparseFloatMatrix &posterior, const VU &ss, const std::string &str,
                                       const ALN &aln, bool use_alifold) const;
-  std::string profile_consensus_sequence(const ALN &aln) const;
   void calculate_profile_basepairing_probability(const ALN &aln, BP &bp) const;
   void calculate_profile_basepairing_probability(const ALN &aln,
                                                   const std::string &constraint,
@@ -84,8 +84,10 @@ private:
                                  const SparseFloatMatrix& p_y,
                                  const SparseFloatMatrix& p_z,
                                  uint N1, uint N2, float min_th_s,
-                                 const RibosumProfile& ribosum_x,
-                                 const RibosumProfile& ribosum_y) const;
+                                 const std::function<float(
+                                     uint, uint, uint, uint)>& pair_match_score,
+                                 float& intersection_score_out,
+                                 float& consensus_score_out) const;
   float solve(VU &x, VU &y, VU &z, const SparseFloatMatrix &p_x,
               const SparseFloatMatrix &p_y, const SparseFloatMatrix &p_z,
               const ALN &aln1, const ALN &aln2);
@@ -124,6 +126,7 @@ private:
                                   const RibosumProfile& ribosum_y,
                                   std::vector<CBP>& cbp, VVU& c_x, VVU& c_y, VVU& c_z);
   void generate_positive_reduced_cost_cbp(const GradientManager& gm,
+                                          const GradientManager* alternate_gm,
                                           const SparseFloatMatrix& p_x,
                                           const SparseFloatMatrix& p_y,
                                           const SparseFloatMatrix& p_z,
@@ -153,8 +156,11 @@ private:
   std::string fold_model_name_;
   std::string metrics_jsonl_path_;
   mutable std::ofstream metrics_stream_;
-  uint align_beam_;
-  uint fold_beam_;
+  uint align_probability_beam_;
+  uint align_dd_beam_;
+  uint fold_probability_beam_;
+  uint fold_dd_beam_;
+  uint fold_final_beam_;
   mutable uint metrics_merge_id_;
   mutable size_t metrics_dd_iterations_;
   mutable size_t metrics_cbp_peak_;
@@ -183,7 +189,6 @@ private:
   
   bool use_alifold_;
   bool use_alifold1_;
-  bool use_linear_profile_folding_;
   bool use_bp_update_;
   bool use_bp_update1_;
   // bool use_bpscore_;

@@ -19,4 +19,9 @@ exp
 .cache
 .vscode/
 /benchmarks/results*/
+/benchmarks/data/raw/
+/benchmarks/data/murlet/inputs/
+/benchmarks/data/murlet/references/
+/benchmarks/data/raw/linearturbofold-nonviral/
+/benchmarks/data/linearturbofold-nonviral/inputs/
 __pycache__/
