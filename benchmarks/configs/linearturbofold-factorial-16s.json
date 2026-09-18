@@ -1,0 +1,27 @@
+{
+  "binary": "../../../../LinearFold/LinearTurboFold/bin/linearturbofold",
+  "output_dir": "../results-linearturbofold-factorial-16s",
+  "timeout_seconds": 3600,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {"OMP_NUM_THREADS": "1"},
+  "dataset_manifests": ["../data/linearturbofold-nonviral/manifest.json"],
+  "dataset_filter": {"collections": ["16S-25"]},
+  "conditions": [
+    {
+      "id": "linearturbofold",
+      "ribosum": "not_applicable",
+      "options": {
+        "hmm_beam": 100,
+        "cky_beam": 100,
+        "iterations": 3,
+        "save_bpps": false,
+        "save_pfs": false,
+        "verbose": false,
+        "min_helix_length": 3,
+        "pk_iterations": 1,
+        "threshold": 0.3
+      }
+    }
+  ]
+}

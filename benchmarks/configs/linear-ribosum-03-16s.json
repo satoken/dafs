@@ -1,0 +1,29 @@
+{
+  "binary": "../../build-amd64/dafs/src/dafs",
+  "output_dir": "../results-linear-ribosum-03-16s",
+  "timeout_seconds": 600,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {"OMP_NUM_THREADS": "1"},
+  "sci": {
+    "version": "2.5.1",
+    "timeout_seconds": 900
+  },
+  "dataset_manifests": ["../data/linearturbofold-nonviral/manifest.json"],
+  "dataset_filter": {"collections": ["16S-25"]},
+  "conditions": [
+    {
+      "id": "linear_ribosum_w0300",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "args": [
+        "-a", "LinearAlign",
+        "-s", "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--max-iter=20"
+      ]
+    }
+  ]
+}

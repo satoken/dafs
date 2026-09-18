@@ -123,10 +123,40 @@ size_t sparse_entries(const std::vector<SV>& matrix)
     count += row.size();
   return count;
 }
+
+struct AlignmentModelSelection
+{
+  bool linear;
+  LinearAlign::ScoreModel score_model;
+};
+
+AlignmentModelSelection parse_alignment_model(const std::string& name)
+{
+  if (name == "LinearAlign")
+    return {true, LinearAlign::ScoreModel::LinearTurboFold};
+
+  constexpr const char* prefix = "LinearAlign-";
+  if (name.compare(0, std::strlen(prefix), prefix) == 0) {
+    const std::string score_name = name.substr(std::strlen(prefix));
+    return {true, LinearAlign::parseScoreModel(score_name)};
+  }
+
+  // Non-linear models select their scoring model directly via --align-model.
+  if (name == "CONTRAlign" || name == "ProbCons")
+    return {false, LinearAlign::ScoreModel::LinearTurboFold};
+
+  throw std::invalid_argument(
+      "Unknown alignment model: " + name +
+      " (expected CONTRAlign, ProbCons, LinearAlign, "
+      "LinearAlign-CONTRAlign, LinearAlign-ProbCons, or "
+      "LinearAlign-ProbConsRNA)");
+}
 } // namespace
 
 DAFS::DAFS()
     : w_ribosum_(0.075f),
+      w_final_ribosum_(0.0f),
+      align_score_model_name_("LinearTurboFold"),
       align_probability_beam_(100),
       align_dd_beam_(100),
       fold_probability_beam_(100),
@@ -615,6 +645,34 @@ void DAFS::
     for (const auto [j, value] : p.ordered_row(i))
       assert(j > i && value <= 1.0f);
   posterior = std::move(p);
+}
+
+void DAFS::
+    calculate_final_ribosum_bonus(SparseFloatMatrix &bonus,
+                                  const SparseFloatMatrix &posterior,
+                                  const ALN &aln) const
+{
+  const uint length = posterior.rows();
+  assert(posterior.columns() == length);
+  bonus.assign(length, length);
+  if (w_final_ribosum_ == 0.0f)
+    return;
+
+  // RibosumProfile divides pair-type counts by the total profile size.  A
+  // sequence with a gap or ambiguous residue at either endpoint therefore
+  // contributes zero without changing the denominator.  In a self-profile
+  // score this attenuates gappy column pairs quadratically.
+  const RibosumProfile profile(aln, fa_);
+  for (uint i = 0; i < length; ++i) {
+    for (const auto [j, probability] : posterior.ordered_row(i)) {
+      if (j <= i || probability == 0.0f)
+        continue;
+      const float value = w_final_ribosum_ *
+                          profile.self_pair_score(i, j);
+      if (value != 0.0f)
+        bonus.set(i, j, value);
+    }
+  }
 }
 
 void DAFS::
@@ -2216,7 +2274,7 @@ parse_options(int& argc, char**& argv)
     ;
 
   options.add_options("Aligning")
-    ("a,align-model", "Alignment model for calcualating matching probablities (value=CONTRAlign, ProbCons, LinearAlign)", 
+    ("a,align-model", "Alignment model for calculating matching probabilities (value=CONTRAlign, ProbCons, LinearAlign, LinearAlign-CONTRAlign, LinearAlign-ProbCons, LinearAlign-ProbConsRNA)",
       cxxopts::value<std::string>()->default_value("ProbCons"))
     ("align-beam", "Beam size for LinearAlign probability calculation", cxxopts::value<int>()->default_value("100"))
     ("align-dd-beam", "Beam size for the LinearAlign DD decoder (default: --align-beam)", cxxopts::value<int>())
@@ -2234,6 +2292,7 @@ parse_options(int& argc, char**& argv)
     ("g,gamma", "Specify the threshold for base-pairing probabilities by 1/(gamma+1))", cxxopts::value<std::vector<float>>())
     ("alifold", "Use RNAalifold for profile base-pairing probabilities (disabled by default)")
     ("no-alifold", "Disable RNAalifold for profile base-pairing probabilities (default)")
+    ("final-ribosum-weight", "Weight of the RIBOSUM85-60 self-profile bonus in final Nussinov decoding", cxxopts::value<float>()->default_value("0"))
     ("T,fold-th1", "Threshold for base-pairing probabilities of the conclusive common secondary structures", cxxopts::value<std::vector<float>>())
     ("G,gamma1", "Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))", cxxopts::value<std::vector<float>>())
     ("ipknot", "Set optimized parameters for IPknot decoding (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)")
@@ -2267,6 +2326,10 @@ parse_options(int& argc, char**& argv)
     w_ribosum_ = res["ribosum-weight"].as<float>();
     if (!std::isfinite(w_ribosum_) || w_ribosum_ < 0.0f)
       throw std::invalid_argument("--ribosum-weight must be finite and non-negative");
+    w_final_ribosum_ = res["final-ribosum-weight"].as<float>();
+    if (!std::isfinite(w_final_ribosum_) || w_final_ribosum_ < 0.0f)
+      throw std::invalid_argument(
+          "--final-ribosum-weight must be finite and non-negative");
     eta0_ = res["eta"].as<float>();
     const int requested_max_iter = res["max-iter"].as<int>();
     if (requested_max_iter < 0)
@@ -2293,7 +2356,12 @@ parse_options(int& argc, char**& argv)
     w_pct_a_ = res["align-pct"].as<float>();
     th_a_ = res["align-th"].as<float>();
     const std::string align_model = res["align-model"].as<std::string>();
+    const AlignmentModelSelection alignment_selection =
+        parse_alignment_model(align_model);
     align_model_name_ = align_model;
+    align_score_model_name_ = alignment_selection.linear
+        ? LinearAlign::scoreModelName(alignment_selection.score_model)
+        : "not_applicable";
     const int requested_align_beam = res["align-beam"].as<int>();
     const int requested_align_dd_beam = res.count("align-dd-beam")
         ? res["align-dd-beam"].as<int>() : requested_align_beam;
@@ -2301,9 +2369,9 @@ parse_options(int& argc, char**& argv)
     const uint align_dd_beam = std::max(1, requested_align_dd_beam);
     align_probability_beam_ = align_probability_beam;
     align_dd_beam_ = align_dd_beam;
-    if (requested_align_beam <= 0 && align_model == "LinearAlign")
+    if (requested_align_beam <= 0 && alignment_selection.linear)
       spdlog::warn("--align-beam must be positive for linear complexity; using 1");
-    if (requested_align_dd_beam <= 0 && align_model == "LinearAlign")
+    if (requested_align_dd_beam <= 0 && alignment_selection.linear)
       spdlog::warn("--align-dd-beam must be positive for linear complexity; using 1");
 
     if (res["align-aux"].count())
@@ -2312,13 +2380,14 @@ parse_options(int& argc, char**& argv)
       a_model_ = std::make_unique<CONTRAlign>(th_a_);
     else if (align_model == "ProbCons")
       a_model_ = std::make_unique<ProbCons>(th_a_);
-    else if (align_model == "LinearAlign")
-      a_model_ = std::make_unique<LinearAlign>(th_a_, align_probability_beam);
+    else if (alignment_selection.linear)
+      a_model_ = std::make_unique<LinearAlign>(
+          th_a_, align_probability_beam, alignment_selection.score_model);
     else
-      throw "Unknown alignment model: " + align_model;
+      throw std::logic_error("unreachable alignment model selection");
     assert(a_model_);
     use_linear_alignment_decoder_ = !res["align-aux"].count() &&
-                                    align_model == "LinearAlign";
+                                    alignment_selection.linear;
     if (use_linear_alignment_decoder_)
       a_decoder_ = std::make_unique<LinearNeedlemanWunsch>(
           th_a_, align_dd_beam);
@@ -2428,6 +2497,10 @@ parse_options(int& argc, char**& argv)
     }
 
     const std::string fold_decoder = res["fold-decoder"].as<std::string>();
+    if (w_final_ribosum_ > 0.0f &&
+        (fold_decoder != "Nussinov" || res["ipknot"].count()))
+      throw std::invalid_argument(
+          "--final-ribosum-weight is supported only by Nussinov decoding");
     if (fold_decoder == "IPknot" || res["ipknot"].count())
     {
       s_decoder_ = std::make_unique<IPknot>(th_s_);
@@ -2476,6 +2549,8 @@ parse_options(int& argc, char**& argv)
     spdlog::info("Profile folding: {}",
                  !use_alifold_ ? "disabled" : "Vienna-RNAalifold");
     spdlog::info("RIBOSUM85-60 pair-pair weight: {}", w_ribosum_);
+    spdlog::info("Final RIBOSUM85-60 self-profile weight: {}",
+                 w_final_ribosum_);
 
     use_bp_update_ = res["bp-update"].count() > 0;
     use_bp_update1_ = res["bp-update1"].count() > 0 ^ res["ipknot"].count() > 0;
@@ -2532,6 +2607,7 @@ int DAFS::
        {"maximum_length", std::to_string(maximum_length)},
        {"structure_weight", json_number(w_)},
        {"ribosum_weight", json_number(w_ribosum_)},
+       {"final_ribosum_weight", json_number(w_final_ribosum_)},
        {"alignment_threshold", json_number(th_a_)},
        {"max_iterations", std::to_string(t_max_)},
        {"alignment_beam", std::to_string(align_probability_beam_)},
@@ -2547,6 +2623,7 @@ int DAFS::
         use_sparse_alignment_lagrangian_ ? "true" : "false"}},
       {{"input", input_path_},
        {"alignment_model", align_model_name_},
+       {"alignment_score_model", align_score_model_name_},
        {"folding_model", fold_model_name_}});
 
   // calculate base-pairing probabilities
@@ -2681,14 +2758,23 @@ int DAFS::
     // compute the common secondary structures from the averaged base-pairing matrix
     SparseFloatMatrix p;
     average_basepairing_probability(p, aln, use_alifold1_);
+    const auto decode_final = [&](const SparseFloatMatrix& posterior,
+                                  VU& structure,
+                                  std::string& brackets) {
+      if (w_final_ribosum_ == 0.0f)
+        return s_decoder1_->decode(posterior, structure, brackets);
+      SparseFloatMatrix bonus;
+      calculate_final_ribosum_bonus(bonus, posterior, aln);
+      return s_decoder1_->decode(posterior, bonus, structure, brackets);
+    };
     if (use_bp_update1_)
     {
       std::string str;
       VU ss;
-      s_decoder1_->decode(p, ss, str);
+      decode_final(p, ss, str);
       update_basepairing_probability(p, ss, str, aln, use_alifold1_);
     }
-    s_decoder1_->decode(p, ss, str);
+    decode_final(p, ss, str);
   }
   else
     s_decoder_->make_brackets(ss, str);

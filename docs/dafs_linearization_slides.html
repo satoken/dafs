@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DAFS 線形化：4つの実装差分と実験結果</title>
+  <style>
+    :root {
+      --navy: #081321; --navy-2: #102337; --ink: #14263b; --muted: #60768a;
+      --line: #d6e2e5; --paper: #f5f8f7; --white: #fff;
+      --cyan: #10adbb; --cyan-dark: #087f91; --yellow: #eab843;
+      --pink: #df6687; --green: #39a875; --violet: #8e79d1;
+      --shadow: 0 14px 36px rgba(8,19,33,.12);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #dbe5e8; }
+    body { color: var(--ink); font-family: "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif; -webkit-font-smoothing: antialiased; }
+    #deck { width: 100%; }
+    .slide { position: relative; width: 13.333in; height: 7.5in; margin: 20px auto; padding: 36px 52px 32px; overflow: hidden; background: var(--paper); page-break-after: always; break-after: page; box-shadow: var(--shadow); }
+    .slide.dark { color: var(--white); background: var(--navy); }
+    .slide.dark::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 88% 8%, rgba(16,173,187,.20), transparent 28%), radial-gradient(circle at 8% 92%, rgba(142,121,209,.14), transparent 28%); }
+    .slide > * { position: relative; z-index: 1; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 46px; line-height: 1.08; letter-spacing: -.045em; }
+    h2 { font-size: 30px; line-height: 1.16; letter-spacing: -.03em; }
+    h3 { font-size: 17px; line-height: 1.2; }
+    .eyebrow { color: var(--cyan-dark); font-size: 12px; font-weight: 900; letter-spacing: .17em; text-transform: uppercase; margin-bottom: 10px; }
+    .dark .eyebrow { color: #52d1d6; }
+    .subtitle { margin-top: 9px; color: var(--muted); font-size: 17px; line-height: 1.4; }
+    .dark .subtitle { color: #b7cbd3; }
+    .slide-no { position: absolute; top: 30px; right: 52px; color: #8ba1ae; font: 12px monospace; letter-spacing: .08em; }
+    .dark .slide-no { color: #648094; }
+    .source { position: absolute; left: 52px; right: 52px; bottom: 11px; color: #7b91a0; font-size: 9px; line-height: 1.2; }
+    .dark .source { color: #6f8798; }
+    .rule { height: 1px; margin: 16px 0 20px; background: var(--line); }
+    .dark .rule { background: #254052; }
+    .mono { font-family: "Noto Sans Mono CJK JP", "SFMono-Regular", Consolas, monospace; }
+    .tiny { font-size: 10px; line-height: 1.35; }
+    .small { font-size: 12px; line-height: 1.4; }
+    .muted { color: var(--muted); }
+    .dark .muted { color: #9bb2bd; }
+    .accent-cyan { color: var(--cyan-dark); }
+    .accent-yellow { color: #a17200; }
+    .accent-pink { color: #bd4568; }
+    .accent-green { color: #177b54; }
+    .tag { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #def4f3; color: var(--cyan-dark); font-size: 11px; font-weight: 900; letter-spacing: .04em; }
+    .tag.yellow { background: #fff2cc; color: #956600; }
+    .tag.pink { background: #ffe6ed; color: #b63f60; }
+    .tag.green { background: #def4e8; color: #177b54; }
+    .tag.dark-tag { background: #173c4c; color: #70dce0; }
+    .card { padding: 15px 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--white); }
+    .card.soft { background: #eaf6f5; border-color: #cbe9e7; }
+    .card.dark-card { color: var(--white); background: var(--navy-2); border-color: #29485b; }
+    .card h3 { font-size: 16px; }
+    .card p { margin-top: 7px; color: #4f6679; font-size: 13px; line-height: 1.38; }
+    .dark-card p { color: #b9cbd2; }
+    .kicker { color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+    .dark-card .kicker { color: #8db2bd; }
+    .metric { margin-top: 7px; font-size: 29px; font-weight: 900; line-height: 1; letter-spacing: -.045em; }
+    .callout { padding: 12px 15px; border-left: 4px solid var(--cyan); border-radius: 0 10px 10px 0; background: #e4f4f3; color: #294c5b; font-size: 13px; line-height: 1.4; }
+    .dark .callout { background: #11333e; color: #d2eff0; }
+    .callout b { color: var(--cyan-dark); }
+    .dark .callout b { color: #65d7dc; }
+
+    .hero { display: grid; grid-template-columns: 1.02fr .98fr; gap: 38px; height: 100%; align-items: center; }
+    .hero h1 { color: var(--white); max-width: 690px; }
+    .hero .subtitle { max-width: 640px; margin-top: 18px; font-size: 18px; }
+    .hero-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+    .hero-meta { position: absolute; left: 0; bottom: 28px; color: #91a9b4; font-size: 12px; }
+    .hero-meta b { color: #d9eff0; }
+    .hero-graphic { position: relative; height: 420px; }
+    .orbit { position: absolute; left: 15%; top: 17%; width: 74%; height: 58%; border: 1px solid #174557; border-radius: 50%; transform: rotate(-16deg); }
+    .orbit.two { left: 26%; top: 25%; width: 57%; height: 46%; border-style: dashed; transform: rotate(24deg); }
+    .curve { position: absolute; height: 3px; border-radius: 99px; transform-origin: left center; }
+    .curve.c1 { left: 9%; top: 59%; width: 62%; background: var(--cyan); transform: rotate(-52deg); }
+    .curve.c2 { left: 24%; top: 32%; width: 64%; background: var(--yellow); transform: rotate(48deg); }
+    .curve.c3 { left: 24%; top: 72%; width: 63%; background: var(--pink); transform: rotate(-20deg); }
+    .curve.c4 { left: 58%; top: 59%; width: 41%; background: var(--violet); transform: rotate(-74deg); }
+    .node { position: absolute; width: 17px; height: 17px; border-radius: 50%; box-shadow: 0 0 18px currentColor; }
+    .node.n1 { left: 8%; top: 58%; color: var(--cyan); background: var(--cyan); }
+    .node.n2 { left: 45%; top: 32%; color: var(--cyan); background: var(--cyan); }
+    .node.n3 { left: 64%; top: 58%; color: var(--violet); background: var(--violet); }
+    .node.n4 { left: 76%; top: 17%; color: var(--pink); background: var(--pink); }
+    .node.n5 { left: 35%; top: 18%; width: 13px; height: 13px; color: var(--yellow); background: var(--yellow); }
+    .hero-label { position: absolute; right: 12%; top: 5%; color: #91b0bc; font: 12px monospace; letter-spacing: .13em; }
+    .hero-equation { position: absolute; right: 20%; bottom: 16%; color: #bcd0d6; font: 16px monospace; }
+
+    .pillar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 29px; }
+    .pillar { min-height: 225px; padding: 17px 15px; border-radius: 14px; color: var(--white); }
+    .pillar .number { font: 900 27px monospace; opacity: .72; }
+    .pillar h3 { margin-top: 13px; font-size: 20px; }
+    .pillar p { margin-top: 11px; color: #e2f0f1; font-size: 13px; line-height: 1.45; }
+    .pillar.cyan { background: #0a8798; }
+    .pillar.yellow { color: #fff; background: #9d7614; }
+    .pillar.pink { background: #b65070; }
+    .pillar.violet { background: #67569d; }
+    .impact-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px; }
+    .impact { padding: 10px 12px; border: 1px solid #27465a; border-radius: 10px; color: #c8d9de; font-size: 11px; line-height: 1.3; }
+    .impact b { display: block; margin-bottom: 4px; color: #67d6d9; }
+    .flow { display: grid; grid-template-columns: 1fr 30px 1fr 30px 1fr; gap: 10px; align-items: center; margin-top: 22px; }
+    .flow-node { min-height: 133px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--white); }
+    .flow-node.cyan { background: #e8f7f6; border-color: #b9e5e2; }
+    .flow-node.yellow { background: #fff7e2; border-color: #efdbab; }
+    .flow-node.green { background: #e7f6ec; border-color: #b9dfc7; }
+    .flow-node h3 { margin-top: 10px; font-size: 20px; }
+    .flow-node p { margin-top: 8px; color: #526a7b; font-size: 13px; line-height: 1.35; }
+    .arrow { color: #9ab1ba; text-align: center; font-size: 30px; }
+    .old-new { display: grid; grid-template-columns: 1fr 1.15fr; gap: 16px; margin-top: 24px; }
+    .old-new > div { min-height: 148px; padding: 16px; border-radius: 13px; }
+    .old { background: #fcecf0; border: 1px solid #f1cbd5; }
+    .new { background: #e6f7f5; border: 1px solid #bce4e0; }
+    .old h3 { color: #b63f60; }
+    .new h3 { color: var(--cyan-dark); }
+    .old p, .new p { margin-top: 9px; color: #526779; font-size: 13px; line-height: 1.4; }
+    .formula { padding: 15px 17px; border-radius: 12px; color: #e7f5f4; background: var(--navy); font: 16px/1.75 "Noto Sans Mono CJK JP", monospace; }
+    .formula .dim { color: #8da9b4; font-size: 11px; }
+    .formula .hot { color: #73d9d9; }
+    .formula .hot2 { color: var(--yellow); }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px; }
+    .four-col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; }
+    .mini { padding: 12px 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--white); }
+    .mini strong { display: block; font-size: 14px; }
+    .mini span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+
+    .bounds { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 13px; margin-top: 23px; }
+    .bound-box { min-height: 151px; padding: 15px; border-radius: 13px; border: 1px solid var(--line); background: var(--white); }
+    .bound-box.lb { background: #e8f7ed; border-color: #bee2ca; }
+    .bound-box.ub { background: #fff7e3; border-color: #efdbae; }
+    .bound-box h3 { margin-top: 10px; font-size: 19px; }
+    .bound-box p { margin-top: 7px; color: #506879; font-size: 13px; line-height: 1.4; }
+    .bound-equation { margin: 24px 0 19px; text-align: center; font: 28px monospace; }
+    .bound-equation .lb-text { color: #18865b; }
+    .bound-equation .ub-text { color: #a27300; }
+    .bound-equation small { color: var(--muted); font-size: 12px; }
+    .step-formula { padding: 14px 17px; border: 1px solid #cfe4e5; border-radius: 12px; background: #edf8f7; color: #214755; font: 14px/1.7 monospace; }
+    .track-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .track { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--white); }
+    .track b { display: block; font-size: 13px; }
+    .track span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .bound-explainer { display: grid; grid-template-columns: 1fr .9fr 1fr; gap: 12px; margin-top: 23px; align-items: stretch; }
+    .bound-panel { min-height: 232px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--white); }
+    .bound-panel.lb { background: #e8f7ed; border-color: #bee2ca; }
+    .bound-panel.ub { background: #fff7e3; border-color: #efdbae; }
+    .bound-panel.center { display: flex; flex-direction: column; justify-content: center; text-align: center; background: #eaf6f5; border-color: #cbe9e7; }
+    .bound-step { color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .bound-panel h3 { margin-top: 10px; font-size: 20px; }
+    .bound-panel p { margin-top: 8px; color: #506879; font-size: 13px; line-height: 1.4; }
+    .bound-result { margin-top: 13px; padding: 10px 11px; border-radius: 10px; background: rgba(255,255,255,.7); }
+    .bound-result b { display: block; color: #476677; font-size: 11px; }
+    .bound-result strong { display: block; margin-top: 3px; font-size: 20px; line-height: 1.1; }
+    .bound-panel.lb .bound-result strong { color: #18865b; }
+    .bound-panel.ub .bound-result strong { color: #a27300; }
+    .bound-why { margin-top: 11px; color: #476677; font-size: 12px; font-weight: 800; }
+    .opt-chip { margin: 17px auto 4px; padding: 12px 15px; border-radius: 12px; color: #14263b; background: #fff; font: 900 28px/1 monospace; box-shadow: 0 5px 18px rgba(8,19,33,.08); }
+    .bound-logic { display: grid; grid-template-columns: 1.2fr .8fr; gap: 12px; margin-top: 13px; }
+    .bound-logic > div { padding: 11px 14px; border: 1px solid #cfe4e5; border-radius: 11px; background: #edf8f7; color: #294c5b; font-size: 13px; line-height: 1.4; }
+    .bound-logic b { color: var(--cyan-dark); }
+    .bound-logic .gap-box { background: #f0eefb; border-color: #d8d0f1; }
+    .bound-logic .gap-box b { color: #6956a8; }
+    .cbp-loop { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-items: stretch; margin-top: 30px; }
+    .cbp-loop .cbp-card { min-height: 165px; padding: 14px 12px; border-radius: 12px; color: var(--white); }
+    .cbp-card .step { font: 900 11px monospace; letter-spacing: .12em; opacity: .78; }
+    .cbp-card h3 { margin-top: 12px; font-size: 18px; }
+    .cbp-card p { margin-top: 8px; color: #e5f0f1; font-size: 12px; line-height: 1.4; }
+    .cbp-card.add { background: #0b8798; }
+    .cbp-card.price { background: #9f7816; }
+    .cbp-card.prune { background: #b65070; }
+    .cbp-card.score { background: #67569d; }
+    .cbp-card.result { color: var(--ink); background: #e7f6ec; border: 1px solid #bce3ca; }
+    .cbp-card.result p { color: #506879; }
+
+    .exp-meta { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; margin-top: 21px; }
+    .setup { padding: 13px 15px; border-radius: 12px; color: #e1eff1; background: var(--navy-2); }
+    .setup b { color: #72d9db; }
+    .setup p { margin-top: 6px; color: #bbced3; font: 12px/1.5 monospace; }
+    table { width: 100%; border-collapse: collapse; background: var(--white); border: 1px solid var(--line); }
+    th, td { padding: 10px 10px; border-bottom: 1px solid var(--line); font-size: 11px; line-height: 1.28; text-align: left; vertical-align: middle; }
+    th { color: #456275; background: #e5f0f1; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { font-weight: 900; color: #173348; white-space: nowrap; }
+    .best-row td { background: #e8f7f5; }
+    .best-row td:nth-child(2) { color: var(--cyan-dark); font-weight: 800; }
+    .best-row td:nth-child(4), .best-row td:nth-child(5), .best-row td:nth-child(6) { font-weight: 900; }
+    .table-note { margin-top: 9px; color: var(--muted); font-size: 11px; line-height: 1.3; }
+    .result-table th, .result-table td { padding: 10px 9px; font-size: 12px; }
+    .result-table th { font-size: 11px; }
+    .result-table td:not(:first-child) { white-space: nowrap; }
+    .result-table .method { font-weight: 900; white-space: nowrap; }
+    .result-table .ribosum-row td { background: #e8f7f5; }
+    .result-table .baseline-row td { background: #fff7e3; }
+    .result-table .ltf-row td { background: #f0eefb; }
+
+    .plot-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 13px; margin-top: 18px; }
+    .plot-card { padding: 11px 11px 9px; border: 1px solid var(--line); border-radius: 13px; background: var(--white); }
+    .plot-title { color: #37566a; font-size: 12px; font-weight: 900; }
+    .plot { position: relative; height: 264px; margin-top: 6px; }
+    .plot-canvas { position: absolute; left: 54px; right: 8px; top: 17px; bottom: 42px; border-left: 1px solid #9fb6bd; border-bottom: 1px solid #9fb6bd; background: linear-gradient(to top, rgba(225,235,237,.42), rgba(255,255,255,.05)); }
+    .gridline { position: absolute; left: 0; right: 0; height: 1px; background: #dbe6e8; }
+    .x-label { position: absolute; bottom: -27px; transform: translateX(-50%); color: #6a8190; font: 10px monospace; }
+    .y-label { position: absolute; left: -48px; width: 42px; white-space: nowrap; text-align: right; transform: translateY(50%); color: #6a8190; font: 10px monospace; }
+    .axis-name { position: absolute; left: -48px; top: -17px; white-space: nowrap; color: #6a8190; font-size: 10px; }
+    .point { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border: 1px solid var(--white); border-radius: 50%; box-shadow: 0 0 0 1px currentColor; }
+    .point.nonlinear { color: var(--pink); background: var(--pink); }
+    .point.linear { width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; color: var(--cyan); background: var(--white); border: 2px solid currentColor; box-shadow: none; }
+    .point.ltf { width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; color: #7664b5; background: #7664b5; border: 1px solid var(--white); box-shadow: 0 0 0 1px currentColor; }
+    .fit-line { position: absolute; height: 2px; transform-origin: left center; pointer-events: none; opacity: .92; }
+    .fit-line.nonlinear { background: var(--pink); }
+    .fit-line.linear { background: var(--cyan); }
+    .fit-line.ltf { background: #7664b5; }
+    .plot-caption { margin-top: 3px; color: #6c8190; font-size: 11px; line-height: 1.3; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 9px; color: #526b7b; font-size: 11px; }
+    .legend i { display: inline-block; width: 9px; height: 9px; margin-right: 4px; border-radius: 50%; vertical-align: -1px; }
+    .legend .ring { background: white; border: 2px solid #6d8490; }
+    .legend .nonlinear-dot { background: var(--pink); }
+    .legend .linear-dot { background: var(--white); border: 2px solid var(--cyan); }
+    .legend .ltf-dot { background: #7664b5; }
+    .fit-row { display: block; margin-top: 4px; color: #526b7b; font: 11px/1.35 monospace; }
+    .graph-note { margin-top: 10px; color: var(--muted); font-size: 11px; line-height: 1.3; }
+    .source + * { position: relative; }
+
+    .ltf-table { margin-top: 21px; }
+    .ltf-table td:nth-child(2), .ltf-table td:nth-child(3) { text-align: right; }
+    .ltf-table .dafs td { background: #e8f7f5; }
+    .ltf-table .baseline td { background: #fff6dc; }
+    .compare-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+    .compare-card { padding: 15px; border: 1px solid var(--line); border-radius: 13px; background: var(--white); }
+    .compare-card h3 { color: var(--cyan-dark); }
+    .compare-card .big { margin-top: 8px; color: var(--cyan-dark); font-size: 29px; font-weight: 900; letter-spacing: -.04em; }
+    .compare-card p { margin-top: 6px; color: #536b7a; font-size: 11px; line-height: 1.35; }
+    .closing { display: grid; grid-template-columns: 1.14fr .86fr; gap: 24px; margin-top: 28px; }
+    .take-list { display: grid; gap: 10px; }
+    .take { display: grid; grid-template-columns: 31px 1fr; gap: 10px; align-items: start; }
+    .take .n { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--cyan-dark); background: #dff4f2; font-weight: 900; }
+    .take strong { display: block; font-size: 14px; }
+    .take span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.3; }
+    .conclusion { padding: 18px; border-radius: 14px; color: #dcecee; background: var(--navy-2); }
+    .conclusion h3 { color: var(--yellow); font-size: 19px; }
+    .conclusion p { margin-top: 10px; color: #b9ccd3; font-size: 12px; line-height: 1.45; }
+    .conclusion .next { margin-top: 16px; padding-top: 12px; border-top: 1px solid #2a4758; color: #72d9db; font-size: 11px; line-height: 1.35; }
+    @media print { html, body { background: #fff; } .slide { display: block !important; margin: 0; box-shadow: none; } @page { size: 13.333in 7.5in; margin: 0; } }
+  </style>
+</head>
+<body>
+<main id="deck">
+
+  <section class="slide dark" id="s1">
+    <div class="slide-no">01 / 11</div>
+    <div class="hero">
+      <div>
+        <div class="eyebrow">DAFS / PROJECT DIFFERENCE</div>
+        <h1>DAFSを長鎖RNAへ<br>持っていくための4つの変更</h1>
+        <p class="subtitle">元論文の双対分解を残したまま、長さ依存のボトルネックを線形化し、RIBOSUM・厳密なUB/LB・dynamic CBPを同じ最適化ループへ接続した。</p>
+        <div class="hero-pills"><span class="tag dark-tag">① Linear path</span><span class="tag dark-tag">② RIBOSUM</span><span class="tag dark-tag">③ certified UB / LB</span><span class="tag dark-tag">④ dynamic CBP</span></div>
+      </div>
+      <div class="hero-graphic">
+        <div class="hero-label">POSTERIOR → DECODE → PROVE</div>
+        <div class="orbit"></div><div class="orbit two"></div>
+        <div class="curve c1"></div><div class="curve c2"></div><div class="curve c3"></div><div class="curve c4"></div>
+        <div class="node n1"></div><div class="node n2"></div><div class="node n3"></div><div class="node n4"></div><div class="node n5"></div>
+        <div class="hero-equation">LB ≤ OPT ≤ UB</div>
+      </div>
+    </div>
+    <div class="hero-meta"><b>基準コミット</b> 9360ad8　·　<b>データ</b> Murlet / 16S / 23S　·　<b>集計</b> 2026-08-31</div>
+    <div class="source">Project-local summary · numerical values are stored benchmark means; clean-release revalidation remains future work.</div>
+  </section>
+
+  <section class="slide" id="s2">
+    <div class="slide-no">02 / 11</div>
+    <div class="eyebrow">THE MAIN MESSAGE</div>
+    <h2>ポイントは「4つの置換」が一本のパイプラインになったこと</h2>
+    <p class="subtitle">速度だけを上げたのではなく、確率・候補・復号・証明を同じ疎なsupport上でつないだ。</p>
+    <div class="pillar-grid">
+      <div class="pillar cyan"><div class="number">01</div><h3>Linear化</h3><p>LinearPartition / LinearAlign、固定beam、閾値疎行列、LinearNussinov / LinearNeedlemanWunsch。</p></div>
+      <div class="pillar yellow"><div class="number">02</div><h3>RIBOSUM</h3><p>pair–pair matchにRIBOSUM85-60を導入。構造・整列・CBPのjoint objectiveを強化。</p></div>
+      <div class="pillar pink"><div class="number">03</div><h3>UB / LB + 修飾subgradient</h3><p>beamをUBと誤解せず、certificate UBとrepair LBを分離。Polyak stepをtrackごとに整合。</p></div>
+      <div class="pillar violet"><div class="number">04</div><h3>dynamic CBP</h3><p>CBPを全列挙せず、ADD・PRICE・PRUNEでworking setを更新。positive reduced costを逃さない。</p></div>
+    </div>
+    <div class="impact-strip">
+      <div class="impact"><b>長さ方向</b>固定閾値・固定beam・固定反復ならO(n)</div>
+      <div class="impact"><b>目的関数</b>RIBOSUMをDD / repair / IPで共有</div>
+      <div class="impact"><b>証明</b>beam searchと厳密relaxationを別トラック</div>
+      <div class="impact"><b>候補</b>dynamic pricingでCBPを必要時だけ追加</div>
+    </div>
+    <div class="source">Difference from original DAFS: the dual decomposition is preserved; the probability engines, decoders, CBP management, bounds and update tracks are replaced or extended.</div>
+  </section>
+
+  <section class="slide" id="s3">
+    <div class="slide-no">03 / 11</div>
+    <div class="eyebrow">01 / LINEARIZATION</div>
+    <h2>Linear化：密な計算を、閾値疎行列と固定beamへ置き換えた</h2>
+    <p class="subtitle">元論文のx / y / z / wの分解は維持し、長さに対して高次になる部分を各段で疎・固定幅にした。</p>
+    <div class="old-new">
+      <div class="old"><span class="tag pink">ORIGINAL / DENSE</span><h3 style="margin-top:10px;">posterior → dense DP → full candidate</h3><p>全posterior、Nussinov / Needleman–Wunsch、CBP候補の直積を扱うため、長鎖では計算量とメモリが急増。</p></div>
+      <div class="new"><span class="tag">THIS PROJECT / LINEAR PATH</span><h3 style="margin-top:10px;">LinearPartition / LinearAlign → sparse → fixed beam</h3><p>閾値以上のcandidateだけを保存し、確率計算・max-sum復号・q更新・最終foldingを固定beamで処理する。</p></div>
+    </div>
+    <div class="flow">
+      <div class="flow-node cyan"><span class="tag">posterior</span><h3>LinearPartition<br>+ LinearAlign</h3><p>固定beamでBPP / match posteriorを近似。</p></div>
+      <div class="arrow">→</div>
+      <div class="flow-node yellow"><span class="tag yellow">sparse support</span><h3>threshold<br>+ sparse q</h3><p>非零候補と乗数を同じ座標集合で管理。</p></div>
+      <div class="arrow">→</div>
+      <div class="flow-node green"><span class="tag green">decoder</span><h3>fixed-beam<br>max-sum</h3><p>DDのfolding / alignmentをlinear decoderで復号。</p></div>
+    </div>
+    <div class="four-col" style="margin-top:18px;"><div class="mini"><strong class="accent-cyan">BPP beam</strong><span>default 100</span></div><div class="mini"><strong class="accent-cyan">alignment beam</strong><span>default 100</span></div><div class="mini"><strong class="accent-cyan">threshold</strong><span>supportを固定</span></div><div class="mini"><strong class="accent-cyan">complexity</strong><span>固定条件でO(n)</span></div></div>
+    <div class="callout" style="margin-top:14px;"><b>読み方：</b>「線形」はbeam幅・閾値・反復数・profile配列数を固定したときの、profile長に対するスケーリング。</div>
+    <div class="source">Implementation: src/linearalign.cpp · src/linearnussinov.cpp · src/linearneedleman_wunsch.cpp · src/sparse_matrix.h · docs/linearization_paper_draft_ja.md</div>
+  </section>
+
+  <section class="slide" id="s4">
+    <div class="slide-no">04 / 11</div>
+    <div class="eyebrow">02 / RIBOSUM</div>
+    <h2>RIBOSUM：wを「制約補助変数」から「生物学的scoreを持つ変数」へ</h2>
+    <p class="subtitle">単独base-pair probabilityでは区別しにくい、pair–pairの保存・compensatory substitutionを目的関数へ入れた。</p>
+    <div class="two-col">
+      <div class="card"><span class="tag pink">元論文の係数</span><div class="formula" style="margin-top:12px;">c<sub>ijkl</sub> = … + <span class="dim">0 · w<sub>ijkl</sub></span></div><p>pair–pair matchそのものには、実質的なscoreを持たせていなかった。</p></div>
+      <div class="card soft"><span class="tag">今回の実装</span><div class="formula" style="margin-top:12px;">c<sub>ijkl</sub> = … + <span class="hot2">ρ R<sub>ijkl</sub></span></div><p>RIBOSUM85-60をsoft objectiveとして付加。負scoreをhard filterにはしない。</p></div>
+    </div>
+    <div class="four-col" style="margin-top:19px;"><div class="mini"><strong class="accent-cyan">DD reduced cost</strong><span>candidate pricingと同じRを使う</span></div><div class="mini"><strong class="accent-cyan">repair LB</strong><span>実行可能解のscoreにも入る</span></div><div class="mini"><strong class="accent-cyan">IP objective</strong><span>dual / primalの定義を一致</span></div><div class="mini"><strong class="accent-cyan">effect</strong><span>構造的なpair型を評価</span></div></div>
+    <div class="rule"></div>
+    <div class="four-col"><div class="card soft"><div class="kicker">MURLET / SPS</div><div class="metric accent-cyan">.8220 → .8222</div><p>LinearAlign, ρ=0 → .3</p></div><div class="card"><div class="kicker">MCC</div><div class="metric accent-cyan">.6502 → .6772</div><p>joint objectiveの改善</p></div><div class="card"><div class="kicker">CBP-F1</div><div class="metric accent-cyan">.5690 → .5898</div><p>CBP整合性も改善</p></div><div class="card"><div class="kicker">DECK OPERATING POINT</div><div class="metric accent-yellow">ρ=.3</div><p>LinearTurboFold由来score</p></div></div>
+    <div class="callout" style="margin-top:15px;"><b>要点：</b>RIBOSUMは別処理ではなく、DD・dynamic CBP・repair・IPを貫く同じ目的関数の追加項。</div>
+    <div class="source">RIBOSUM85-60 · LinearAlignはLinearTurboFold由来のBeamAlign/HMM scoreを使用 · 本資料のlinear条件は LinearAlign + lpc + ρ=.3。</div>
+  </section>
+
+  <section class="slide" id="s5">
+    <div class="slide-no">05 / 11</div>
+    <div class="eyebrow">03 / CERTIFIED UB + LB</div>
+    <h2>UB / LB：最適値を「下から」と「上から」挟む</h2>
+    <p class="subtitle">DAFSは最大化問題。実行可能解のscoreはLB、制約を緩めた問題の厳密解はUBになる。</p>
+    <div class="bound-explainer">
+      <div class="bound-panel lb">
+        <div class="bound-step">1 / 下から押さえる</div>
+        <h3>beam → repair</h3>
+        <p>beamで構造・alignmentの候補を探す。3者が噛み合わなければ、intersection / consensus repairで整合させる。</p>
+        <div class="bound-result"><b>実行可能解のscore</b><strong>score ≤ OPT　⇒　LB</strong></div>
+        <div class="bound-why">良い解が見つかるほど LB は上がる ↑</div>
+      </div>
+      <div class="bound-panel center">
+        <div class="bound-step">対象のDAFS問題</div>
+        <h3>本当に知りたい値</h3>
+        <div class="opt-chip">OPT</div>
+        <p>全制約を満たす構造・alignment・CBPの最大score。直接求めるのが難しいので、両側から挟む。</p>
+      </div>
+      <div class="bound-panel ub">
+        <div class="bound-step">2 / 上から押さえる</div>
+        <h3>relaxation → certificate</h3>
+        <p>制約を外して候補集合を広げた問題を、folding certificateやrow relaxationで厳密に解く。</p>
+        <div class="bound-result"><b>緩和問題の厳密な最大値</b><strong>OPT ≤ relaxed optimum　⇒　UB</strong></div>
+        <div class="bound-why">証明が強くなるほど UB は下がる ↓</div>
+      </div>
+    </div>
+    <div class="bound-equation" style="margin:16px 0 13px;"><span class="lb-text">LB<sub>t</sub></span>　≤　<b>OPT</b>　≤　<span class="ub-text">UB<sub>t</sub></span>　 <small>この範囲は常に正しい</small></div>
+    <div class="bound-logic"><div><b>重要：</b>beamの値をそのままUBとは呼ばない。beam外に、もっと良い解が残っているかもしれないから。beamはLBを探す役割。</div><div class="gap-box"><b>gap = UB − LB</b><br>gapが0に近いほど、最適値を狭く特定できる。</div></div>
+    <div class="step-formula" style="margin-top:13px;">Polyak step　η<sub>t</sub> = α · max(0, D(q<sub>t</sub>) − LB<sub>t</sub>) / ||g<sub>t</sub>||²　　<span class="dim">relaxationの目的値と、その同じ問題のsubgradientを対応させる</span></div>
+    <div class="source">src/relaxed_bounds.h · src/dafs.cpp:1367–1380, 1630–1645 · docs/linearization_paper_draft_ja.md §3.7</div>
+  </section>
+
+  <section class="slide" id="s6">
+    <div class="slide-no">06 / 11</div>
+    <div class="eyebrow">04 / DYNAMIC CBP</div>
+    <h2>dynamic CBP：必要な列だけを生成し、pricingで漏れを探す</h2>
+    <p class="subtitle">CBP候補を最初から全列挙せず、現在の解とreduced costを見ながらworking setを更新する。</p>
+    <div class="cbp-loop">
+      <div class="cbp-card add"><div class="step">STEP 01</div><h3>ADD</h3><p>現在のx / y / zから、整合しそうなCBPを双方向separationで候補化。</p></div>
+      <div class="cbp-card price"><div class="step">STEP 02</div><h3>PRICE</h3><p>未追加の候補をreduced costで走査。RIBOSUM項もここに入る。</p></div>
+      <div class="cbp-card prune"><div class="step">STEP 03</div><h3>PRUNE</h3><p>staleな列をworking setから外し、次の反復を小さく保つ。</p></div>
+      <div class="cbp-card score"><div class="step">STEP 04</div><h3>RE-SOLVE</h3><p>DD decoder・LB repair・UB certificateを同じcandidate集合で更新。</p></div>
+      <div class="cbp-card result"><div class="step">RESULT</div><h3>full problem<br>へ近づく</h3><p>positive reduced-cost columnを逃さず、固定support上で列生成を続ける。</p></div>
+    </div>
+    <div class="old-new" style="margin-top:24px;"><div class="old"><span class="tag pink">STATIC / PRE-ENUMERATION</span><h3 style="margin-top:10px;">CBPを先に全部作る</h3><p>候補数がprofile長に伴って膨らみ、RIBOSUMを入れるほど管理コストも重くなる。</p></div><div class="new"><span class="tag">DYNAMIC / WORKING SET</span><h3 style="margin-top:10px;">解きながら追加・削除</h3><p>候補生成とpricingを分け、score・repair・証明を同じ列集合に通す。linear pathのための実装上の要所。</p></div></div>
+    <div class="four-col" style="margin-top:17px;"><div class="mini"><strong class="accent-cyan">candidate cache</strong><span>endpoint別に再利用</span></div><div class="mini"><strong class="accent-cyan">positive score</strong><span>RIBOSUM positive columnを守る</span></div><div class="mini"><strong class="accent-cyan">stale pruning</strong><span>working setをcompactに保つ</span></div><div class="mini"><strong class="accent-cyan">same objective</strong><span>DD / LB / IPで一貫</span></div></div>
+    <div class="source">src/dafs.cpp:426–464, 1272–1295, 1650–1660 · src/ribosum.cpp · docs/linearization_paper_draft_ja.md §3.9–3.10</div>
+  </section>
+
+  <section class="slide" id="s7">
+    <div class="slide-no">07 / 11</div>
+    <div class="eyebrow">HOW THE FOUR CHANGES CONNECT</div>
+    <h2>元論文との差分を一枚で見ると、こうなる</h2>
+    <p class="subtitle">posteriorの近似を入り口に、候補生成・最適化・証明を一本のlinearizable loopとして実装した。</p>
+    <div class="flow" style="grid-template-columns: 1fr 25px 1fr 25px 1fr 25px 1fr 25px 1fr; gap:7px; margin-top:32px;">
+      <div class="flow-node cyan"><span class="tag">01</span><h3>Linear<br>posterior</h3><p>固定beamでBPP / matchを計算。</p></div><div class="arrow">→</div>
+      <div class="flow-node"><span class="tag yellow">02</span><h3>RIBOSUM<br>score</h3><p>pair–pair matchを目的関数へ。</p></div><div class="arrow">→</div>
+      <div class="flow-node yellow"><span class="tag yellow">04</span><h3>dynamic<br>CBP</h3><p>ADD / PRICE / PRUNE。</p></div><div class="arrow">→</div>
+      <div class="flow-node"><span class="tag pink">01</span><h3>linear<br>DD decoder</h3><p>fixed-beam max-sumで復号。</p></div><div class="arrow">→</div>
+      <div class="flow-node green"><span class="tag green">03</span><h3>repair LB<br>+ certified UB</h3><p>Polyak trackを整合。</p></div>
+    </div>
+    <div class="two-col" style="margin-top:29px;"><div class="card soft"><div class="kicker">ORIGINAL DAFS</div><div class="metric accent-pink">decompose</div><p>MEA/IPをx / y / z / wへ分解し、subgradientで整合性を回復する。</p></div><div class="card soft"><div class="kicker">THIS PROJECT</div><div class="metric accent-cyan">decompose + scale + certify</div><p>分解の意味を保ちつつ、長さ依存の各部を線形化し、RIBOSUM・dynamic CBP・厳密UB/LBを追加。</p></div></div>
+    <div class="callout" style="margin-top:20px;"><b>一言で：</b>「DAFSを別の方法にした」のではなく、DAFSのdual decompositionを長鎖向けの疎・固定幅・証明付き実装へ拡張した。</div>
+    <div class="source">Original formulation: Sato et al., Bioinformatics 2012 · implementation map: docs/linearization_paper_draft_ja.md §§2–4</div>
+  </section>
+
+  <section class="slide" id="s8">
+    <div class="slide-no">08 / 11</div>
+    <div class="eyebrow">EXPERIMENTS / MURLET</div>
+    <h2>Murlet：RIBOSUMの重みは nonlinear / linear で分ける</h2>
+    <p class="subtitle">RIBOSUMなし／ありを同じ評価軸で並べ、linearではρ=.3、nonlinearではρ=.075が最も良い条件として比較する。</p>
+    <div class="exp-meta"><div class="setup"><b>比較条件</b><p>nonlinear: CONTRAlign + CONTRAfold　·　linear: LinearAlign［LinearTurboFold score］+ lpc<br>--no-alifold　·　--dynamic-cbp　·　--max-iter=20　·　OMP_NUM_THREADS=1</p></div><div class="card soft"><div class="kicker">DATA</div><div class="metric accent-cyan">Murlet / 13</div><p>reference-based accuracy + SCI + resource usage</p></div></div>
+    <table class="result-table" style="margin-top:16px;">
+      <thead><tr><th>構成</th><th>RIBOSUM ρ</th><th>SPS</th><th>MCC</th><th>CBP F1</th><th>SCI</th><th>wall s</th><th>RSS MiB</th></tr></thead>
+      <tbody>
+        <tr class="baseline-row"><td class="method">nonlinear</td><td>なし / 0</td><td>.8191</td><td>.6784</td><td>.5919</td><td>.6326</td><td>.94</td><td>11.5</td></tr>
+        <tr class="ribosum-row"><td class="method">nonlinear</td><td>あり / .075</td><td>.8224</td><td>.6861</td><td>.5974</td><td>.6590</td><td>.94</td><td>11.6</td></tr>
+        <tr class="baseline-row"><td class="method">linear / LTF score</td><td>なし / 0</td><td>.8220</td><td>.6502</td><td>.5690</td><td>.5682</td><td>2.28</td><td>17.0</td></tr>
+        <tr class="ribosum-row"><td class="method">linear / LTF score</td><td>あり / .3</td><td>.8222</td><td>.6772</td><td>.5898</td><td>.6396</td><td>2.38</td><td>17.2</td></tr>
+        <tr class="ltf-row"><td class="method">LinearTurboFold</td><td>—</td><td>.8452</td><td>.6559</td><td>.5509</td><td>.6255</td><td>7.82</td><td>39.2</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:17px;"><b>読み方：</b>nonlinearはρ=.075、linearはLinearTurboFold由来scoreでρ=.3。linearではMCC・CBP F1・SCIが改善し、LinearTurboFold本体より少ない計算資源で動く。</div>
+    <div class="table-note">値はMurlet 13 casesの平均。RIBOSUMありの重みは、nonlinear / linearを別々に評価した結果を採用。</div>
+    <div class="source">Stored analysis: results-ribosum-sweep-murlet（linear_ribosum_w0300）, results-comparison/linearturbofold-accuracy · commit 9360ad8</div>
+  </section>
+
+  <section class="slide" id="s9">
+    <div class="slide-no">09 / 11</div>
+    <div class="eyebrow">EXPERIMENTS / 16S</div>
+    <h2>16S：linear化で長鎖の時間・メモリを抑える</h2>
+    <p class="subtitle">RIBOSUMありは nonlinear ρ=.075、linear ρ=.3。LinearTurboFoldを同じ長鎖入力群で比較する。</p>
+    <div class="exp-meta"><div class="setup"><b>共通設定</b><p>25 groups　·　--no-alifold　·　--dynamic-cbp　·　--max-iter=20<br>OMP_NUM_THREADS=1　·　入力長 1440–1560 nt</p></div><div class="card soft"><div class="kicker">LINEAR / RIBOSUM ON</div><div class="metric accent-cyan">ρ=.3</div><p>LinearAlign［LTF score］+ lpc</p></div></div>
+    <table class="result-table" style="margin-top:16px;">
+      <thead><tr><th>構成</th><th>RIBOSUM ρ</th><th>SCI</th><th>wall s</th><th>RSS MiB</th><th>比較</th></tr></thead>
+      <tbody>
+        <tr class="baseline-row"><td class="method">nonlinear</td><td>なし / 0</td><td>.9724</td><td>67.27</td><td>217.8</td><td>原来経路</td></tr>
+        <tr class="ribosum-row"><td class="method">nonlinear</td><td>あり / .075</td><td>.9739</td><td>68.04</td><td>218.6</td><td>RIBOSUM on</td></tr>
+        <tr class="baseline-row"><td class="method">linear / LTF score</td><td>なし / 0</td><td>.9489</td><td>37.12</td><td>176.1</td><td>linear path</td></tr>
+        <tr class="ribosum-row"><td class="method">linear / LTF score</td><td>あり / .3</td><td>.9555</td><td>38.65</td><td>177.7</td><td>RIBOSUM on</td></tr>
+        <tr class="ltf-row"><td class="method">LinearTurboFold</td><td>—</td><td>.9398</td><td>43.95</td><td>352.5</td><td>external baseline</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:17px;"><b>要点：</b>RIBOSUMあり同士でlinearはnonlinearより約1.76倍高速、RSS約19%削減。LinearTurboFoldより約1.14倍高速で、RSSは約50%少ない。</div>
+    <div class="table-note">SCIは共通構造の保全指標。SPS / MCC / CBP F1は長鎖ベンチマークでは未集計。</div>
+    <div class="source">Stored analysis: results-comparison/dafs-16s, results-linear-ribosum-03/16s, results-comparison/linearturbofold-16s</div>
+  </section>
+
+  <section class="slide" id="s10">
+    <div class="slide-no">10 / 11</div>
+    <div class="eyebrow">EXPERIMENTS / 23S</div>
+    <h2>23S：さらに長い入力でlinear化の差が広がる</h2>
+    <p class="subtitle">23SでもRIBOSUMありの方式別条件を固定し、nonlinear・linear・LinearTurboFoldを同じ表で比較する。</p>
+    <div class="exp-meta"><div class="setup"><b>共通設定</b><p>5 groups　·　--no-alifold　·　--dynamic-cbp　·　--max-iter=20<br>OMP_NUM_THREADS=1　·　入力長 2850–2926 nt</p></div><div class="card soft"><div class="kicker">LINEAR / RIBOSUM ON</div><div class="metric accent-cyan">ρ=.3</div><p>LinearAlign［LTF score］+ lpc</p></div></div>
+    <table class="result-table" style="margin-top:16px;">
+      <thead><tr><th>構成</th><th>RIBOSUM ρ</th><th>SCI</th><th>wall s</th><th>RSS MiB</th><th>比較</th></tr></thead>
+      <tbody>
+        <tr class="baseline-row"><td class="method">nonlinear</td><td>なし / 0</td><td>.8736</td><td>479.25</td><td>813.0</td><td>原来経路</td></tr>
+        <tr class="ribosum-row"><td class="method">nonlinear</td><td>あり / .075</td><td>.8776</td><td>485.82</td><td>812.8</td><td>RIBOSUM on</td></tr>
+        <tr class="baseline-row"><td class="method">linear / LTF score</td><td>なし / 0</td><td>.8519</td><td>103.01</td><td>427.1</td><td>linear path</td></tr>
+        <tr class="ribosum-row"><td class="method">linear / LTF score</td><td>あり / .3</td><td>.8627</td><td>101.64</td><td>429.8</td><td>RIBOSUM on</td></tr>
+        <tr class="ltf-row"><td class="method">LinearTurboFold</td><td>—</td><td>.8508</td><td>131.51</td><td>791.6</td><td>external baseline</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:17px;"><b>要点：</b>RIBOSUMあり同士でlinearはnonlinearより約4.78倍高速、RSS約47%削減。LinearTurboFoldより約1.29倍高速で、RSSは約46%少ない。</div>
+    <div class="table-note">23Sは速度・メモリ差が最も明瞭。正しいLinearAlign条件ではSCI .8627で、LinearTurboFoldの.8508も上回る。</div>
+    <div class="source">Stored analysis: results-comparison/dafs-23s, results-linear-ribosum-03/23s, results-comparison/linearturbofold-23s</div>
+  </section>
+
+  <section class="slide" id="s11">
+    <div class="slide-no">11 / 11</div>
+    <div class="eyebrow">EXPERIMENTS / LENGTH SCALING</div>
+    <h2>RIBOSUMあり：nonlinear・linear・LinearTurboFoldの長さ依存</h2>
+    <p class="subtitle">横軸は入力FASTAの最大配列長。点は個別入力、線は方式ごとのフィットで、色は方式だけに対応する。</p>
+    <div class="plot-grid">
+      <div class="plot-card"><div class="plot-title">実行時間（秒）</div><div class="plot" id="plot-time"></div><div class="plot-caption">nonlinearは3次関数、linear / LinearTurboFoldは1次関数でフィット。</div></div>
+      <div class="plot-card"><div class="plot-title">最大メモリ（MiB）</div><div class="plot" id="plot-memory"></div><div class="plot-caption">RIBOSUMありの条件を方式間で比較。ファミリー色は使わない。</div></div>
+    </div>
+    <div class="legend"><span><i class="nonlinear-dot"></i>nonlinear（ρ=.075）</span><span><i class="linear-dot"></i>linear［LTF score］（ρ=.3）</span><span><i class="ltf-dot"></i>LinearTurboFold</span><span>● 個別点　━ フィット</span></div>
+    <div class="two-col" style="margin-top:9px;"><div class="card soft"><div class="kicker">TIME FIT</div><span class="fit-row" id="fit-time-nonlinear">nonlinear: calculating…</span><span class="fit-row" id="fit-time-linear">linear: calculating…</span><span class="fit-row" id="fit-time-ltf">LTF: calculating…</span></div><div class="card soft"><div class="kicker">MEMORY FIT</div><span class="fit-row" id="fit-memory-nonlinear">nonlinear: calculating…</span><span class="fit-row" id="fit-memory-linear">linear: calculating…</span><span class="fit-row" id="fit-memory-ltf">LTF: calculating…</span></div></div>
+    <div class="graph-note">点数は各方式43点（Murlet 13、16S 25、23S 5）。nonlinearは3次、linearとLinearTurboFoldは1次の最小二乗フィット。長さ方向の傾きを方式間で比較するため、ファミリー別の色分けはしていない。</div>
+    <div class="source">Data: nonlinear = CONTRAlign + CONTRAfold, ρ=.075 · linear = LinearAlign（LinearTurboFold score）+ lpc, ρ=.3 · LTF baseline</div>
+  </section>
+
+</main>
+<script>
+  // [collection, max-sequence-length, wall-seconds, max-RSS-MiB]
+  // RIBOSUM-on comparison: nonlinear rho=.075, linear rho=.3, LinearTurboFold baseline
+  const scalingData = {"nonlinear":[["M",122,0.4,9.30469],["M",169,0.7,10.78906],["M",164,0.8,11.60547],["M",195,1.06,12.59766],["M",82,0.16,8.23438],["M",303,3.38,20.83203],["M",68,0.12,8.15625],["M",116,0.31,8.99219],["M",389,3.29,22.49219],["M",250,1.38,13.88672],["M",104,0.26,8.89453],["M",120,0.34,8.5625],["M",56,0.07,7.07812],["S",1455,68.49,213.17578],["S",1484,64.48,215.06641],["S",1484,70.89,219.5],["S",1489,66.96,219.02344],["S",1450,67.75,215.70312],["S",1457,68.25,215.03125],["S",1490,73.83,223.40234],["S",1560,72.85,237.6875],["S",1489,72.86,219.27734],["S",1559,66.54,229.99219],["S",1485,71.51,217.44531],["S",1482,63.63,211.69531],["S",1492,67.22,219.01953],["S",1494,68.99,224.50781],["S",1440,66.24,209.4375],["S",1460,67.11,219.41016],["S",1482,71.78,220.96875],["S",1468,66.22,217.16406],["S",1471,69.33,216.71484],["S",1481,70.7,221.32422],["S",1481,62.4,217.04297],["S",1453,63.64,212.38281],["S",1466,67.84,217.34375],["S",1487,66.52,221.90625],["S",1455,65.06,209.75781],["T",2850,438.32,791.08203],["T",2882,495.16,802.62891],["T",2926,484.86,825.05859],["T",2907,489.18,814.37891],["T",2926,521.6,831.05469]],"linear":[["M",122,1.17,13.140625],["M",169,1.96,15.92578125],["M",164,2.3,17.453125],["M",195,2.95,20.453125],["M",82,0.43,10.07421875],["M",303,7.3,33.5],["M",68,0.33,9.45703125],["M",116,0.92,11.58203125],["M",389,7.65,35.28515625],["M",250,3.75,24.52734375],["M",104,0.74,11.64453125],["M",120,1.21,12.40625],["M",56,0.2,8.2421875],["S",1455,36.17,177.7109375],["S",1484,37.62,168.6796875],["S",1484,38.23,182.3203125],["S",1489,37.63,170.97265625],["S",1450,37.74,179.421875],["S",1457,39.81,177.72265625],["S",1490,39.29,182.99609375],["S",1560,39.54,196.30859375],["S",1489,37.82,175.22265625],["S",1559,39.08,172.25],["S",1485,39.44,175.53125],["S",1482,40.6,172.66015625],["S",1492,38.67,177.296875],["S",1494,37.95,178.96484375],["S",1440,36.96,177.06640625],["S",1460,41.64,175.16015625],["S",1482,39.72,182.5],["S",1468,41.62,178.75390625],["S",1471,39.25,178.4296875],["S",1481,38.66,184.1328125],["S",1481,35.23,174.31640625],["S",1453,40.83,174.4453125],["S",1466,37.18,177.88671875],["S",1487,38.07,177.57421875],["S",1455,37.48,173.921875],["T",2850,96.16,430.65625],["T",2882,105.02,421.9609375],["T",2926,101.29,429.96875],["T",2907,105.31,431.44921875],["T",2926,100.42,435.1484375]],"ltf":[["M",122,3.69,25.92578],["M",169,6.71,35.78776],["M",164,7.43333,39.92839],["M",195,11.80333,49.42969],["M",82,1.48,16.84115],["M",303,30.16333,98.13932],["M",68,1.19667,17.06771],["M",116,2.93333,23.20573],["M",389,20.17667,90.44661],["M",250,9.59667,53.93099],["M",104,2.52667,21.92839],["M",120,3.18667,23.3125],["M",56,0.72333,13.44401],["S",1455,40.17,346.03516],["S",1484,40.43,344.43359],["S",1484,41.35,356.91797],["S",1489,40.3,357.66797],["S",1450,39.51,359.55859],["S",1457,40.96,351.58984],["S",1490,40.95,359.97656],["S",1560,116.27,374.49219],["S",1489,40.39,346.82422],["S",1559,43.57,355.10547],["S",1485,41.04,352.42188],["S",1482,40.84,346.39844],["S",1492,43.84,349.77734],["S",1494,41.87,353.53125],["S",1440,39.83,338.5625],["S",1460,42.27,352.03516],["S",1482,41.26,350.92578],["S",1468,40.79,353.96094],["S",1471,41.67,356.53516],["S",1481,42.55,350.08203],["S",1481,39.11,349.70312],["S",1453,40.9,349.02344],["S",1466,40.43,347.17188],["S",1487,39.63,358.01953],["S",1455,38.87,350.57422],["T",2850,213.03,774.125],["T",2882,95.68,808.57812],["T",2926,134.3,787.17578],["T",2907,101.03,769.875],["T",2926,113.51,818.42578]]};
+  const plotSpec = {
+    // The no-alifold RIBOSUM-on data top out at 521.6 s (23S nonlinear).
+    // Use a round 0–600 s scale; 1000 s belongs to an older alifold-on run.
+    'plot-time': {index:2, min:0, max:600, log:false, ticks:[[0,'0'],[100,'100'],[200,'200'],[300,'300'],[400,'400'],[500,'500'],[600,'600']], axis:'s', statPrefix:'time'},
+    'plot-memory': {index:3, min:0, max:900, log:false, ticks:[[0,'0'],[200,'200'],[400,'400'],[600,'600'],[800,'800']], axis:'MiB', statPrefix:'memory'}
+  };
+  const datasetName = {M:'Murlet', S:'16S', T:'23S'};
+  const fitSegments = [];
+  function scaleValue(value, min, max, log) {
+    const v = log ? Math.log10(Math.max(value, min)) : value;
+    const a = log ? Math.log10(min) : min;
+    const b = log ? Math.log10(max) : max;
+    return (v-a)/(b-a);
+  }
+  function solveLinearSystem(matrix, rhs) {
+    const n=rhs.length; const a=matrix.map((row,i)=>row.slice().concat(rhs[i]));
+    for(let col=0;col<n;col++){ let pivot=col; for(let row=col+1;row<n;row++) if(Math.abs(a[row][col])>Math.abs(a[pivot][col])) pivot=row; [a[col],a[pivot]]=[a[pivot],a[col]]; const div=a[col][col]; for(let j=col;j<=n;j++) a[col][j]/=div; for(let row=0;row<n;row++){ if(row===col) continue; const factor=a[row][col]; for(let j=col;j<=n;j++) a[row][j]-=factor*a[col][j]; }}
+    return a.map(row=>row[n]);
+  }
+  function fit(rows, index, degree) {
+    const xs=rows.map(row=>row[1]/3000); const ys=rows.map(row=>row[index]); const m=degree+1;
+    const A=Array.from({length:m},(_,i)=>Array.from({length:m},(_,j)=>xs.reduce((sum,x)=>sum+Math.pow(x,i+j),0)));
+    const b=Array.from({length:m},(_,i)=>xs.reduce((sum,x,k)=>sum+Math.pow(x,i)*ys[k],0));
+    const coeffs=solveLinearSystem(A,b); const ym=ys.reduce((a,v)=>a+v,0)/ys.length;
+    const sse=ys.reduce((sum,y,k)=>sum+Math.pow(y-evaluate({coeffs},xs[k]*3000),2),0); const sst=ys.reduce((sum,y)=>sum+Math.pow(y-ym,2),0);
+    return {coeffs,degree,r2:1-sse/sst};
+  }
+  function evaluate(stats, length) { const x=length/3000; return stats.coeffs.reduce((sum,c,i)=>sum+c*Math.pow(x,i),0); }
+  function formatFit(stats) { const kind=stats.degree===3?'cubic fit':'linear fit'; const slope=stats.degree===1 ? ' · slope='+(stats.coeffs[1]/3).toFixed(1)+'/1000 nt' : ''; return kind+slope+' · R²='+stats.r2.toFixed(3); }
+  function addFitSegment(canvas, stats, spec, method, x0, x1) { const line=document.createElement('span'); line.className='fit-line '+method; line.title=method+' '+formatFit(stats); canvas.appendChild(line); fitSegments.push({canvas,line,stats,spec,x0,x1}); }
+  function addFitCurve(canvas, stats, spec, method) {
+    if(stats.degree===1){ let x0=0,x1=3000; const y0=evaluate(stats,x0), y1=evaluate(stats,x1); if(y1>y0){ if(y0<spec.min) x0=Math.max(x0,3000*(spec.min-y0)/(y1-y0)); if(y1>spec.max) x1=Math.min(x1,3000*(spec.max-y0)/(y1-y0)); } if(x1>x0) addFitSegment(canvas,stats,spec,method,x0,x1); return; }
+    const steps=36; for(let i=0;i<steps;i++){ const x0=3000*i/steps, x1=3000*(i+1)/steps, y0=evaluate(stats,x0), y1=evaluate(stats,x1); if(y0>=spec.min&&y0<=spec.max&&y1>=spec.min&&y1<=spec.max) addFitSegment(canvas,stats,spec,method,x0,x1); }
+  }
+  function positionFitLines() {
+    fitSegments.forEach(seg=>{ const {canvas,line,stats,spec,x0,x1}=seg; if(canvas.clientWidth===0||canvas.clientHeight===0) return; const y0=evaluate(stats,x0), y1=evaluate(stats,x1); const w=canvas.clientWidth*(x1-x0)/3000; const top0=canvas.clientHeight*(1-scaleValue(y0,spec.min,spec.max,spec.log)); const top1=canvas.clientHeight*(1-scaleValue(y1,spec.min,spec.max,spec.log)); line.style.left=(canvas.clientWidth*x0/3000)+'px'; line.style.top=top0+'px'; line.style.width=Math.hypot(w,top1-top0)+'px'; line.style.transform='rotate('+Math.atan2(top1-top0,w)+'rad)'; });
+  }
+  function renderPlot(id, spec) {
+    const root=document.getElementById(id); const canvas=document.createElement('div'); canvas.className='plot-canvas'; root.appendChild(canvas);
+    [[0,'0'],[750,'750'],[1500,'1.5k'],[2250,'2.25k'],[3000,'3k']].forEach(([v,label])=>{const x=document.createElement('span');x.className='x-label';x.style.left=(v/3000*100)+'%';x.textContent=label;canvas.appendChild(x);});
+    spec.ticks.forEach(([v,label])=>{const y=scaleValue(v,spec.min,spec.max,spec.log)*100;const line=document.createElement('div');line.className='gridline';line.style.bottom=y+'%';canvas.appendChild(line);const yl=document.createElement('span');yl.className='y-label';yl.style.bottom=y+'%';yl.textContent=label;canvas.appendChild(yl);});
+    const axis=document.createElement('span');axis.className='axis-name';axis.textContent=spec.axis;canvas.appendChild(axis);
+    const degrees={nonlinear:3,linear:1,ltf:1};
+    ['nonlinear','linear','ltf'].forEach(method=>{ scalingData[method].forEach(row=>{const point=document.createElement('span');point.className='point '+method;point.style.left=(row[1]/3000*100)+'%';point.style.bottom=(scaleValue(row[spec.index],spec.min,spec.max,spec.log)*100)+'%';point.title=method+' · '+datasetName[row[0]]+' · '+row[1]+' nt';canvas.appendChild(point);}); const stats=fit(scalingData[method],spec.index,degrees[method]); addFitCurve(canvas,stats,spec,method); document.getElementById('fit-'+spec.statPrefix+'-'+method).textContent=(method==='ltf'?'LTF':method)+': '+formatFit(stats); });
+  }
+  Object.entries(plotSpec).forEach(([id,spec])=>renderPlot(id,spec));
+  positionFitLines();
+  (function () {
+    const slides=Array.from(document.querySelectorAll('.slide')); let index=0;
+    function show(i){ index=(i+slides.length)%slides.length; slides.forEach((s,j)=>s.style.display=j===index?'block':'none'); history.replaceState(null,'','#s'+(index+1)); requestAnimationFrame(positionFitLines); }
+    function fromHash(){ const n=Number((location.hash||'').replace('#s','')); return Number.isFinite(n)&&n>=1&&n<=slides.length?n-1:0; }
+    document.addEventListener('keydown',e=>{ if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();show(index+1);} if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();show(index-1);} if(e.key==='Home')show(0); if(e.key==='End')show(slides.length-1); });
+    if(matchMedia('print').matches) { slides.forEach(s=>s.style.display='block'); positionFitLines(); } else show(fromHash());
+  }());
+</script>
+</body>
+</html>

@@ -77,6 +77,12 @@ namespace Fold
     {
       return decode(p.dense(), ss, str);
     }
+    virtual float decode(const SparseFloatMatrix& p,
+                         const SparseFloatMatrix& pair_bonus,
+                         VU& ss, std::string& str)
+    {
+      throw std::logic_error("pair bonuses are unsupported by this decoder");
+    }
     virtual void make_brackets(const VU& ss, std::string& str) const = 0;
   };
 }

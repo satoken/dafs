@@ -1,0 +1,43 @@
+{
+  "binary": "../../../../LinearFold/LinearTurboFold/bin/linearturbofold",
+  "output_dir": "../results-linearturbofold-factorial-accuracy",
+  "timeout_seconds": 1800,
+  "repetitions": 3,
+  "random_seed": 42,
+  "environment": {"OMP_NUM_THREADS": "1"},
+  "dataset_manifests": ["../data/murlet/manifest.json"],
+  "dataset_filter": {
+    "ids": [
+      "murlet-dataset1-RF00436-0",
+      "murlet-dataset1-RF00031-1",
+      "murlet-dataset1-RF00005-3",
+      "murlet-dataset1-RF00169-4",
+      "murlet-dataset1-RF00059-3",
+      "murlet-dataset1-RF00175-2",
+      "murlet-dataset1-RF00001-4",
+      "murlet-dataset1-RF00003-4",
+      "murlet-dataset1-RF00002-3",
+      "murlet-dataset1-RF00004-4",
+      "murlet-dataset1-RF00061-3",
+      "murlet-dataset1-RF00017-4",
+      "murlet-dataset1-RF00061-1"
+    ]
+  },
+  "conditions": [
+    {
+      "id": "linearturbofold",
+      "ribosum": "not_applicable",
+      "options": {
+        "hmm_beam": 100,
+        "cky_beam": 100,
+        "iterations": 3,
+        "save_bpps": false,
+        "save_pfs": false,
+        "verbose": false,
+        "min_helix_length": 3,
+        "pk_iterations": 1,
+        "threshold": 0.3
+      }
+    }
+  ]
+}

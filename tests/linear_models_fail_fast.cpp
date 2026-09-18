@@ -5,6 +5,7 @@
 #include <cmath>
 #include <iostream>
 #include <string>
+#include <array>
 
 // The production definitions live in fold.cpp/align.cpp together with the
 // non-linear model implementations.  Keep this focused test independent of
@@ -98,6 +99,44 @@ int main()
     }
   }
   if (match_count == 0)
+    return 1;
+
+  if (LinearAlign::parseScoreModel("TurboFold") !=
+          LinearAlign::ScoreModel::LinearTurboFold ||
+      LinearAlign::parseScoreModel("contralign") !=
+          LinearAlign::ScoreModel::CONTRAlign ||
+      LinearAlign::parseScoreModel("ProbCons-RNA") !=
+          LinearAlign::ScoreModel::ProbConsRNA)
+    return 1;
+  if (!throws_with(
+          [] { LinearAlign::parseScoreModel("unknown"); },
+          "unknown LinearAlign score model"))
+    return 1;
+
+  std::array<double, 3> posterior_sums{};
+  const std::array<LinearAlign::ScoreModel, 3> score_models = {
+      LinearAlign::ScoreModel::LinearTurboFold,
+      LinearAlign::ScoreModel::CONTRAlign,
+      LinearAlign::ScoreModel::ProbConsRNA};
+  for (size_t model_index = 0; model_index < score_models.size(); ++model_index) {
+    LinearAlign selected_align(0.0001f, 100, score_models[model_index]);
+    selected_align.calculate(sequence, "GGGAAUCCC", mp);
+    size_t selected_match_count = 0;
+    for (const auto& row : mp) {
+      for (const auto& [j, probability] : row) {
+        if (j >= sequence.size() || !std::isfinite(probability) ||
+            probability <= 0.0f || probability > 1.0001f)
+          return 1;
+        posterior_sums[model_index] += probability;
+        ++selected_match_count;
+      }
+    }
+    if (selected_match_count == 0)
+      return 1;
+  }
+  if (std::abs(posterior_sums[0] - posterior_sums[1]) < 1e-6 ||
+      std::abs(posterior_sums[0] - posterior_sums[2]) < 1e-6 ||
+      std::abs(posterior_sums[1] - posterior_sums[2]) < 1e-6)
     return 1;
 
   return 0;

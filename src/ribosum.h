@@ -28,6 +28,7 @@ public:
   float pair_score(unsigned i, unsigned j,
                    const RibosumProfile& other,
                    unsigned k, unsigned l) const;
+  float self_pair_score(unsigned i, unsigned j) const;
 
 private:
   using PairDistribution = std::array<float, 16>;

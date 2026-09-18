@@ -1,0 +1,51 @@
+{
+  "binary": "../../build-amd64/dafs/src/dafs",
+  "output_dir": "../results-linear-contralign-ribosum-sweep-murlet",
+  "timeout_seconds": 1800,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {
+    "OMP_NUM_THREADS": "1"
+  },
+  "sci": {
+    "version": "2.5.1",
+    "timeout_seconds": 900
+  },
+  "dataset_manifests": [
+    "../data/murlet/manifest.json"
+  ],
+  "dataset_filter": {
+    "ids": [
+      "murlet-dataset1-RF00436-0",
+      "murlet-dataset1-RF00031-1",
+      "murlet-dataset1-RF00005-3",
+      "murlet-dataset1-RF00169-4",
+      "murlet-dataset1-RF00059-3",
+      "murlet-dataset1-RF00175-2",
+      "murlet-dataset1-RF00001-4",
+      "murlet-dataset1-RF00003-4",
+      "murlet-dataset1-RF00002-3",
+      "murlet-dataset1-RF00004-4",
+      "murlet-dataset1-RF00061-3",
+      "murlet-dataset1-RF00017-4",
+      "murlet-dataset1-RF00061-1"
+    ]
+  },
+  "conditions": [
+    {"id": "linear_contralign_ribosum_w0000", "linear": true, "ribosum_weight": 0, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0005", "linear": true, "ribosum_weight": 0.005, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.005", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0010", "linear": true, "ribosum_weight": 0.01, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.01", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0020", "linear": true, "ribosum_weight": 0.02, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.02", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0030", "linear": true, "ribosum_weight": 0.03, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.03", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0050", "linear": true, "ribosum_weight": 0.05, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.05", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0075", "linear": true, "ribosum_weight": 0.075, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.075", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0100", "linear": true, "ribosum_weight": 0.1, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.1", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0150", "linear": true, "ribosum_weight": 0.15, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.15", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0200", "linear": true, "ribosum_weight": 0.2, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.2", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0300", "linear": true, "ribosum_weight": 0.3, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.3", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0500", "linear": true, "ribosum_weight": 0.5, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.5", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w0750", "linear": true, "ribosum_weight": 0.75, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.75", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w1000", "linear": true, "ribosum_weight": 1, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=1", "--max-iter=20"]},
+    {"id": "linear_contralign_ribosum_w2000", "linear": true, "ribosum_weight": 2, "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=2", "--max-iter=20"]}
+  ]
+}

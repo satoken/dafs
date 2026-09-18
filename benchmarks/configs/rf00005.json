@@ -1,0 +1,40 @@
+{
+  "binary": "../../build/src/dafs",
+  "output_dir": "../results-rf00005",
+  "timeout_seconds": 300,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {
+    "OMP_NUM_THREADS": "1"
+  },
+  "datasets": [
+    {
+      "id": "RF00005-0",
+      "input": "../../examples/RF00005:0.fa"
+    }
+  ],
+  "conditions": [
+    {
+      "id": "linear_no_ribosum",
+      "args": [
+        "-a", "LinearAlign",
+        "-s", "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0",
+        "--max-iter=5"
+      ]
+    },
+    {
+      "id": "linear_ribosum_0075",
+      "args": [
+        "-a", "LinearAlign",
+        "-s", "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.075",
+        "--max-iter=5"
+      ]
+    }
+  ]
+}

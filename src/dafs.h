@@ -69,6 +69,9 @@ private:
   void project_secondary_structure(VU &xx, VU &yy, const VU &x, const VU &y, const VU &z) const;
   void average_matching_probability(SparseFloatMatrix &posterior, const ALN &aln1, const ALN &aln2) const;
   void average_basepairing_probability(SparseFloatMatrix &posterior, const ALN &aln, bool use_alifold) const;
+  void calculate_final_ribosum_bonus(SparseFloatMatrix &bonus,
+                                     const SparseFloatMatrix &posterior,
+                                     const ALN &aln) const;
   void update_basepairing_probability(SparseFloatMatrix &posterior, const VU &ss, const std::string &str,
                                       const ALN &aln, bool use_alifold) const;
   void calculate_profile_basepairing_probability(const ALN &aln, BP &bp) const;
@@ -150,9 +153,11 @@ private:
   VF th_s_;                         // the threshold for alignment matching probabilities
   float w_;                         // the weight for base pairs in the objective function
   float w_ribosum_;                 // the weight for RIBOSUM pair-pair matches
+  float w_final_ribosum_;           // the RIBOSUM profile bonus for final folding
   float eta0_;                      // the initial step width of the subgradient update
   std::string input_path_;
   std::string align_model_name_;
+  std::string align_score_model_name_;
   std::string fold_model_name_;
   std::string metrics_jsonl_path_;
   mutable std::ofstream metrics_stream_;

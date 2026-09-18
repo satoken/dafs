@@ -1,0 +1,1575 @@
+{
+  "datasets": [
+    {
+      "collection": "16S-25",
+      "group": "k5group0",
+      "id": "linearturbofold-16S-25-k5group0",
+      "input": "inputs/linearturbofold-16S-25-k5group0.fa",
+      "max_sequence_length": 1455,
+      "min_sequence_length": 1404,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group0/16S_rRNA_database_Alphaproteobacteria-AB117967.seq",
+        "data/16S-25/k5group0/16S_rRNA_database_Alphaproteobacteria-D14432.seq",
+        "data/16S-25/k5group0/16S_rRNA_database_Alphaproteobacteria-D32229.seq",
+        "data/16S-25/k5group0/16S_rRNA_database_Alphaproteobacteria-DQ305284.seq",
+        "data/16S-25/k5group0/16S_rRNA_database_Alphaproteobacteria-DQ499529.seq"
+      ],
+      "source_git_blob_sha1": [
+        "365be4ddbff939917a9e685af74f39107517da49",
+        "d285fc1f72ee6e454691b1646e0402fbdc895f72",
+        "fbb402465e5e10e1587469892b16ebf5a3a8cfd3",
+        "15c7a93700e99ea6d389c0d5ceda63c2abeaba02",
+        "61036e3295f8faebbc74e9ad361cfccab830049d"
+      ],
+      "total_nucleotides": 7128
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group1",
+      "id": "linearturbofold-16S-25-k5group1",
+      "input": "inputs/linearturbofold-16S-25-k5group1.fa",
+      "max_sequence_length": 1484,
+      "min_sequence_length": 1404,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group1/16S_rRNA_database_Alphaproteobacteria-AB246807.seq",
+        "data/16S-25/k5group1/16S_rRNA_database_Alphaproteobacteria-AE009462.seq",
+        "data/16S-25/k5group1/16S_rRNA_database_Alphaproteobacteria-AY904783.seq",
+        "data/16S-25/k5group1/16S_rRNA_database_Alphaproteobacteria-AY972871.seq",
+        "data/16S-25/k5group1/16S_rRNA_database_Alphaproteobacteria-DQ341416.seq"
+      ],
+      "source_git_blob_sha1": [
+        "b13a89266dc93f54a52d33f5c37178decf8f6908",
+        "be250949df0b31f11cc51f8b671fcb91d3a4fd23",
+        "1f5f142030fe74d9aaf8a4eac7d0cc92e8da9b7a",
+        "ae16f6e57210bcca266e4e1823999aa4b8ed6432",
+        "d477c8176657161ffe31757e6380279d0cd81423"
+      ],
+      "total_nucleotides": 7192
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group10",
+      "id": "linearturbofold-16S-25-k5group10",
+      "input": "inputs/linearturbofold-16S-25-k5group10.fa",
+      "max_sequence_length": 1484,
+      "min_sequence_length": 1427,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group10/16S_rRNA_database_Alphaproteobacteria-AM084042.seq",
+        "data/16S-25/k5group10/16S_rRNA_database_Alphaproteobacteria-AY468370.seq",
+        "data/16S-25/k5group10/16S_rRNA_database_Alphaproteobacteria-AY569292.seq",
+        "data/16S-25/k5group10/16S_rRNA_database_Alphaproteobacteria-DQ337571.seq",
+        "data/16S-25/k5group10/16S_rRNA_database_Alphaproteobacteria-X87272.seq"
+      ],
+      "source_git_blob_sha1": [
+        "37522a8156c94b8aaffedc71537827400c65c301",
+        "6902f775bcb483cf1d6c8badfe71b8577657c931",
+        "fa59a8c572b944d0cc913e03e1dc33b936cc7d02",
+        "217dd90ed87f6384b5f37ea45227ff6b4ae73b1a",
+        "6b76266577bdfad61c744e1a070f23658dc552d8"
+      ],
+      "total_nucleotides": 7295
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group11",
+      "id": "linearturbofold-16S-25-k5group11",
+      "input": "inputs/linearturbofold-16S-25-k5group11.fa",
+      "max_sequence_length": 1489,
+      "min_sequence_length": 1412,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group11/16S_rRNA_database_Alphaproteobacteria-AJ318194.seq",
+        "data/16S-25/k5group11/16S_rRNA_database_Alphaproteobacteria-AY624130.seq",
+        "data/16S-25/k5group11/16S_rRNA_database_Alphaproteobacteria-D14501.seq",
+        "data/16S-25/k5group11/16S_rRNA_database_Alphaproteobacteria-DQ645426.seq",
+        "data/16S-25/k5group11/16S_rRNA_database_Alphaproteobacteria-X94201.seq"
+      ],
+      "source_git_blob_sha1": [
+        "33c0790c15f0e634d7a1b370aeca0a15103d8c15",
+        "c135634a604245eccdab2522c80bab79afad4527",
+        "0561d9b0b93d5e7453eb544634a852d37acdbfdc",
+        "fce4007bd9923baf78e0512b7bb4eab20617c5c1",
+        "20b28e9aa06dd1b61e6ca70763d395d0df49cccc"
+      ],
+      "total_nucleotides": 7293
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group12",
+      "id": "linearturbofold-16S-25-k5group12",
+      "input": "inputs/linearturbofold-16S-25-k5group12.fa",
+      "max_sequence_length": 1450,
+      "min_sequence_length": 1441,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group12/16S_rRNA_database_Alphaproteobacteria-AF408325.seq",
+        "data/16S-25/k5group12/16S_rRNA_database_Alphaproteobacteria-AY601514.seq",
+        "data/16S-25/k5group12/16S_rRNA_database_Alphaproteobacteria-AY904746.seq",
+        "data/16S-25/k5group12/16S_rRNA_database_Alphaproteobacteria-DQ303311.seq",
+        "data/16S-25/k5group12/16S_rRNA_database_Alphaproteobacteria-L36222.seq"
+      ],
+      "source_git_blob_sha1": [
+        "ec84ae94d249eb6a46779625efcb6028a3cc5bd3",
+        "89df4934dda3df70b18867c35a50187af1e2e95c",
+        "09fa586f788e1762a1b288ee1ba31bc42ab4bba8",
+        "f88882e9b64b3b81f97f50756c0603195c9ce21c",
+        "0ef7c98ed0ed875a7a859f5f922d135a02b4c059"
+      ],
+      "total_nucleotides": 7223
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group13",
+      "id": "linearturbofold-16S-25-k5group13",
+      "input": "inputs/linearturbofold-16S-25-k5group13.fa",
+      "max_sequence_length": 1457,
+      "min_sequence_length": 1450,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group13/16S_rRNA_database_Alphaproteobacteria-AB032356.seq",
+        "data/16S-25/k5group13/16S_rRNA_database_Alphaproteobacteria-AY599912.seq",
+        "data/16S-25/k5group13/16S_rRNA_database_Alphaproteobacteria-AY904740.seq",
+        "data/16S-25/k5group13/16S_rRNA_database_Alphaproteobacteria-AY904752.seq",
+        "data/16S-25/k5group13/16S_rRNA_database_Alphaproteobacteria-DQ177525.seq"
+      ],
+      "source_git_blob_sha1": [
+        "095709b96cb4d0fbc95100c952aefc984222a16c",
+        "228546cf877e75ce5950d67165b4021eec5c12b5",
+        "d6c6c8fd7adf587998e012dc1683878e9cc1329d",
+        "4b6cde321549c42120de0346b1af548497131617",
+        "4f4eef0bf93e4d2619aa8c724dee3b8529fa451b"
+      ],
+      "total_nucleotides": 7266
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group14",
+      "id": "linearturbofold-16S-25-k5group14",
+      "input": "inputs/linearturbofold-16S-25-k5group14.fa",
+      "max_sequence_length": 1490,
+      "min_sequence_length": 1405,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group14/16S_rRNA_database_Alphaproteobacteria-AB175632.seq",
+        "data/16S-25/k5group14/16S_rRNA_database_Alphaproteobacteria-AJ431635.seq",
+        "data/16S-25/k5group14/16S_rRNA_database_Alphaproteobacteria-AY372184.seq",
+        "data/16S-25/k5group14/16S_rRNA_database_Alphaproteobacteria-AY500253.seq",
+        "data/16S-25/k5group14/16S_rRNA_database_Alphaproteobacteria-BA000040.seq"
+      ],
+      "source_git_blob_sha1": [
+        "3d5a5bc89d41dee9834a0a4cfc28926d744ca0bb",
+        "a1b1d6eede78f99a884275ff9eae9ead65b87fc0",
+        "e1cc876c02a12d68adc1da6254d1f072d765b1b0",
+        "1f1e344b5881c4b688b7d444d9fe39a4e5c36b10",
+        "fa84a844221ea0c8564047df0169b550e65b8b35"
+      ],
+      "total_nucleotides": 7285
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group15",
+      "id": "linearturbofold-16S-25-k5group15",
+      "input": "inputs/linearturbofold-16S-25-k5group15.fa",
+      "max_sequence_length": 1560,
+      "min_sequence_length": 1401,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group15/16S_rRNA_database_Alphaproteobacteria-AB178392.seq",
+        "data/16S-25/k5group15/16S_rRNA_database_Alphaproteobacteria-AY509218.seq",
+        "data/16S-25/k5group15/16S_rRNA_database_Alphaproteobacteria-AY599678.seq",
+        "data/16S-25/k5group15/16S_rRNA_database_Alphaproteobacteria-AY785315.seq",
+        "data/16S-25/k5group15/16S_rRNA_database_Alphaproteobacteria-DQ340858.seq"
+      ],
+      "source_git_blob_sha1": [
+        "19b5df2df288dffcc192469ae7ac66335b4c1844",
+        "09aeb1f1654d0bdf29f68de1a1cd6ee31b87028b",
+        "28f6f5ebdd6d8ed8f32aa0e3c7c9831a44ad850c",
+        "bfa0e1e26dbec15e0e31e1f523132cbfecdf8989",
+        "383f59dabe471cfe69ebad639e9e8bccbfa00cbe"
+      ],
+      "total_nucleotides": 7289
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group16",
+      "id": "linearturbofold-16S-25-k5group16",
+      "input": "inputs/linearturbofold-16S-25-k5group16.fa",
+      "max_sequence_length": 1489,
+      "min_sequence_length": 1409,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group16/16S_rRNA_database_Alphaproteobacteria-AB110710.seq",
+        "data/16S-25/k5group16/16S_rRNA_database_Alphaproteobacteria-AB166735.seq",
+        "data/16S-25/k5group16/16S_rRNA_database_Alphaproteobacteria-AF293377.seq",
+        "data/16S-25/k5group16/16S_rRNA_database_Alphaproteobacteria-AY506539.seq",
+        "data/16S-25/k5group16/16S_rRNA_database_Alphaproteobacteria-UNP00774.seq"
+      ],
+      "source_git_blob_sha1": [
+        "fdb41ab4e1045bcf80f6e07c8e69f7cd5ba420ee",
+        "356de40d2248c087a4ebb560e364ec8bbd5854b2",
+        "2b75fe09ba1363076ed5f58ffcd151fb7a3b5361",
+        "b33b469a80ce543872425bc45f1790b2b3b18942",
+        "1dd4b9e541dedc5c5b3b8dbdbf3cb10158448171"
+      ],
+      "total_nucleotides": 7220
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group17",
+      "id": "linearturbofold-16S-25-k5group17",
+      "input": "inputs/linearturbofold-16S-25-k5group17.fa",
+      "max_sequence_length": 1559,
+      "min_sequence_length": 1402,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group17/16S_rRNA_database_Alphaproteobacteria-AJ810380.seq",
+        "data/16S-25/k5group17/16S_rRNA_database_Alphaproteobacteria-AY513533.seq",
+        "data/16S-25/k5group17/16S_rRNA_database_Alphaproteobacteria-AY568503.seq",
+        "data/16S-25/k5group17/16S_rRNA_database_Alphaproteobacteria-AY697904.seq",
+        "data/16S-25/k5group17/16S_rRNA_database_Alphaproteobacteria-M84687.seq"
+      ],
+      "source_git_blob_sha1": [
+        "4a1096ded2e850f12f03a59b684dd9becd90f139",
+        "0b35df0db472c1b360e6ca0dcf783c6aeb7b6cbe",
+        "2e215b432294e5b02f7924c1fd42ec6083fbc1e0",
+        "a31cc5631c29b99bb9ec659891f90cc2d1dae4af",
+        "dbf66bab1d7f21f69371750bc8543ea8f643fae7"
+      ],
+      "total_nucleotides": 7223
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group18",
+      "id": "linearturbofold-16S-25-k5group18",
+      "input": "inputs/linearturbofold-16S-25-k5group18.fa",
+      "max_sequence_length": 1485,
+      "min_sequence_length": 1421,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group18/16S_rRNA_database_Alphaproteobacteria-AF220147.seq",
+        "data/16S-25/k5group18/16S_rRNA_database_Alphaproteobacteria-AY512821.seq",
+        "data/16S-25/k5group18/16S_rRNA_database_Alphaproteobacteria-AY628222.seq",
+        "data/16S-25/k5group18/16S_rRNA_database_Alphaproteobacteria-DQ202330.seq",
+        "data/16S-25/k5group18/16S_rRNA_database_Alphaproteobacteria-DQ337574.seq"
+      ],
+      "source_git_blob_sha1": [
+        "a6bb470daa4fed3aa9f17934c112d415df365d2a",
+        "9ba8b024082164fd7e16d81e511079cbe7dbb788",
+        "8cf9f0036791e0b189f84e58204fa7965dcc2622",
+        "d7241be7ebde54e861dd28a81346cc2c8230b0ff",
+        "5b0dd4a6e7cb989b156cc10b98756f7111bf26c5"
+      ],
+      "total_nucleotides": 7298
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group19",
+      "id": "linearturbofold-16S-25-k5group19",
+      "input": "inputs/linearturbofold-16S-25-k5group19.fa",
+      "max_sequence_length": 1482,
+      "min_sequence_length": 1408,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group19/16S_rRNA_database_Alphaproteobacteria-AF530468.seq",
+        "data/16S-25/k5group19/16S_rRNA_database_Alphaproteobacteria-AJ920036.seq",
+        "data/16S-25/k5group19/16S_rRNA_database_Alphaproteobacteria-AM229669.seq",
+        "data/16S-25/k5group19/16S_rRNA_database_Alphaproteobacteria-DQ354613.seq",
+        "data/16S-25/k5group19/16S_rRNA_database_Alphaproteobacteria-L28944.seq"
+      ],
+      "source_git_blob_sha1": [
+        "75c896e1889672a883b297c52c2c5b486489618b",
+        "ea04280240ea29984404860f6781e07e8320d1da",
+        "89dea877432d7d181a635964498f931b2763fc6e",
+        "c956aba26d18cffffa541f834df007876fb4504d",
+        "69bba2bc919f3f7acb7010dc67111cccca01c2f0"
+      ],
+      "total_nucleotides": 7121
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group2",
+      "id": "linearturbofold-16S-25-k5group2",
+      "input": "inputs/linearturbofold-16S-25-k5group2.fa",
+      "max_sequence_length": 1492,
+      "min_sequence_length": 1413,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group2/16S_rRNA_database_Alphaproteobacteria-AE009201.seq",
+        "data/16S-25/k5group2/16S_rRNA_database_Alphaproteobacteria-AY513495.seq",
+        "data/16S-25/k5group2/16S_rRNA_database_Alphaproteobacteria-D30776.seq",
+        "data/16S-25/k5group2/16S_rRNA_database_Alphaproteobacteria-DQ196416.seq",
+        "data/16S-25/k5group2/16S_rRNA_database_Alphaproteobacteria-DQ486985.seq"
+      ],
+      "source_git_blob_sha1": [
+        "b68eb4ff3fe7c4b432b3af1d29744173ecda3678",
+        "9151debc1c6e454b2992a443c24c3aeae92d1b08",
+        "4165d15b507898b3c8213f19927c9485773ea4dc",
+        "4bcdaf089f04882839e6649dd979b9246cf6441e",
+        "68d91e5e48d661711d106b14024557b58ec8ddb4"
+      ],
+      "total_nucleotides": 7231
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group20",
+      "id": "linearturbofold-16S-25-k5group20",
+      "input": "inputs/linearturbofold-16S-25-k5group20.fa",
+      "max_sequence_length": 1494,
+      "min_sequence_length": 1409,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group20/16S_rRNA_database_Alphaproteobacteria-AB110711.seq",
+        "data/16S-25/k5group20/16S_rRNA_database_Alphaproteobacteria-AJ431636.seq",
+        "data/16S-25/k5group20/16S_rRNA_database_Alphaproteobacteria-AY875977.seq",
+        "data/16S-25/k5group20/16S_rRNA_database_Alphaproteobacteria-X81185.seq",
+        "data/16S-25/k5group20/16S_rRNA_database_Alphaproteobacteria-X87167.seq"
+      ],
+      "source_git_blob_sha1": [
+        "b2ea4cd0ecb1e9ae3505ae2db2cdc2a4190d26dc",
+        "581a25fd8f73f4735e06bedb3a9e8ed4c57c48df",
+        "b8fb6a8948d881434a19621281506504d1c2c71c",
+        "f187479d183af517dfe94e8de5d6dc3bbf991a2f",
+        "2a23afb656fd9d2e9edb60ced0c71243b23b6eb2"
+      ],
+      "total_nucleotides": 7316
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group21",
+      "id": "linearturbofold-16S-25-k5group21",
+      "input": "inputs/linearturbofold-16S-25-k5group21.fa",
+      "max_sequence_length": 1440,
+      "min_sequence_length": 1402,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group21/16S_rRNA_database_Alphaproteobacteria-AF510612.seq",
+        "data/16S-25/k5group21/16S_rRNA_database_Alphaproteobacteria-AJ420775.seq",
+        "data/16S-25/k5group21/16S_rRNA_database_Alphaproteobacteria-AY599681.seq",
+        "data/16S-25/k5group21/16S_rRNA_database_Alphaproteobacteria-L02887.seq",
+        "data/16S-25/k5group21/16S_rRNA_database_Alphaproteobacteria-X70401.seq"
+      ],
+      "source_git_blob_sha1": [
+        "177f8ab370ada98f7d4c5db853e3fca2b2facd49",
+        "427b47d83782135408b789cbe3446b1976b7d1fc",
+        "b40e64c6ea5e88c00cd4fba4ecfe06d78f57300e",
+        "8938951d34c544c743d9fdac664ef16bad107aab",
+        "01314740bb26b63c93efb44e1c741c59c725dac4"
+      ],
+      "total_nucleotides": 7135
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group22",
+      "id": "linearturbofold-16S-25-k5group22",
+      "input": "inputs/linearturbofold-16S-25-k5group22.fa",
+      "max_sequence_length": 1460,
+      "min_sequence_length": 1409,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group22/16S_rRNA_database_Alphaproteobacteria-AB178419.seq",
+        "data/16S-25/k5group22/16S_rRNA_database_Alphaproteobacteria-AY904750.seq",
+        "data/16S-25/k5group22/16S_rRNA_database_Alphaproteobacteria-D13429.seq",
+        "data/16S-25/k5group22/16S_rRNA_database_Alphaproteobacteria-DQ848137.seq",
+        "data/16S-25/k5group22/16S_rRNA_database_Alphaproteobacteria-M21293.seq"
+      ],
+      "source_git_blob_sha1": [
+        "38702583a4a3bb01bedca1413efc9193e731dfc3",
+        "0769fddcf302be767ba8dfda50aaa56dc3621b2d",
+        "a69080429c0270f1596d378aae18e827696f8bd3",
+        "81b4eaaedab6c9f7edde4d8f0efb0d97bc4771a7",
+        "a35be4fe95db149c590e7301e51274178084d7ac"
+      ],
+      "total_nucleotides": 7218
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group23",
+      "id": "linearturbofold-16S-25-k5group23",
+      "input": "inputs/linearturbofold-16S-25-k5group23.fa",
+      "max_sequence_length": 1482,
+      "min_sequence_length": 1410,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group23/16S_rRNA_database_Alphaproteobacteria-AF514705.seq",
+        "data/16S-25/k5group23/16S_rRNA_database_Alphaproteobacteria-AJ550273.seq",
+        "data/16S-25/k5group23/16S_rRNA_database_Alphaproteobacteria-AY904771.seq",
+        "data/16S-25/k5group23/16S_rRNA_database_Alphaproteobacteria-DQ022832.seq",
+        "data/16S-25/k5group23/16S_rRNA_database_Alphaproteobacteria-DQ641912.seq"
+      ],
+      "source_git_blob_sha1": [
+        "a8a328725f73fd064cb552ec0ad15f3654f90e4c",
+        "fd4a6a2ac7c02041af7a41515e9b9b7dd2768021",
+        "39d10d75fb5285613708fad531f8017ebad1dc33",
+        "6c191bac201f2c64b183108fa6488f168641514f",
+        "1a1ca88e0165a17a1590f9211a9499fcc98e085d"
+      ],
+      "total_nucleotides": 7295
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group24",
+      "id": "linearturbofold-16S-25-k5group24",
+      "input": "inputs/linearturbofold-16S-25-k5group24.fa",
+      "max_sequence_length": 1468,
+      "min_sequence_length": 1412,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group24/16S_rRNA_database_Alphaproteobacteria-AF445712.seq",
+        "data/16S-25/k5group24/16S_rRNA_database_Alphaproteobacteria-AY491064.seq",
+        "data/16S-25/k5group24/16S_rRNA_database_Alphaproteobacteria-AY513529.seq",
+        "data/16S-25/k5group24/16S_rRNA_database_Alphaproteobacteria-D14504.seq",
+        "data/16S-25/k5group24/16S_rRNA_database_Alphaproteobacteria-U12462.seq"
+      ],
+      "source_git_blob_sha1": [
+        "ea743845add2509f93f7ea6bd1a50e518127c89a",
+        "52b3d90768066cf0b578d75868210f924d6dd968",
+        "c448f5b5a23957baf8fdaf9fb535e1dcd6c7d4c5",
+        "6fc1f3bb0ae18e2e88f1dfbabe54395777847fd9",
+        "d8a23239f41dbffc7f2e7301e3d659ff1cb5f768"
+      ],
+      "total_nucleotides": 7199
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group3",
+      "id": "linearturbofold-16S-25-k5group3",
+      "input": "inputs/linearturbofold-16S-25-k5group3.fa",
+      "max_sequence_length": 1471,
+      "min_sequence_length": 1411,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group3/16S_rRNA_database_Alphaproteobacteria-AF395034.seq",
+        "data/16S-25/k5group3/16S_rRNA_database_Alphaproteobacteria-AY500256.seq",
+        "data/16S-25/k5group3/16S_rRNA_database_Alphaproteobacteria-D12791.seq",
+        "data/16S-25/k5group3/16S_rRNA_database_Alphaproteobacteria-DQ303337.seq",
+        "data/16S-25/k5group3/16S_rRNA_database_Alphaproteobacteria-Z79620.seq"
+      ],
+      "source_git_blob_sha1": [
+        "06a3030cea3927ce0a1379f591f7bc97ede5c82d",
+        "9b5ba947381b7088bac7a84a8a5eb9ebdb37c658",
+        "783eba033d294b7dd123ae5ea10a7f16fc9e170b",
+        "25911b1b03fe4455bc8f4651890c0e539510e18f",
+        "dccd87710c19e669a70aa2beead36950fbec7850"
+      ],
+      "total_nucleotides": 7196
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group4",
+      "id": "linearturbofold-16S-25-k5group4",
+      "input": "inputs/linearturbofold-16S-25-k5group4.fa",
+      "max_sequence_length": 1481,
+      "min_sequence_length": 1411,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group4/16S_rRNA_database_Alphaproteobacteria-AB230988.seq",
+        "data/16S-25/k5group4/16S_rRNA_database_Alphaproteobacteria-AF526933.seq",
+        "data/16S-25/k5group4/16S_rRNA_database_Alphaproteobacteria-AY697886.seq",
+        "data/16S-25/k5group4/16S_rRNA_database_Alphaproteobacteria-DQ196417.seq",
+        "data/16S-25/k5group4/16S_rRNA_database_Alphaproteobacteria-X75620.seq"
+      ],
+      "source_git_blob_sha1": [
+        "b77617d3ecd9243cb6775cddf5d1f959bf405b36",
+        "73156a4879f49fa027341c6e2e54c3146cf9f2b3",
+        "d20dfb4a7e8ee1654c6fc4c6e9fa5319ec3cb632",
+        "46a438947ab11e741152393e1dc7f79e7a36523d",
+        "de34650a5de43c5f20d759ff6c962df9aa28c90d"
+      ],
+      "total_nucleotides": 7208
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group5",
+      "id": "linearturbofold-16S-25-k5group5",
+      "input": "inputs/linearturbofold-16S-25-k5group5.fa",
+      "max_sequence_length": 1481,
+      "min_sequence_length": 1407,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group5/16S_rRNA_database_Alphaproteobacteria-AJ244647.seq",
+        "data/16S-25/k5group5/16S_rRNA_database_Alphaproteobacteria-AY329631.seq",
+        "data/16S-25/k5group5/16S_rRNA_database_Alphaproteobacteria-D25306.seq",
+        "data/16S-25/k5group5/16S_rRNA_database_Alphaproteobacteria-DQ485704.seq",
+        "data/16S-25/k5group5/16S_rRNA_database_Alphaproteobacteria-DQ664249.seq"
+      ],
+      "source_git_blob_sha1": [
+        "04b70b3265ab177b9ad387ed71abe1843be956c7",
+        "78c33f3d65cb6d5bdb02ba1573b845a2924bf117",
+        "3091b34a8aa0ce12c8f97a782da32c753a81f494",
+        "6d686a8de414289cf2bf1341685e3cadfed13ec1",
+        "527f2cf05134990c87060a0f0f643b4d9937d27a"
+      ],
+      "total_nucleotides": 7139
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group6",
+      "id": "linearturbofold-16S-25-k5group6",
+      "input": "inputs/linearturbofold-16S-25-k5group6.fa",
+      "max_sequence_length": 1453,
+      "min_sequence_length": 1403,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group6/16S_rRNA_database_Alphaproteobacteria-AB175645.seq",
+        "data/16S-25/k5group6/16S_rRNA_database_Alphaproteobacteria-AJ563932.seq",
+        "data/16S-25/k5group6/16S_rRNA_database_Alphaproteobacteria-DQ202331.seq",
+        "data/16S-25/k5group6/16S_rRNA_database_Alphaproteobacteria-U12457.seq",
+        "data/16S-25/k5group6/16S_rRNA_database_Alphaproteobacteria-X67222.seq"
+      ],
+      "source_git_blob_sha1": [
+        "629b7f66a3be6be7f6060d7c6ca6db39c1571765",
+        "8025e8a9b10723af9909d5867e9815d6ae42b3e7",
+        "a4b134eda931e459232a0af68c1f439807cba5ff",
+        "dcffa5a796d6edb9a0a1df5934193541de7b0045",
+        "8a06da46563774ce6b714a8079cbf0bb9458a5eb"
+      ],
+      "total_nucleotides": 7137
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group7",
+      "id": "linearturbofold-16S-25-k5group7",
+      "input": "inputs/linearturbofold-16S-25-k5group7.fa",
+      "max_sequence_length": 1466,
+      "min_sequence_length": 1409,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group7/16S_rRNA_database_Alphaproteobacteria-AB110708.seq",
+        "data/16S-25/k5group7/16S_rRNA_database_Alphaproteobacteria-AF411072.seq",
+        "data/16S-25/k5group7/16S_rRNA_database_Alphaproteobacteria-AF485365.seq",
+        "data/16S-25/k5group7/16S_rRNA_database_Alphaproteobacteria-AY689029.seq",
+        "data/16S-25/k5group7/16S_rRNA_database_Alphaproteobacteria-D16146.seq"
+      ],
+      "source_git_blob_sha1": [
+        "f1aff1b4601c399c8d8a45ea17251b5a6501a51a",
+        "84cc0736c184f976f23ddfec6414519ac40bb3d1",
+        "36dda7d50a8e89a3ad132e396c0397325c729428",
+        "9585d7eb3ef1c2028fb825056fdf087abdbda977",
+        "7b387e874ca2275c1998ce6e8e9532880481dbf3"
+      ],
+      "total_nucleotides": 7158
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group8",
+      "id": "linearturbofold-16S-25-k5group8",
+      "input": "inputs/linearturbofold-16S-25-k5group8.fa",
+      "max_sequence_length": 1487,
+      "min_sequence_length": 1402,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group8/16S_rRNA_database_Alphaproteobacteria-AF510602.seq",
+        "data/16S-25/k5group8/16S_rRNA_database_Alphaproteobacteria-AY468363.seq",
+        "data/16S-25/k5group8/16S_rRNA_database_Alphaproteobacteria-AY649435.seq",
+        "data/16S-25/k5group8/16S_rRNA_database_Alphaproteobacteria-DQ374100.seq",
+        "data/16S-25/k5group8/16S_rRNA_database_Alphaproteobacteria-L01259.seq"
+      ],
+      "source_git_blob_sha1": [
+        "0fc33e469969842633b519bd31a3a622739c9d92",
+        "3b200599b33007730260d81f88012a2d2d45dbaf",
+        "ba6799c539da99a7d0446fd9d5f9fc48a6588fd9",
+        "532241d78a14cb96b074768e737b6ff6566e431b",
+        "aa578c0e648ae44882e88c4f458bc52a9433e277"
+      ],
+      "total_nucleotides": 7237
+    },
+    {
+      "collection": "16S-25",
+      "group": "k5group9",
+      "id": "linearturbofold-16S-25-k5group9",
+      "input": "inputs/linearturbofold-16S-25-k5group9.fa",
+      "max_sequence_length": 1455,
+      "min_sequence_length": 1423,
+      "sequence_count": 5,
+      "source_files": [
+        "data/16S-25/k5group9/16S_rRNA_database_Alphaproteobacteria-AJ250247.seq",
+        "data/16S-25/k5group9/16S_rRNA_database_Alphaproteobacteria-AY491080.seq",
+        "data/16S-25/k5group9/16S_rRNA_database_Alphaproteobacteria-AY904749.seq",
+        "data/16S-25/k5group9/16S_rRNA_database_Alphaproteobacteria-D12798.seq",
+        "data/16S-25/k5group9/16S_rRNA_database_Alphaproteobacteria-DQ664243.seq"
+      ],
+      "source_git_blob_sha1": [
+        "f10210c61ee4ce95b8e99d2e3ce43bf1217dc836",
+        "ba03602e84904a5c403883352f597a9ba9f1bc30",
+        "e102ee277ec899d6b157e31c3391ecdeeb0abf41",
+        "8e67ffc0b16608b942324ff79322fa39a4f802c6",
+        "f3f093a8e7639ce2b3b54eefbe76d67d94ab6103"
+      ],
+      "total_nucleotides": 7188
+    },
+    {
+      "collection": "23S-5",
+      "group": "k523sgroup0",
+      "id": "linearturbofold-23S-5-k523sgroup0",
+      "input": "inputs/linearturbofold-23S-5-k523sgroup0.fa",
+      "max_sequence_length": 2850,
+      "min_sequence_length": 2700,
+      "sequence_count": 5,
+      "source_files": [
+        "data/23S-5/k523sgroup0/d.23.b.B.bacilliformis.nopbpseq.seq",
+        "data/23S-5/k523sgroup0/d.23.b.R.prowazekii.nopbpseq.seq",
+        "data/23S-5/k523sgroup0/d.23.b.R.rickettsii.nopbpseq.seq",
+        "data/23S-5/k523sgroup0/d.23.c.P.falciparum.nopbpseq.seq",
+        "data/23S-5/k523sgroup0/d.23.e.G.intestinalis.nopbpseq.seq"
+      ],
+      "source_git_blob_sha1": [
+        "902b72f8e44ca2ed7c3e08b02a27f6fcedc8521f",
+        "d1a2e4b84cee7046105b8ec502a90b1c8b0135d1",
+        "34e6eda1ce40a716833cdbd76f1dd3770b8f21cb",
+        "b82a371a1a651f4c086916cfa5fea39f42d52964",
+        "9210af8a27c4fd331b6135751b094461fab82c39"
+      ],
+      "total_nucleotides": 13893
+    },
+    {
+      "collection": "23S-5",
+      "group": "k523sgroup1",
+      "id": "linearturbofold-23S-5-k523sgroup1",
+      "input": "inputs/linearturbofold-23S-5-k523sgroup1.fa",
+      "max_sequence_length": 2882,
+      "min_sequence_length": 2867,
+      "sequence_count": 5,
+      "source_files": [
+        "data/23S-5/k523sgroup1/d.23.b.B.bronchiseptica.nopbpseq.seq",
+        "data/23S-5/k523sgroup1/d.23.b.B.cepacia.nopbpseq.seq",
+        "data/23S-5/k523sgroup1/d.23.b.B.mallei.nopbpseq.seq",
+        "data/23S-5/k523sgroup1/d.23.b.B.pseudomallei.nopbpseq.seq",
+        "data/23S-5/k523sgroup1/d.23.b.R.amylophilus.nopbpseq.seq"
+      ],
+      "source_git_blob_sha1": [
+        "de63bf5fd127129b0cbf4f78e212beb2b26ea9a8",
+        "c6a3104f4a36e0af758a9700d837ce37ddfee35e",
+        "8ffa6ded05bcc42b5f888e8ff6043a17950812cf",
+        "8ef766a4af891adf76ea60f9e2b40219575785cf",
+        "e7685c56499f7153fefb13868af9c87a56a45c85"
+      ],
+      "total_nucleotides": 14389
+    },
+    {
+      "collection": "23S-5",
+      "group": "k523sgroup2",
+      "id": "linearturbofold-23S-5-k523sgroup2",
+      "input": "inputs/linearturbofold-23S-5-k523sgroup2.fa",
+      "max_sequence_length": 2926,
+      "min_sequence_length": 2759,
+      "sequence_count": 5,
+      "source_files": [
+        "data/23S-5/k523sgroup2/d.23.b.B.bacilliformis.nopbpseq.seq",
+        "data/23S-5/k523sgroup2/d.23.b.B.mallei.nopbpseq.seq",
+        "data/23S-5/k523sgroup2/d.23.b.C.jejuni.nopbpseq.seq",
+        "data/23S-5/k523sgroup2/d.23.b.R.rickettsii.nopbpseq.seq",
+        "data/23S-5/k523sgroup2/d.23.y.C.paradoxa.nopbpseq.seq"
+      ],
+      "source_git_blob_sha1": [
+        "902b72f8e44ca2ed7c3e08b02a27f6fcedc8521f",
+        "8ffa6ded05bcc42b5f888e8ff6043a17950812cf",
+        "41c291b88849fc99117eb57b30ab6d7aade816d7",
+        "34e6eda1ce40a716833cdbd76f1dd3770b8f21cb",
+        "777bf1301bcd2fd476ebc4caa10c7521cdc36ceb"
+      ],
+      "total_nucleotides": 14295
+    },
+    {
+      "collection": "23S-5",
+      "group": "k523sgroup4",
+      "id": "linearturbofold-23S-5-k523sgroup4",
+      "input": "inputs/linearturbofold-23S-5-k523sgroup4.fa",
+      "max_sequence_length": 2907,
+      "min_sequence_length": 2903,
+      "sequence_count": 5,
+      "source_files": [
+        "data/23S-5/k523sgroup4/d.23.b.A.calcoaceticus.nopbpseq.seq",
+        "data/23S-5/k523sgroup4/d.23.b.C.freundii.nopbpseq.seq",
+        "data/23S-5/k523sgroup4/d.23.b.C.jejuni.nopbpseq.seq",
+        "data/23S-5/k523sgroup4/d.23.b.E.coli.nopbpseq.seq",
+        "data/23S-5/k523sgroup4/d.23.b.K.pneumoniae.nopbpseq.seq"
+      ],
+      "source_git_blob_sha1": [
+        "268900e10bf3c3ec6e22435222978db38cf8021a",
+        "89e279c1bffd1fbb9d5c76a5a92f452865817bbb",
+        "41c291b88849fc99117eb57b30ab6d7aade816d7",
+        "a91146aa704154c8b7db51a88e9864664f44b02a",
+        "2f8852115b925dbb842c9f17a005ea851b6c8492"
+      ],
+      "total_nucleotides": 14523
+    },
+    {
+      "collection": "23S-5",
+      "group": "k523sgroup6",
+      "id": "linearturbofold-23S-5-k523sgroup6",
+      "input": "inputs/linearturbofold-23S-5-k523sgroup6.fa",
+      "max_sequence_length": 2926,
+      "min_sequence_length": 2920,
+      "sequence_count": 5,
+      "source_files": [
+        "data/23S-5/k523sgroup6/d.23.a.H.marismortui.1.nopbpseq.seq",
+        "data/23S-5/k523sgroup6/d.23.b.B.anthracis.nopbpseq.seq",
+        "data/23S-5/k523sgroup6/d.23.b.S.aureus.nopbpseq.seq",
+        "data/23S-5/k523sgroup6/d.23.b.S.carnosus.nopbpseq.seq",
+        "data/23S-5/k523sgroup6/d.23.y.C.paradoxa.nopbpseq.seq"
+      ],
+      "source_git_blob_sha1": [
+        "b15b594ba367a34f98e283d67eb7f63af2f19924",
+        "98de3878983bd410d421b9bb95f29ad902157362",
+        "3fa39c5829c0c7a8f46d10b3c70b00aa386eaa45",
+        "c738f7464a7188a3a08a858522fdf86b1ab68a2c",
+        "777bf1301bcd2fd476ebc4caa10c7521cdc36ceb"
+      ],
+      "total_nucleotides": 14618
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group35",
+      "id": "linearturbofold-RNaseP-20-k5group35",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group35.fa",
+      "max_sequence_length": 434,
+      "min_sequence_length": 338,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group35/RNaseP_database_a_bacterial-C.trachomatis.seq",
+        "data/RNaseP-20/k5group35/RNaseP_database_a_bacterial-M.tuberculosis.seq",
+        "data/RNaseP-20/k5group35/RNaseP_database_a_bacterial-SM-A06.seq",
+        "data/RNaseP-20/k5group35/RNaseP_database_a_bacterial-T.maritima-g.seq",
+        "data/RNaseP-20/k5group35/RNaseP_database_a_bacterial-V.spinosum.seq"
+      ],
+      "source_git_blob_sha1": [
+        "5d5b2994151994cd7e1e8e8a362164f9cc6c73da",
+        "25144af48e8c50320a57095dd9153e4800bf0275",
+        "f4a463b769ddf77231a698fdeabfe82ec942ecb4",
+        "65fccaad3431978fddf155b6d36c3aa64a61e676",
+        "b56d317fbc44f1ca38e4ee5124671a862ce9f514"
+      ],
+      "total_nucleotides": 1887
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group36",
+      "id": "linearturbofold-RNaseP-20-k5group36",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group36.fa",
+      "max_sequence_length": 377,
+      "min_sequence_length": 332,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group36/RNaseP_database_a_bacterial-C.difficile.seq",
+        "data/RNaseP-20/k5group36/RNaseP_database_a_bacterial-SM-A16(21).seq",
+        "data/RNaseP-20/k5group36/RNaseP_database_a_bacterial-SM-A18(31).seq",
+        "data/RNaseP-20/k5group36/RNaseP_database_a_bacterial-SM-A21(35).seq",
+        "data/RNaseP-20/k5group36/RNaseP_database_a_bacterial-Y.pestis.seq"
+      ],
+      "source_git_blob_sha1": [
+        "24b7abadb37dbca177ba041497e9c57d16c865b1",
+        "fd442133404c04a6a7e86ec87ff1df9e9938ce16",
+        "90c11aee83afec804ffcd598717675b4384c042e",
+        "694079071d9048eb607b45cb2ad5bf3079fa6a0a",
+        "41d49b27bf1479dcc240f36e29f5339963bc3d57"
+      ],
+      "total_nucleotides": 1737
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group37",
+      "id": "linearturbofold-RNaseP-20-k5group37",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group37.fa",
+      "max_sequence_length": 467,
+      "min_sequence_length": 347,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group37/RNaseP_database_a_bacterial-A.nidulans.seq",
+        "data/RNaseP-20/k5group37/RNaseP_database_a_bacterial-Calothrix-PCC7601.seq",
+        "data/RNaseP-20/k5group37/RNaseP_database_a_bacterial-LGB23.seq",
+        "data/RNaseP-20/k5group37/RNaseP_database_a_bacterial-P.gingivalis.seq",
+        "data/RNaseP-20/k5group37/RNaseP_database_a_bacterial-P.marinus-2.seq"
+      ],
+      "source_git_blob_sha1": [
+        "0c774f94f9c0a905ca229ce6c360195f154ca414",
+        "c6e0e60c4f9b721913b16cbd18bdd62c46f967bb",
+        "709f17f599ec5e5da7bfa52965ece43d25558a98",
+        "68b484504be0f538cdadfdd9edf33db54a6fe401",
+        "7a2e3fad254d7adf100e7f683b8ab83a339b747e"
+      ],
+      "total_nucleotides": 1984
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group38",
+      "id": "linearturbofold-RNaseP-20-k5group38",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group38.fa",
+      "max_sequence_length": 406,
+      "min_sequence_length": 341,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group38/RNaseP_database_a_bacterial-A.eutrophus.seq",
+        "data/RNaseP-20/k5group38/RNaseP_database_a_bacterial-A.ferrooxidans.seq",
+        "data/RNaseP-20/k5group38/RNaseP_database_a_bacterial-B.burgdorferi-g.seq",
+        "data/RNaseP-20/k5group38/RNaseP_database_a_bacterial-C.pneumoniae-AR39.seq",
+        "data/RNaseP-20/k5group38/RNaseP_database_a_bacterial-C.psittaci-R54.seq"
+      ],
+      "source_git_blob_sha1": [
+        "dbc7e9fe667d9665adf74b66b756da17091c132a",
+        "18b37ac04ec3b33e497a6281202a6cea5f79e4a1",
+        "61261f5f733609dd82b3e58056944380de9db8a8",
+        "a59dbd392ca2a93e2fde7b6658a2ec856f7817bc",
+        "b9aad9610cb60f180d111bf2a97b61f3d3ea2c49"
+      ],
+      "total_nucleotides": 1794
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group39",
+      "id": "linearturbofold-RNaseP-20-k5group39",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group39.fa",
+      "max_sequence_length": 425,
+      "min_sequence_length": 339,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group39/RNaseP_database_a_bacterial-C.diphtheriae.seq",
+        "data/RNaseP-20/k5group39/RNaseP_database_a_bacterial-D.desulfuricans.seq",
+        "data/RNaseP-20/k5group39/RNaseP_database_a_bacterial-LGA6.seq",
+        "data/RNaseP-20/k5group39/RNaseP_database_a_bacterial-S.cyanea-K168T.seq",
+        "data/RNaseP-20/k5group39/RNaseP_database_a_bacterial-S.glauca-K195.seq"
+      ],
+      "source_git_blob_sha1": [
+        "0c6e387ecf665179e476c8da6b65a4d7ed010cac",
+        "52eb57864c1a7820754561cd19491f2d6181be11",
+        "b6ece48668cdad39c149b21cc56549977fe5acaa",
+        "ec229148e413572f77453fbeee4b41ad81a5401d",
+        "39e82e6ed19e5355559816f251d1cc963daaaabc"
+      ],
+      "total_nucleotides": 1808
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group40",
+      "id": "linearturbofold-RNaseP-20-k5group40",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group40.fa",
+      "max_sequence_length": 399,
+      "min_sequence_length": 341,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group40/RNaseP_database_a_bacterial-C.pecorum-E58.seq",
+        "data/RNaseP-20/k5group40/RNaseP_database_a_bacterial-LGW18.seq",
+        "data/RNaseP-20/k5group40/RNaseP_database_a_bacterial-PS27.seq",
+        "data/RNaseP-20/k5group40/RNaseP_database_a_bacterial-S.marcescens.seq",
+        "data/RNaseP-20/k5group40/RNaseP_database_a_bacterial-S.viridis-K73T.seq"
+      ],
+      "source_git_blob_sha1": [
+        "8e4e11b761e3e006a78c73a31cedbd5c62bbe932",
+        "ceabb44baa2cdb58f4734c1f297d9185d7e2d4d9",
+        "05bf38ed160acbe1cc7bf3eea1cf79dd106403cd",
+        "956021a580005f3a23efd283216da7491406d2f0",
+        "592765f6395f4df84e03622a73a6aedb098c3e59"
+      ],
+      "total_nucleotides": 1811
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group41",
+      "id": "linearturbofold-RNaseP-20-k5group41",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group41.fa",
+      "max_sequence_length": 393,
+      "min_sequence_length": 334,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group41/RNaseP_database_a_bacterial-CPA49.seq",
+        "data/RNaseP-20/k5group41/RNaseP_database_a_bacterial-CPA56.seq",
+        "data/RNaseP-20/k5group41/RNaseP_database_a_bacterial-Nostoc-PCC6705.seq",
+        "data/RNaseP-20/k5group41/RNaseP_database_a_bacterial-PS26.seq",
+        "data/RNaseP-20/k5group41/RNaseP_database_a_bacterial-Wolbachia-sp.seq"
+      ],
+      "source_git_blob_sha1": [
+        "0ca6d3a85f5052cfe606a42fa3ef24d5853b02d3",
+        "031545ac05cc1a4f4d16453bbd0f8fb4875b9f3b",
+        "bbc0787ed6b5565137c10b0491fc61f5dbe8b7c6",
+        "54379a5378cd1b3cc439f61236c374c9ec6c29fe",
+        "0731f52916c232364369ce8f8cf7dbf616483519"
+      ],
+      "total_nucleotides": 1797
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group42",
+      "id": "linearturbofold-RNaseP-20-k5group42",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group42.fa",
+      "max_sequence_length": 354,
+      "min_sequence_length": 331,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group42/RNaseP_database_a_bacterial-C.psittaci-2.seq",
+        "data/RNaseP-20/k5group42/RNaseP_database_a_bacterial-LGW23.seq",
+        "data/RNaseP-20/k5group42/RNaseP_database_a_bacterial-S.putrefaciens.seq",
+        "data/RNaseP-20/k5group42/RNaseP_database_a_bacterial-SM-A17(26).seq",
+        "data/RNaseP-20/k5group42/RNaseP_database_a_bacterial-T.maritima.seq"
+      ],
+      "source_git_blob_sha1": [
+        "0d95b66dec9a386f3e9fb41ad3a71b8a1bba15a7",
+        "4b2cf68ecf67a52213f3c67c0a761ea1821563ba",
+        "eb859f7afee91b625c8d72eec123da717b661aa7",
+        "3f44535a59da5c2ac1c17649d04e4b53006f2f90",
+        "725446a01acc8784daa638b9cef23d1cc2504255"
+      ],
+      "total_nucleotides": 1693
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group43",
+      "id": "linearturbofold-RNaseP-20-k5group43",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group43.fa",
+      "max_sequence_length": 399,
+      "min_sequence_length": 336,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group43/RNaseP_database_a_bacterial-Anabaena-ATCC29413.seq",
+        "data/RNaseP-20/k5group43/RNaseP_database_a_bacterial-C.pneumoniae.seq",
+        "data/RNaseP-20/k5group43/RNaseP_database_a_bacterial-G.sulfurreducens.seq",
+        "data/RNaseP-20/k5group43/RNaseP_database_a_bacterial-R.prowazekii.seq",
+        "data/RNaseP-20/k5group43/RNaseP_database_a_bacterial-V.cholera.seq"
+      ],
+      "source_git_blob_sha1": [
+        "050193faa35efcf9bff932a9d8f55ab967f1b2d7",
+        "fd441495dcb03ccd5eaaa3a348fc225611459290",
+        "0e45c415ee1fc4f39e769c44bf1772768fdecdbe",
+        "edcaa5a6441a2fcf7b664cda50db518d0f36c6da",
+        "00135732150834cad631ae90ee0e066c5f6cffff"
+      ],
+      "total_nucleotides": 1872
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group44",
+      "id": "linearturbofold-RNaseP-20-k5group44",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group44.fa",
+      "max_sequence_length": 457,
+      "min_sequence_length": 342,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group44/RNaseP_database_a_bacterial-Anabaena-PCC7120.seq",
+        "data/RNaseP-20/k5group44/RNaseP_database_a_bacterial-C.trachomatis-2.seq",
+        "data/RNaseP-20/k5group44/RNaseP_database_a_bacterial-N.meningitidis-Z2491.seq",
+        "data/RNaseP-20/k5group44/RNaseP_database_a_bacterial-Synechococcus-PCC7001.seq",
+        "data/RNaseP-20/k5group44/RNaseP_database_a_bacterial-Synechocystis-PCC6803.seq"
+      ],
+      "source_git_blob_sha1": [
+        "d518cb289d2a85ee8f0a860f39215596a803d815",
+        "5a438dfbf5b888b0e6622599df9151dce8159b8a",
+        "796fadfd96bb0266e7ac79e54183d16411c361da",
+        "7ceaa84b24bdefa6a0eec5309707f94a0efb2658",
+        "59eb7a93512a0cc91e280f16438a34c26f195e33"
+      ],
+      "total_nucleotides": 2004
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group45",
+      "id": "linearturbofold-RNaseP-20-k5group45",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group45.fa",
+      "max_sequence_length": 389,
+      "min_sequence_length": 331,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group45/RNaseP_database_a_bacterial-C.felis-FP.seq",
+        "data/RNaseP-20/k5group45/RNaseP_database_a_bacterial-LGA1.seq",
+        "data/RNaseP-20/k5group45/RNaseP_database_a_bacterial-Nostoc-PCC7107.seq",
+        "data/RNaseP-20/k5group45/RNaseP_database_a_bacterial-S.caesia-K182.seq",
+        "data/RNaseP-20/k5group45/RNaseP_database_a_bacterial-SM-A27(43).seq"
+      ],
+      "source_git_blob_sha1": [
+        "937ef03f588f8e13080f5e45e48cc2c879c545c1",
+        "4814e737ac32b5b074463c34198779ca90c4fdc5",
+        "1bba7500a8b26372db99b4795c503e61065f25d7",
+        "c74694f2ac96fc2f2a2fbcf95374443867c320e4",
+        "642b1ad7ef2fabaa28bdba5f8b50729dbdec7216"
+      ],
+      "total_nucleotides": 1774
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group46",
+      "id": "linearturbofold-RNaseP-20-k5group46",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group46.fa",
+      "max_sequence_length": 423,
+      "min_sequence_length": 333,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group46/RNaseP_database_a_bacterial-C.acetobutylicum.seq",
+        "data/RNaseP-20/k5group46/RNaseP_database_a_bacterial-C.trachomatis-L1.seq",
+        "data/RNaseP-20/k5group46/RNaseP_database_a_bacterial-CPA62.seq",
+        "data/RNaseP-20/k5group46/RNaseP_database_a_bacterial-M.leprae.seq",
+        "data/RNaseP-20/k5group46/RNaseP_database_a_bacterial-Prochlorococcus-PAC1A.seq"
+      ],
+      "source_git_blob_sha1": [
+        "c0a12c5cb7b8af26e75db86bf690fc9c1716ce44",
+        "705d19633126f2b94abed0a09d3b966e1a954e34",
+        "2308c87147cec61b82dc77243cc2f3cd9cfd8ab5",
+        "46e0c7c209aebe6b556fa38de25dfce4a17b8e14",
+        "594de75c54c35d1cd065cf4f7a46cf839e3e0bf2"
+      ],
+      "total_nucleotides": 1853
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group47",
+      "id": "linearturbofold-RNaseP-20-k5group47",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group47.fa",
+      "max_sequence_length": 447,
+      "min_sequence_length": 349,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group47/RNaseP_database_a_bacterial-D.radiodurans-g.seq",
+        "data/RNaseP-20/k5group47/RNaseP_database_a_bacterial-EM14b-11.seq",
+        "data/RNaseP-20/k5group47/RNaseP_database_a_bacterial-R.capsulatus.seq",
+        "data/RNaseP-20/k5group47/RNaseP_database_a_bacterial-R.rubrum.seq",
+        "data/RNaseP-20/k5group47/RNaseP_database_a_bacterial-T.thermophilus.seq"
+      ],
+      "source_git_blob_sha1": [
+        "94fe54613266cbd590ced546a695a77cc3bad68a",
+        "ccc3d4299059716f3a4e3555f3522a1dfb6751dd",
+        "89219736bd3bd9ae414e0c4ffe29d2436b09abad",
+        "2e7fca2fa274addb20133f495b6621590df68d5a",
+        "29212ec79d0ad79eef7721bd8433375f873b2b28"
+      ],
+      "total_nucleotides": 2022
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group48",
+      "id": "linearturbofold-RNaseP-20-k5group48",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group48.fa",
+      "max_sequence_length": 398,
+      "min_sequence_length": 331,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group48/RNaseP_database_a_bacterial-Buchnera-APS.seq",
+        "data/RNaseP-20/k5group48/RNaseP_database_a_bacterial-C.crescentus.seq",
+        "data/RNaseP-20/k5group48/RNaseP_database_a_bacterial-C.hydrogenoformans.seq",
+        "data/RNaseP-20/k5group48/RNaseP_database_a_bacterial-P.marinus.seq",
+        "data/RNaseP-20/k5group48/RNaseP_database_a_bacterial-S.caesia-K76T.seq"
+      ],
+      "source_git_blob_sha1": [
+        "9d53c27fcccf3c867ff088b4b05071a2e2d0a4a2",
+        "c1b6be800bed877829fbe8c518ddb45a8aef1756",
+        "5d585f238f92d5dffe70533dde005332676876c0",
+        "1a419d243698a8e3bfe7857ba08f44d91041ec51",
+        "c76706b76d3bab2ee248d7668dd917db3cbcddb9"
+      ],
+      "total_nucleotides": 1831
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group49",
+      "id": "linearturbofold-RNaseP-20-k5group49",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group49.fa",
+      "max_sequence_length": 374,
+      "min_sequence_length": 337,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group49/RNaseP_database_a_bacterial-B.thetaiotaomicron.seq",
+        "data/RNaseP-20/k5group49/RNaseP_database_a_bacterial-EM14b-9.seq",
+        "data/RNaseP-20/k5group49/RNaseP_database_a_bacterial-P.aeruginosa.seq",
+        "data/RNaseP-20/k5group49/RNaseP_database_a_bacterial-S.typhi.seq",
+        "data/RNaseP-20/k5group49/RNaseP_database_a_bacterial-Saccharomonospora-K180.seq"
+      ],
+      "source_git_blob_sha1": [
+        "1735e72b1552e7ab590a99553aa59f5bbaf821d2",
+        "1b7876505af0f0d0e55efaf014478af63db51c5c",
+        "f8bf8dc5782b67e93bbb07f728d55c3382f6380e",
+        "6a42d9da4da217c7786e1896c84519af0df28fd4",
+        "fab8c424cddf0dfef5dbe8bb932c18a5588b7de0"
+      ],
+      "total_nucleotides": 1777
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group50",
+      "id": "linearturbofold-RNaseP-20-k5group50",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group50.fa",
+      "max_sequence_length": 422,
+      "min_sequence_length": 368,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group50/RNaseP_database_a_bacterial-C.psittaci-6BC.seq",
+        "data/RNaseP-20/k5group50/RNaseP_database_a_bacterial-H.influenza.seq",
+        "data/RNaseP-20/k5group50/RNaseP_database_a_bacterial-M.bovis.seq",
+        "data/RNaseP-20/k5group50/RNaseP_database_a_bacterial-PS31.seq",
+        "data/RNaseP-20/k5group50/RNaseP_database_a_bacterial-Rr368.seq"
+      ],
+      "source_git_blob_sha1": [
+        "d4896f0295cebb62839375e98be9f6edabbfcdc9",
+        "d4b535a75050ff1f0b5f4e013bbe052ec28ade3c",
+        "d0580c56c87ca94a6452d57b46a7bc91e77afb6d",
+        "b97b36e4b78432611a670f5c876f55ea63916bfc",
+        "a80765f88c6b295ea5c651672b4f8ed4c8ddc929"
+      ],
+      "total_nucleotides": 1927
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group51",
+      "id": "linearturbofold-RNaseP-20-k5group51",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group51.fa",
+      "max_sequence_length": 377,
+      "min_sequence_length": 336,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group51/RNaseP_database_a_bacterial-D.vulgaris.seq",
+        "data/RNaseP-20/k5group51/RNaseP_database_a_bacterial-E.coli-JM109.seq",
+        "data/RNaseP-20/k5group51/RNaseP_database_a_bacterial-M.xanthus.seq",
+        "data/RNaseP-20/k5group51/RNaseP_database_a_bacterial-Oscillatoria-PCC7515.seq",
+        "data/RNaseP-20/k5group51/RNaseP_database_a_bacterial-S.caesia-K163.seq"
+      ],
+      "source_git_blob_sha1": [
+        "18d58b58870983af54518d0ea47cdc05e96b36ac",
+        "e8719c160627fb510100c1f585538c5a566184e3",
+        "69b0f070e502ad53d5bb6e926cde4b592a319a3d",
+        "929f9f90140476b2253170b74cd633d66994e39d",
+        "08a0d9e4b705b0aad503796eba5e1919b6b1aa66"
+      ],
+      "total_nucleotides": 1770
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group52",
+      "id": "linearturbofold-RNaseP-20-k5group52",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group52.fa",
+      "max_sequence_length": 394,
+      "min_sequence_length": 331,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group52/RNaseP_database_a_bacterial-A.ferrooxidans-g.seq",
+        "data/RNaseP-20/k5group52/RNaseP_database_a_bacterial-CPB70.seq",
+        "data/RNaseP-20/k5group52/RNaseP_database_a_bacterial-E.thermomarinus.seq",
+        "data/RNaseP-20/k5group52/RNaseP_database_a_bacterial-PF101.seq",
+        "data/RNaseP-20/k5group52/RNaseP_database_a_bacterial-T.aquaticus.seq"
+      ],
+      "source_git_blob_sha1": [
+        "5796594c41d26f75c9bade5dcdbb07d00f306dc1",
+        "568b5f1c721c30c2318a2b844b219d3628bd7acf",
+        "76f345eaa84f053cae5d52bee0542bd9de78bb4f",
+        "6f0ef756be10c5858889cfa117c3a9044e311503",
+        "b3507fec4308bd4011a5f5e840435e45b3067f5b"
+      ],
+      "total_nucleotides": 1786
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group53",
+      "id": "linearturbofold-RNaseP-20-k5group53",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group53.fa",
+      "max_sequence_length": 450,
+      "min_sequence_length": 334,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group53/RNaseP_database_a_bacterial-CPB144.seq",
+        "data/RNaseP-20/k5group53/RNaseP_database_a_bacterial-Pseudoanabaena-PCC6903.seq",
+        "data/RNaseP-20/k5group53/RNaseP_database_a_bacterial-SM-A34(56).seq",
+        "data/RNaseP-20/k5group53/RNaseP_database_a_bacterial-X.fastidiosa.seq",
+        "data/RNaseP-20/k5group53/RNaseP_database_a_bacterial-vHge3-5.seq"
+      ],
+      "source_git_blob_sha1": [
+        "4010ecd54aa838034f31b15c821ef2488722771b",
+        "b7eac0abed2af28fe5cf728db397074a9c0aa771",
+        "3944a3791cac5ea1c75bfb30cc309c052c68f9aa",
+        "7b8cf3da08ba2666684adcccc04c92ff7712a9bd",
+        "8f1cc9df200c49cc5f6cd6da73a32c9a1efaa1cc"
+      ],
+      "total_nucleotides": 1923
+    },
+    {
+      "collection": "RNaseP-20",
+      "group": "k5group54",
+      "id": "linearturbofold-RNaseP-20-k5group54",
+      "input": "inputs/linearturbofold-RNaseP-20-k5group54.fa",
+      "max_sequence_length": 433,
+      "min_sequence_length": 333,
+      "sequence_count": 5,
+      "source_files": [
+        "data/RNaseP-20/k5group54/RNaseP_database_a_bacterial-C.tepidum.seq",
+        "data/RNaseP-20/k5group54/RNaseP_database_a_bacterial-LGW17.seq",
+        "data/RNaseP-20/k5group54/RNaseP_database_a_bacterial-M.tuberculosis-g.seq",
+        "data/RNaseP-20/k5group54/RNaseP_database_a_bacterial-Nostoc-PCC7413.seq",
+        "data/RNaseP-20/k5group54/RNaseP_database_a_bacterial-Prochlorococcus-NATL1.seq"
+      ],
+      "source_git_blob_sha1": [
+        "0f97c5da29f843038c10e30ae2b09fe7079b8da5",
+        "aa1665a1619fa69be922bee8f50060ae51131d53",
+        "342e9208be310e82154921695502c9065d9f6ec6",
+        "385246b5a3ca05e498d5b5dd8f7a7310c7d10994",
+        "98693fb814b71ec7defe06a3808cd9ed1c25136d"
+      ],
+      "total_nucleotides": 1949
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group25",
+      "id": "linearturbofold-SRP-10-k5group25",
+      "input": "inputs/linearturbofold-SRP-10-k5group25.fa",
+      "max_sequence_length": 283,
+      "min_sequence_length": 210,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group25/SRP_database_protozoan-Babe.bige._GSP-5866.seq",
+        "data/SRP-10/k5group25/SRP_database_protozoan-Enta.hist._AF487684.seq",
+        "data/SRP-10/k5group25/SRP_database_protozoan-Leis.infa._AM502223.seq",
+        "data/SRP-10/k5group25/SRP_database_protozoan-Tetr.ther._X56981.seq",
+        "data/SRP-10/k5group25/SRP_database_protozoan-Tryp.bruc._AF047723.seq"
+      ],
+      "source_git_blob_sha1": [
+        "5ac14ea6ff27564db4790e575b53eeaab5b10c35",
+        "b4f8b095dfa4fe192b1913a9b882bc4684c34e8b",
+        "de9323a8544bc8f95ceeec3f8f1bc9f31f837414",
+        "dfbe4ec8d98889800006e5150e052178417fa005",
+        "0a9782fc2ae941b6abf6f3f089d83ffef8c1fa35"
+      ],
+      "total_nucleotides": 1325
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group26",
+      "id": "linearturbofold-SRP-10-k5group26",
+      "input": "inputs/linearturbofold-SRP-10-k5group26.fa",
+      "max_sequence_length": 314,
+      "min_sequence_length": 271,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group26/SRP_database_protozoan-Cryp.homi._GSP-353151.seq",
+        "data/SRP-10/k5group26/SRP_database_protozoan-Enta.inva._GSP-370355.seq",
+        "data/SRP-10/k5group26/SRP_database_protozoan-Oxyt.trif._GSP-99928.seq",
+        "data/SRP-10/k5group26/SRP_database_protozoan-Phyt.ramo._GSP-164328.seq",
+        "data/SRP-10/k5group26/SRP_database_protozoan-Tetr.rost._SDB-5909.seq"
+      ],
+      "source_git_blob_sha1": [
+        "7000bd4e8898124202e2ab8d932580abf2944901",
+        "5494eda107788138da85cde8fbef02d8dfcee1b7",
+        "67122de3e85012b3a5eb3336bc3c79cb5dc88798",
+        "668d7b7279ad2cc99010c17f1c0a780d3e4b8956",
+        "0d75e860d306cb5c98ef3aca07eb22dd8c8b1309"
+      ],
+      "total_nucleotides": 1471
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group27",
+      "id": "linearturbofold-SRP-10-k5group27",
+      "input": "inputs/linearturbofold-SRP-10-k5group27.fa",
+      "max_sequence_length": 307,
+      "min_sequence_length": 273,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group27/SRP_database_protozoan-Dict.disc._BJ387276.seq",
+        "data/SRP-10/k5group27/SRP_database_protozoan-Leis.infa._SDB-5671.seq",
+        "data/SRP-10/k5group27/SRP_database_protozoan-Lept.coll._AF006750.seq",
+        "data/SRP-10/k5group27/SRP_database_protozoan-Plas.falc._AE014819.seq",
+        "data/SRP-10/k5group27/SRP_database_protozoan-Tryp.bruc._X57047.seq"
+      ],
+      "source_git_blob_sha1": [
+        "0cd8e5574c1d8e4d229ad3067798027b691c01d5",
+        "e70dc280a1c8977ded3bf9ffe690cde4cfaeb50c",
+        "29b85c2cc5af3ae451d66d53a0257756d4004c37",
+        "237e94b396625beae2233012d2d1107dec36026b",
+        "980e4f03f8ff0e250abeb108217b9ba0b26f6846"
+      ],
+      "total_nucleotides": 1416
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group28",
+      "id": "linearturbofold-SRP-10-k5group28",
+      "input": "inputs/linearturbofold-SRP-10-k5group28.fa",
+      "max_sequence_length": 307,
+      "min_sequence_length": 269,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group28/SRP_database_protozoan-Cryp.parv._AA532232.seq",
+        "data/SRP-10/k5group28/SRP_database_protozoan-Eime.tene._CD666347.seq",
+        "data/SRP-10/k5group28/SRP_database_protozoan-Leis.braz._SDB-87235.seq",
+        "data/SRP-10/k5group28/SRP_database_protozoan-Plas.falc._AU088164.seq",
+        "data/SRP-10/k5group28/SRP_database_protozoan-Thei.annu._NW_001091934.seq"
+      ],
+      "source_git_blob_sha1": [
+        "8a6f45b95016f8ef4c1c465a232c92b7095d679e",
+        "31f5dd28f5f3341f532b8485fbf0fa5276d20e9e",
+        "7e2ca86404f3ca85eedb5adf9e47249baec65bbd",
+        "638c9f29dabc6d4c5bc626f44baaa809f61f8217",
+        "fa7bb6a7497c5d72b12d46d208d928d82c901f0c"
+      ],
+      "total_nucleotides": 1408
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group29",
+      "id": "linearturbofold-SRP-10-k5group29",
+      "input": "inputs/linearturbofold-SRP-10-k5group29.fa",
+      "max_sequence_length": 315,
+      "min_sequence_length": 278,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group29/SRP_database_protozoan-Cryp.parv._XM_626716.seq",
+        "data/SRP-10/k5group29/SRP_database_protozoan-Dict.disc._AJ699381.seq",
+        "data/SRP-10/k5group29/SRP_database_protozoan-Perk.mari._GSP-31276.seq",
+        "data/SRP-10/k5group29/SRP_database_protozoan-Phyt.soja._GSP-67593.seq",
+        "data/SRP-10/k5group29/SRP_database_protozoan-Tryp.viva._SDB-5699.seq"
+      ],
+      "source_git_blob_sha1": [
+        "890b187a4b39de483297de29a100d341407151c7",
+        "e57df544f1a07c079a644d62592835f94a4e8395",
+        "80672d924b1b776235a076efd1380e582a694adf",
+        "b9d6cbaa0a2f46286b7d523dd5db227d15d68bf3",
+        "8974bd81894187b7ce5232d4f832881dff8ebcab"
+      ],
+      "total_nucleotides": 1470
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group30",
+      "id": "linearturbofold-SRP-10-k5group30",
+      "input": "inputs/linearturbofold-SRP-10-k5group30.fa",
+      "max_sequence_length": 310,
+      "min_sequence_length": 274,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group30/SRP_database_protozoan-Dict.disc._BJ360333.seq",
+        "data/SRP-10/k5group30/SRP_database_protozoan-Enta.disp._GSP-370354.seq",
+        "data/SRP-10/k5group30/SRP_database_protozoan-Leis.braz._AM494942.seq",
+        "data/SRP-10/k5group30/SRP_database_protozoan-Plas.gall._GSP-5849.seq",
+        "data/SRP-10/k5group30/SRP_database_protozoan-Toxo.gond._GSP-398031.seq"
+      ],
+      "source_git_blob_sha1": [
+        "1c7508af444e63c46909c2e9c0a3b49d3ab5133b",
+        "7d36a8d25f73b057c56e04ee7e9236520d26b3a4",
+        "cde657bc94c090540aed18492ec32836b4cd3eeb",
+        "84018c8022c247f60776f9e5f6f9030b2e6ecc58",
+        "92f345e2f3933e75810edf36ccb6db46f9582e6f"
+      ],
+      "total_nucleotides": 1429
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group31",
+      "id": "linearturbofold-SRP-10-k5group31",
+      "input": "inputs/linearturbofold-SRP-10-k5group31.fa",
+      "max_sequence_length": 312,
+      "min_sequence_length": 271,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group31/SRP_database_protozoan-Eime.tene._GSP-413949.seq",
+        "data/SRP-10/k5group31/SRP_database_protozoan-Enta.mosh._GSP-41668.seq",
+        "data/SRP-10/k5group31/SRP_database_protozoan-Enta.terr._GSP-110771.seq",
+        "data/SRP-10/k5group31/SRP_database_protozoan-Leis.majo._SDB-347515.seq",
+        "data/SRP-10/k5group31/SRP_database_protozoan-Plas.viva._GSP-31273.seq"
+      ],
+      "source_git_blob_sha1": [
+        "2f5c581bf4aad9117f8761d2d09be71668902b2a",
+        "d3be1903532644086b129f9ced63be66e46c501e",
+        "1c510eed5f05aba27f6afd6546cee85a3b0c393e",
+        "2cc6958265e70998a135ba485a5937af89429848",
+        "269d3d6e6467049dac955ff1d2c416690430cb6d"
+      ],
+      "total_nucleotides": 1412
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group32",
+      "id": "linearturbofold-SRP-10-k5group32",
+      "input": "inputs/linearturbofold-SRP-10-k5group32.fa",
+      "max_sequence_length": 307,
+      "min_sequence_length": 271,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group32/SRP_database_protozoan-Enta.hist._BK005670.seq",
+        "data/SRP-10/k5group32/SRP_database_protozoan-Plas.know._GSP-5851.seq",
+        "data/SRP-10/k5group32/SRP_database_protozoan-Tric.vagi._GSP-5722-1.seq",
+        "data/SRP-10/k5group32/SRP_database_protozoan-Tric.vagi._GSP-5722-2.seq",
+        "data/SRP-10/k5group32/SRP_database_protozoan-Tryp.bruc._M80262.seq"
+      ],
+      "source_git_blob_sha1": [
+        "96b0385a950e37ed039fbc19ca55e6ad79f1281b",
+        "f19a273dc43e312a4b9989836f480658cc06fa85",
+        "62c848f63c038344620a306a31ffc243fcfc0b29",
+        "71940d250e3a1a4b8a9e39fcf44d21e0a060a020",
+        "304a12ac7f994d1c97c7eb79fcd57c6447c59573"
+      ],
+      "total_nucleotides": 1459
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group33",
+      "id": "linearturbofold-SRP-10-k5group33",
+      "input": "inputs/linearturbofold-SRP-10-k5group33.fa",
+      "max_sequence_length": 312,
+      "min_sequence_length": 228,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group33/SRP_database_protozoan-Plas.berg._DC223490.seq",
+        "data/SRP-10/k5group33/SRP_database_protozoan-Plas.falc._EF690554.seq",
+        "data/SRP-10/k5group33/SRP_database_protozoan-Plas.reic._GSP-5854.seq",
+        "data/SRP-10/k5group33/SRP_database_protozoan-Plas.yoel._GSP-352914.seq",
+        "data/SRP-10/k5group33/SRP_database_protozoan-Tryp.bruc._S56681.seq"
+      ],
+      "source_git_blob_sha1": [
+        "8a2bdc94e8f4651fffe042b04bc2273aa3eb1313",
+        "ad221357e6cc72e63bcc1754920683e7f5a0bac2",
+        "d207e0305bc0a06e74286db28f2c01b222f1bb96",
+        "c3940d641ff85338e2e7e5e1057e8a0076d89f43",
+        "77bc728f87741038f0a09551aa9011ddcf8db5fc"
+      ],
+      "total_nucleotides": 1413
+    },
+    {
+      "collection": "SRP-10",
+      "group": "k5group34",
+      "id": "linearturbofold-SRP-10-k5group34",
+      "input": "inputs/linearturbofold-SRP-10-k5group34.fa",
+      "max_sequence_length": 319,
+      "min_sequence_length": 255,
+      "sequence_count": 5,
+      "source_files": [
+        "data/SRP-10/k5group34/SRP_database_protozoan-Ento.sulc._AF095839.seq",
+        "data/SRP-10/k5group34/SRP_database_protozoan-Phyt.infe._CV919934.seq",
+        "data/SRP-10/k5group34/SRP_database_protozoan-Plas.berg._DC223613.seq",
+        "data/SRP-10/k5group34/SRP_database_protozoan-Plas.chab._GSP-31271.seq",
+        "data/SRP-10/k5group34/SRP_database_protozoan-Thei.parv._GSP-333668.seq"
+      ],
+      "source_git_blob_sha1": [
+        "c5244d357b5464fecfbeb37dbd0a838faaf93708",
+        "77cc083ab19860dabdcac6904de29c02c950ceb6",
+        "df656f690e4877a0a451dcda0ac1867fa24138e4",
+        "7c73ac6f39a3ff964bc017659711f9d43ba6275d",
+        "c9e52a33672888eb783b6db5d33c27ee11291fc7"
+      ],
+      "total_nucleotides": 1465
+    },
+    {
+      "collection": "telomerase-5",
+      "group": "k5group55",
+      "id": "linearturbofold-telomerase-5-k5group55",
+      "input": "inputs/linearturbofold-telomerase-5-k5group55.fa",
+      "max_sequence_length": 548,
+      "min_sequence_length": 405,
+      "sequence_count": 5,
+      "source_files": [
+        "data/telomerase-5/k5group55/telomerase_database-AF221912.98-564.seq",
+        "data/telomerase-5/k5group55/telomerase_database-AF221915.120-667.seq",
+        "data/telomerase-5/k5group55/telomerase_database-AF221926.103-507.seq",
+        "data/telomerase-5/k5group55/telomerase_database-AF221927.113-556.seq",
+        "data/telomerase-5/k5group55/telomerase_database-AF221939.99-544.seq"
+      ],
+      "source_git_blob_sha1": [
+        "38c4d614b114ff2753066704560a46c7b124454f",
+        "55c3cc09e519af186000155156c6d6388611e1ac",
+        "3328f24c0155543477d573e448577397d78e7255",
+        "89ee8381a42b55f6c033c52873a9cb46066eb5b3",
+        "7a7fd0295ffcd4a1a756005f08ac7bd84f5f1edb"
+      ],
+      "total_nucleotides": 2310
+    },
+    {
+      "collection": "telomerase-5",
+      "group": "k5group56",
+      "id": "linearturbofold-telomerase-5-k5group56",
+      "input": "inputs/linearturbofold-telomerase-5-k5group56.fa",
+      "max_sequence_length": 559,
+      "min_sequence_length": 444,
+      "sequence_count": 5,
+      "source_files": [
+        "data/telomerase-5/k5group56/telomerase_database-AF221906.96-545.seq",
+        "data/telomerase-5/k5group56/telomerase_database-AF221917.99-542.seq",
+        "data/telomerase-5/k5group56/telomerase_database-AF221918.97-547.seq",
+        "data/telomerase-5/k5group56/telomerase_database-AF221933.121-679.seq",
+        "data/telomerase-5/k5group56/telomerase_database-AF221935.112-602.seq"
+      ],
+      "source_git_blob_sha1": [
+        "28b300126b3072094e9be33adf3cddd8a10e80fc",
+        "6a8452f3068edd71094cb0424772d923272019b6",
+        "c222ce94a270764dbbb03cb05306610d484ecb55",
+        "ae15574ddb4f4dfb909c73960b1acc02fd00c2a1",
+        "731facdd948a9090f6874bf301edcdff45bdb70c"
+      ],
+      "total_nucleotides": 2395
+    },
+    {
+      "collection": "telomerase-5",
+      "group": "k5group57",
+      "id": "linearturbofold-telomerase-5-k5group57",
+      "input": "inputs/linearturbofold-telomerase-5-k5group57.fa",
+      "max_sequence_length": 451,
+      "min_sequence_length": 412,
+      "sequence_count": 5,
+      "source_files": [
+        "data/telomerase-5/k5group57/telomerase_database-AF221910.112-554.seq",
+        "data/telomerase-5/k5group57/telomerase_database-AF221913.109-520.seq",
+        "data/telomerase-5/k5group57/telomerase_database-AF221924.105-538.seq",
+        "data/telomerase-5/k5group57/telomerase_database-AF221929.92-517.seq",
+        "data/telomerase-5/k5group57/telomerase_database-U85256.1-451.seq"
+      ],
+      "source_git_blob_sha1": [
+        "df6691117233a26a8b075d2e99876672bbfc65d1",
+        "a49510f2d8ae55e45abf934713b1dfb53d0fc4ae",
+        "8150d3a7ec9e0c1e5d02c153aeaf2332cd8741d3",
+        "165fa77473e75494438f658742327f6a2cf9636a",
+        "99a1cc07dd3bccaeb5c8e9a648b68279a9b4fdb2"
+      ],
+      "total_nucleotides": 2166
+    },
+    {
+      "collection": "telomerase-5",
+      "group": "k5group58",
+      "id": "linearturbofold-telomerase-5-k5group58",
+      "input": "inputs/linearturbofold-telomerase-5-k5group58.fa",
+      "max_sequence_length": 478,
+      "min_sequence_length": 410,
+      "sequence_count": 5,
+      "source_files": [
+        "data/telomerase-5/k5group58/telomerase_database-AF221911.104-513.seq",
+        "data/telomerase-5/k5group58/telomerase_database-AF221914.112-589.seq",
+        "data/telomerase-5/k5group58/telomerase_database-AF221920.99-541.seq",
+        "data/telomerase-5/k5group58/telomerase_database-AF221921.98-548.seq",
+        "data/telomerase-5/k5group58/telomerase_database-AF221931.99-541.seq"
+      ],
+      "source_git_blob_sha1": [
+        "d7a59143252480f3ec2c4ab7b5630b5fc4638ba8",
+        "f892c615b84ccac9d81e540e10b7b6a8473defc4",
+        "487c44ca4847467d0271f012fa90b21940a6ba9e",
+        "f457c1a76f21ad0391d709e13d76d43935937160",
+        "284c99cbcb6310cc6e115d1f0381bf8447e8a95d"
+      ],
+      "total_nucleotides": 2225
+    },
+    {
+      "collection": "telomerase-5",
+      "group": "k5group59",
+      "id": "linearturbofold-telomerase-5-k5group59",
+      "input": "inputs/linearturbofold-telomerase-5-k5group59.fa",
+      "max_sequence_length": 508,
+      "min_sequence_length": 445,
+      "sequence_count": 5,
+      "source_files": [
+        "data/telomerase-5/k5group59/telomerase_database-AF147806.247-692.seq",
+        "data/telomerase-5/k5group59/telomerase_database-AF221919.107-614.seq",
+        "data/telomerase-5/k5group59/telomerase_database-AF221934.121-565.seq",
+        "data/telomerase-5/k5group59/telomerase_database-AF221937.99-545.seq",
+        "data/telomerase-5/k5group59/telomerase_database-AY312571.605-1069.seq"
+      ],
+      "source_git_blob_sha1": [
+        "2307057e781b09922435d4c84f86d4bc6dec2434",
+        "fee5daf945334024179ce7f14d19495daa4f460c",
+        "2019ee266269b5f143d8e1713ff9fe49c3f536b5",
+        "cefa7e56e8d19f818e5048d609f5a45b085c640f",
+        "93e97db4ab0977c15eaca1001dd38e6e51e27c90"
+      ],
+      "total_nucleotides": 2311
+    }
+  ],
+  "excluded_collections": [
+    "HIV-5",
+    "sars-cov-2_data"
+  ],
+  "name": "LinearTurboFold official nonviral evaluation sequences",
+  "paper": "10.1073/pnas.2116269118",
+  "reference_alignment_in_repository": false,
+  "repository": "https://github.com/LinearFold/LinearTurboFold",
+  "schema_version": 1,
+  "source_commit": "445808976857df01c57e5d9302a0bbee10515bb5",
+  "source_data_tree": "e6dd90779d2273240bfa621d7ea3739dbeac92cc"
+}

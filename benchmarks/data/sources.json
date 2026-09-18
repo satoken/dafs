@@ -1,0 +1,40 @@
+{
+  "linearturbofold": {
+    "collections": [
+      "16S-25",
+      "23S-5",
+      "RNaseP-20",
+      "SRP-10",
+      "telomerase-5"
+    ],
+    "commit": "445808976857df01c57e5d9302a0bbee10515bb5",
+    "data_tree": "e6dd90779d2273240bfa621d7ea3739dbeac92cc",
+    "paper": "10.1073/pnas.2116269118",
+    "repository": "https://github.com/LinearFold/LinearTurboFold"
+  },
+  "prepared": {
+    "dafs_pkfree_exact_selection_available": false,
+    "linearturbofold_nonviral_dataset_count": 65,
+    "linearturbofold_nonviral_manifest": "linearturbofold-nonviral/manifest.json",
+    "murlet_dataset_count": 872,
+    "murlet_manifest": "murlet/manifest.json",
+    "rfam_11_seed": "raw/Rfam.seed.11.0.gz"
+  },
+  "schema_version": 1,
+  "sources": {
+    "murlet": {
+      "local_path": "raw/murlet_dataset.tgz",
+      "paper": "10.1093/bioinformatics/btm146",
+      "sha256": "87fff699745f49c25af0876a65d07d1b0395eebb36235066a3869ee5697635b0",
+      "url": "https://web.archive.org/web/20071017090934id_/http://www.ncrna.org/software/murlet/murlet_dataset_tgz",
+      "verified": true
+    },
+    "rfam_11_seed": {
+      "local_path": "raw/Rfam.seed.11.0.gz",
+      "paper": "10.1093/bioinformatics/bts612",
+      "sha256": "900a2ec8dd9dcf7ceb49067ffb5f41e320baf43e2445a7056ecd79a673e92737",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/Rfam/11.0/Rfam.seed.gz",
+      "verified": true
+    }
+  }
+}

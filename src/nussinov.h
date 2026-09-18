@@ -40,6 +40,9 @@ public:
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
   float score(float w, const VVF& p, const VVF& q, const VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
+  float decode(const SparseFloatMatrix& p,
+               const SparseFloatMatrix& pair_bonus,
+               VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 
 private:
@@ -54,6 +57,9 @@ public:
   float decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss);
   float score(float w, const VVF& p, const VVF& q, const VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
+  float decode(const SparseFloatMatrix& p,
+               const SparseFloatMatrix& pair_bonus,
+               VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 
 private:
@@ -82,6 +88,9 @@ public:
       const std::vector<std::vector<uint>>& pairs_by_right, VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
   float decode(const SparseFloatMatrix& p, VU& ss, std::string& str);
+  float decode(const SparseFloatMatrix& p,
+               const SparseFloatMatrix& pair_bonus,
+               VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 
 private:

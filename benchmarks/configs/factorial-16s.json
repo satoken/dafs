@@ -1,0 +1,20 @@
+{
+  "binary": "../../build/src/dafs",
+  "output_dir": "../results-factorial-16s",
+  "timeout_seconds": 600,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {"OMP_NUM_THREADS": "1"},
+  "dataset_manifests": ["../data/linearturbofold-nonviral/manifest.json"],
+  "dataset_filter": {"collections": ["16S-25"]},
+  "conditions": [
+    {"id": "nonlinear_ribosum_off", "linear": false, "ribosum_weight": 0.0,
+     "args": ["-a", "CONTRAlign", "-s", "CONTRAfold", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0", "--max-iter=20"]},
+    {"id": "nonlinear_ribosum_on", "linear": false, "ribosum_weight": 0.075,
+     "args": ["-a", "CONTRAlign", "-s", "CONTRAfold", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.075", "--max-iter=20"]},
+    {"id": "linear_ribosum_off", "linear": true, "ribosum_weight": 0.0,
+     "args": ["-a", "LinearAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0", "--max-iter=20"]},
+    {"id": "linear_ribosum_on", "linear": true, "ribosum_weight": 0.075,
+     "args": ["-a", "LinearAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.075", "--max-iter=20"]}
+  ]
+}

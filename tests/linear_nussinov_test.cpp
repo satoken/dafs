@@ -70,6 +70,39 @@ int main()
     return 1;
   }
 
+  // Final consensus decoding keeps posterior probabilities and profile
+  // bonuses separate.  A bonus-only pair must enter the sparse support, and
+  // exact, sparse, and full-beam linear decoders must agree on the score.
+  SparseFloatMatrix final_probability, final_bonus;
+  final_probability.assign(length, length);
+  final_bonus.assign(length, length);
+  final_probability.set(1, 8, 0.60f);
+  final_bonus.set(0, 9, 0.50f);
+  VU exact_bonus_structure, sparse_bonus_structure, linear_bonus_structure;
+  std::string exact_bonus_brackets, sparse_bonus_brackets,
+      linear_bonus_brackets;
+  const float exact_bonus_score = exact.decode(
+      final_probability, final_bonus,
+      exact_bonus_structure, exact_bonus_brackets);
+  SparseNussinov sparse_exact(threshold);
+  const float sparse_bonus_score = sparse_exact.decode(
+      final_probability, final_bonus,
+      sparse_bonus_structure, sparse_bonus_brackets);
+  const float linear_bonus_score = linear.decode(
+      final_probability, final_bonus,
+      linear_bonus_structure, linear_bonus_brackets);
+  if (!close(exact_bonus_score, 0.70f) ||
+      !close(sparse_bonus_score, exact_bonus_score) ||
+      !close(linear_bonus_score, exact_bonus_score) ||
+      sparse_bonus_structure != exact_bonus_structure ||
+      linear_bonus_structure != exact_bonus_structure ||
+      exact_bonus_structure[0] != 9 || exact_bonus_structure[1] != 8) {
+    std::cerr << "final pair bonus decoding mismatch: exact="
+              << exact_bonus_score << " sparse=" << sparse_bonus_score
+              << " linear=" << linear_bonus_score << '\n';
+    return 1;
+  }
+
   const LinearNussinovResult full_certificate = linear.decode_certified(
       1.0f, sparse_probability, sparse_multiplier, linear_structure);
   if (!close(full_certificate.score, exact_score) ||

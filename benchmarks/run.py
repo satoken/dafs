@@ -14,6 +14,7 @@ import random
 import re
 import shlex
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -21,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from score import parse_alignment, score
+from score import SCIConfig, calculate_sci, parse_alignment, score
 
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -154,23 +155,86 @@ def resolve_path(value: str, base: Path) -> Path:
     return path.resolve() if path.is_absolute() else (base / path).resolve()
 
 
+def resolve_time_binary(value: str | Path) -> Path:
+    """Resolve GNU time from an explicit path or the batch-job PATH."""
+    value_text = str(value)
+    candidate = Path(value_text).expanduser()
+    if candidate.is_absolute() or "/" in value_text:
+        if not candidate.is_file():
+            raise FileNotFoundError(f"GNU time not found: {candidate}")
+        resolved = candidate.resolve()
+    else:
+        executable = shutil.which(value_text)
+        if executable is None:
+            raise FileNotFoundError(
+                f"GNU time command {value_text!r} was not found on PATH")
+        resolved = Path(executable).resolve()
+    try:
+        version = subprocess.check_output(
+            [str(resolved), "--version"], text=True,
+            stderr=subprocess.STDOUT).splitlines()[0]
+    except (OSError, subprocess.CalledProcessError, IndexError) as error:
+        raise RuntimeError(f"could not execute time command: {resolved}") from error
+    if "GNU" not in version:
+        raise RuntimeError(
+            f"GNU time is required, but {resolved} reported: {version}")
+    return resolved
+
+
+def resolve_sci_config(value: Any, base: Path) -> SCIConfig | None:
+    """Resolve an optional, explicitly version-pinned ViennaRNA configuration."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("sci configuration must be an object")
+    bin_dir = value.get("bin_dir")
+    if bin_dir is not None and (value.get("rnaalifold") or value.get("rnafold")):
+        raise ValueError("sci.bin_dir cannot be combined with sci.rnaalifold/rnafold")
+    if bin_dir is not None:
+        directory = resolve_path(str(bin_dir), base)
+        rnaalifold = directory / "RNAalifold"
+        rnafold = directory / "RNAfold"
+    else:
+        if value.get("rnaalifold") or value.get("rnafold"):
+            if not value.get("rnaalifold") or not value.get("rnafold"):
+                raise ValueError(
+                    "sci requires both rnaalifold and rnafold when either is set")
+            rnaalifold = resolve_path(str(value["rnaalifold"]), base)
+            rnafold = resolve_path(str(value["rnafold"]), base)
+        else:
+            rnaalifold = shutil.which("RNAalifold")
+            rnafold = shutil.which("RNAfold")
+            if not rnaalifold or not rnafold:
+                raise FileNotFoundError(
+                    "SCI requires RNAalifold and RNAfold on PATH, or explicit paths")
+    version = value.get("version")
+    if not version:
+        raise ValueError(
+            "sci.version is required to make ViennaRNA results reproducible")
+    timeout_seconds = float(value.get("timeout_seconds", 3600.0))
+    return SCIConfig(rnaalifold, rnafold, str(version), timeout_seconds)
+
+
 def validate_id(value: str, kind: str) -> str:
     if not SAFE_ID.fullmatch(value):
         raise ValueError(f"{kind} id must match {SAFE_ID.pattern}: {value!r}")
     return value
 
 
-def command_digest(command: list[str], input_sha256: str) -> str:
-    payload = json.dumps({"command": command, "input_sha256": input_sha256},
-                         sort_keys=True).encode()
+def command_digest(command: list[str], input_sha256: str,
+                   context: Any = None) -> str:
+    payload = json.dumps({"command": command, "input_sha256": input_sha256,
+                          "context": context}, sort_keys=True).encode()
     return hashlib.sha256(payload).hexdigest()
 
 
 def execute(command: list[str], stdout_path: Path, stderr_path: Path,
-            timeout_seconds: float, environment: dict[str, str]) -> tuple[int | None, bool]:
+            timeout_seconds: float, environment: dict[str, str],
+            cwd: Path | None = None) -> tuple[int | None, bool]:
     with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
         process = subprocess.Popen(command, stdout=stdout, stderr=stderr,
-                                   env=environment, start_new_session=True)
+                                   env=environment, cwd=cwd,
+                                   start_new_session=True)
         try:
             return process.wait(timeout=timeout_seconds), False
         except subprocess.TimeoutExpired:
@@ -188,7 +252,9 @@ def flatten_summary(result: dict[str, Any]) -> dict[str, Any]:
     quality = result.get("quality", {}) or {}
     internal = result.get("metrics_validation", {}).get("run_summary", {})
     return {
-        "condition": result["condition"], "dataset": result["dataset"],
+        "method": result.get("method", "DAFS"),
+        "condition": result["condition"], "ribosum": result.get("ribosum"),
+        "dataset": result["dataset"],
         "repetition": result["repetition"], "status": result["status"],
         "return_code": result.get("return_code"),
         "wall_seconds": resource.get("wall_seconds"),
@@ -196,8 +262,12 @@ def flatten_summary(result: dict[str, Any]) -> dict[str, Any]:
         "system_seconds": resource.get("system_seconds"),
         "max_rss_kb": resource.get("max_rss_kb"),
         "sps": quality.get("sps"), "sensitivity": quality.get("sensitivity"),
+        "alignment_ppv": quality.get("alignment_ppv"),
         "ppv": quality.get("ppv"), "mcc": quality.get("mcc"),
         "cbp_f1": quality.get("cbp_f1"),
+        "sci": quality.get("sci"),
+        "sci_consensus_mfe": quality.get("sci_consensus_mfe"),
+        "sci_mean_single_mfe": quality.get("sci_mean_single_mfe"),
         "quality_complete": result.get("quality_complete"),
         "internal_seconds": internal.get("seconds"),
         "dd_iterations": internal.get("dd_iterations"),
@@ -234,6 +304,10 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--jobs", type=int, default=1,
                         help="number of benchmark cases to run concurrently")
+    parser.add_argument("--sci-bin-dir", type=Path,
+                        help="override SCI ViennaRNA bin_dir from config")
+    parser.add_argument("--sci-version",
+                        help="override the expected ViennaRNA version")
     args = parser.parse_args()
     if args.jobs <= 0:
         parser.error("--jobs must be positive")
@@ -241,6 +315,14 @@ def main() -> int:
     config_path = args.config.resolve()
     config_base = config_path.parent
     config = json.loads(config_path.read_text(encoding="utf-8"))
+    sci_value = config.get("sci")
+    if args.sci_bin_dir or args.sci_version:
+        sci_value = dict(sci_value or {})
+        if args.sci_bin_dir:
+            sci_value["bin_dir"] = str(args.sci_bin_dir)
+        if args.sci_version:
+            sci_value["version"] = args.sci_version
+    sci_config = resolve_sci_config(sci_value, config_base)
     repository = Path(__file__).resolve().parents[1]
     binary = (args.binary.resolve() if args.binary else
               resolve_path(config["binary"], config_base))
@@ -248,9 +330,16 @@ def main() -> int:
                   resolve_path(config.get("output_dir", "results"), config_base))
     if not binary.is_file():
         raise FileNotFoundError(f"DAFS binary not found: {binary}")
-    time_binary = Path(config.get("time_binary", "/usr/bin/time"))
-    if not time_binary.is_file():
-        raise FileNotFoundError(f"GNU time not found: {time_binary}")
+    time_binary = resolve_time_binary(
+        config.get("time_binary", os.environ.get("TIME_BINARY", "time")))
+    sci_provenance = (None if sci_config is None else {
+        "rnaalifold": str(sci_config.rnaalifold),
+        "rnafold": str(sci_config.rnafold),
+        "expected_version": sci_config.expected_version,
+        "timeout_seconds": sci_config.timeout_seconds,
+        "rnaalifold_sha256": sha256_file(Path(sci_config.rnaalifold)),
+        "rnafold_sha256": sha256_file(Path(sci_config.rnafold)),
+    })
 
     repetitions = int(config.get("repetitions", 1))
     timeout_seconds = float(config.get("timeout_seconds", 3600))
@@ -304,6 +393,7 @@ def main() -> int:
             "python": sys.version,
             "environment": {key: environment[key] for key in sorted(config.get("environment", {}))},
             "omp_num_threads": environment.get("OMP_NUM_THREADS"),
+            "sci": sci_provenance,
         }
         atomic_json(output_dir / "manifest.json", manifest)
 
@@ -326,7 +416,8 @@ def main() -> int:
         result_path = run_dir / "result.json"
         dafs_command = [str(binary), *map(str, condition.get("args", [])),
                         "--metrics-jsonl", str(metrics_path), str(input_path)]
-        digest = command_digest(dafs_command, sha256_file(input_path))
+        digest = command_digest(dafs_command, sha256_file(input_path),
+                                sci_provenance)
         if result_path.exists() and not args.rerun:
             previous = json.loads(result_path.read_text(encoding="utf-8"))
             failed = previous.get("status") != "success"
@@ -350,15 +441,21 @@ def main() -> int:
         _, metrics_validation = load_metrics(metrics_path)
         quality = None
         score_error = None
-        if return_code == 0 and reference_path is not None:
+        if return_code == 0:
             try:
-                quality = score(parse_alignment(prediction_path),
-                                parse_alignment(reference_path))
+                prediction = parse_alignment(prediction_path)
+                if reference_path is not None:
+                    quality = score(prediction, parse_alignment(reference_path))
+                if sci_config is not None:
+                    sci_quality = calculate_sci(prediction, sci_config)
+                    quality = {**(quality or {}), **sci_quality}
             except Exception as error:  # retain failed scoring as benchmark evidence
                 score_error = f"{type(error).__name__}: {error}"
         result = {
             "schema_version": 1,
+            "method": "DAFS",
             "condition": condition_id,
+            "ribosum": condition.get("ribosum_weight"),
             "dataset": dataset_id,
             "repetition": repetition,
             "status": "timeout" if timed_out else ("success" if return_code == 0 else "failed"),
@@ -406,7 +503,8 @@ def main() -> int:
                 failures.append(f"{path}: status={result.get('status')}")
             elif not result.get("metrics_validation", {}).get("valid"):
                 failures.append(f"{path}: invalid internal metrics")
-            elif result.get("reference") and result.get("score_error"):
+            elif result.get("score_error") and (
+                    result.get("reference") or sci_config is not None):
                 failures.append(f"{path}: {result['score_error']}")
             elif result.get("reference") and not result.get("quality_complete"):
                 failures.append(f"{path}: prediction/reference sequence sets differ")

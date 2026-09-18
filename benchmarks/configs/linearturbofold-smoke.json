@@ -1,0 +1,30 @@
+{
+  "binary": "../../../../LinearFold/LinearTurboFold/bin/linearturbofold",
+  "output_dir": "../results-linearturbofold-smoke",
+  "timeout_seconds": 120,
+  "repetitions": 1,
+  "datasets": [
+    {
+      "id": "tiny",
+      "input": "../../tests/data/tiny.fa",
+      "reference": "../../tests/data/tiny_reference.sto"
+    }
+  ],
+  "conditions": [
+    {
+      "id": "linearturbofold",
+      "ribosum": "not_applicable",
+      "options": {
+        "hmm_beam": 20,
+        "cky_beam": 20,
+        "iterations": 1,
+        "save_bpps": false,
+        "save_pfs": false,
+        "verbose": false,
+        "min_helix_length": 3,
+        "pk_iterations": 1,
+        "threshold": 0.3
+      }
+    }
+  ]
+}

@@ -41,5 +41,12 @@ int main()
   if (!close(mixed_profile.pair_score(0, 1, au_profile, 0, 1),
              0.5f * 2.704820f))
     return 1;
+
+  // At columns 0 and 1 only the GC sequence has two residues.  The gapped
+  // sequence contributes zero, but remains in the denominator, so the
+  // self-profile score is attenuated by (1/2)^2.
+  if (!close(mixed_profile.self_pair_score(0, 1),
+             0.25f * Ribosum85_60::pair_score(9, 9)))
+    return 1;
   return 0;
 }

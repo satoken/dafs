@@ -1,6 +1,7 @@
 /*
  * LinearAlign implementation for DAFS
- * Uses BeamAlign with ML parameters from LinearTurboFold for posterior probability calculation
+ * Uses BeamAlign with selectable LinearTurboFold, CONTRAlign, or ProbConsRNA
+ * scoring parameters for posterior probability calculation.
  */
 
 #include "linearalign.h"
@@ -10,6 +11,8 @@
 #include <unordered_map>
 #include <iomanip>
 #include <stdexcept>
+#include <cctype>
+#include <limits>
 
 // Include the original BeamAlign implementation
 #include "linearalign/BeamAlign.h"
@@ -55,82 +58,161 @@ static const double ML_EMIT_PROBS[27][3] = {
     {0.000000, 0.000000, 1.000000}  // END
 };
 
-LinearAlign::LinearAlign(float th, int beam_size)
+namespace
+{
+constexpr double CONTRALIGN_MATCH[4][4] = {
+    { 0.5256508867, -0.4090640200, -0.2502759109, -0.3252306723 },
+    {-0.4090640200,  0.6665219366, -0.3289391181, -0.1326088918 },
+    {-0.2502759109, -0.3289391181,  0.6684676551, -0.3565888168 },
+    {-0.3252306723, -0.1326088918, -0.3565888168,  0.4590520450 }
+};
+
+constexpr double CONTRALIGN_INSERT[4] = {
+    -0.0025219272, -0.0831389156, -0.0744397065, -0.0129005460
+};
+
+constexpr double PROBCONS_SINGLE[4] = {
+    0.2270790040, 0.2422080040, 0.2839320004, 0.2464679927
+};
+
+constexpr double PROBCONS_PAIR[4][4] = {
+    {0.1487240046, 0.0184142999, 0.0361397006, 0.0238473993},
+    {0.0184142999, 0.1583919972, 0.0275536999, 0.0389291011},
+    {0.0361397006, 0.0275536999, 0.1979320049, 0.0244289003},
+    {0.0238473993, 0.0389291011, 0.0244289003, 0.1557479948}
+};
+
+double logScore(double value)
+{
+    return value > 0.0 ? std::log(value)
+                       : -std::numeric_limits<double>::infinity();
+}
+
+std::string normalizedModelName(const std::string& name)
+{
+    std::string normalized;
+    normalized.reserve(name.size());
+    for (const unsigned char ch : name)
+        if (std::isalnum(ch))
+            normalized.push_back(static_cast<char>(std::tolower(ch)));
+    return normalized;
+}
+} // namespace
+
+LinearAlign::LinearAlign(float th, int beam_size, ScoreModel score_model)
     : Align::Model(th), 
       beam_size_(beam_size),
       use_prior_(false),  // Use false for initial iteration (no structure info)
-      trans_probs_(nullptr),
-      emit_probs_(nullptr),
-      custom_params_(false)
+      score_model_(score_model),
+      parameters_initialized_(false)
 {
     beam_align_ = std::make_unique<BeamAlign>(beam_size_);
-    initializeMLParameters();
+    initializeParameters(score_model_);
 }
 
-LinearAlign::~LinearAlign()
+LinearAlign::~LinearAlign() = default;
+
+LinearAlign::ScoreModel LinearAlign::parseScoreModel(const std::string& name)
 {
-    cleanupParameters();
+    const std::string normalized = normalizedModelName(name);
+    if (normalized == "linearturbofold" || normalized == "turbofold")
+        return ScoreModel::LinearTurboFold;
+    if (normalized == "contralign")
+        return ScoreModel::CONTRAlign;
+    if (normalized == "probconsrna" || normalized == "probcons")
+        return ScoreModel::ProbConsRNA;
+    throw std::invalid_argument(
+        "unknown LinearAlign score model '" + name +
+        "' (expected LinearTurboFold, CONTRAlign, or ProbConsRNA)");
 }
 
-void LinearAlign::initializeMLParameters()
+const char* LinearAlign::scoreModelName(ScoreModel model)
 {
-    // Clean up any existing parameters
-    cleanupParameters();
-    
-    // Allocate and initialize ML transition probabilities
-    trans_probs_ = new double*[3];
-    for (int i = 0; i < 3; ++i) {
-        trans_probs_[i] = new double[3];
-        for (int j = 0; j < 3; ++j) {
-            trans_probs_[i][j] = std::log(ML_TRANS_PROBS[i][j]);
-        }
+    switch (model) {
+    case ScoreModel::LinearTurboFold: return "LinearTurboFold";
+    case ScoreModel::CONTRAlign: return "CONTRAlign";
+    case ScoreModel::ProbConsRNA: return "ProbConsRNA";
     }
-    
-    // Allocate and initialize ML emission probabilities
-    emit_probs_ = new double*[27];
-    for (int sym = 0; sym < 27; ++sym) {
-        emit_probs_[sym] = new double[3];
-        for (int state = 0; state < 3; ++state) {
-            emit_probs_[sym][state] = std::log(ML_EMIT_PROBS[sym][state]);
-        }
-    }
-    
-    custom_params_ = true;
+    throw std::logic_error("invalid LinearAlign score model");
 }
 
-void LinearAlign::cleanupParameters()
+void LinearAlign::initializeParameters(ScoreModel model)
 {
-    if (custom_params_) {
-        if (trans_probs_) {
-            for (int i = 0; i < 3; ++i) {
-                delete[] trans_probs_[i];
-            }
-            delete[] trans_probs_;
-            trans_probs_ = nullptr;
+    // BeamAlign's xlog_sum implementation does not treat (-inf, -inf) as a
+    // special case.  Use the same negligible floor as the bundled
+    // ProbConsRNA wrapper for forbidden transitions and emissions.
+    const double impossible = logScore(1e-10);
+    for (auto& row : transition_scores_)
+        row.fill(impossible);
+    for (auto& row : emission_scores_)
+        row.fill(impossible);
+
+    if (model == ScoreModel::LinearTurboFold) {
+        for (size_t from = 0; from < 3; ++from)
+            for (size_t to = 0; to < 3; ++to)
+                transition_scores_[from][to] = logScore(ML_TRANS_PROBS[from][to]);
+        for (size_t symbol = 0; symbol < 27; ++symbol)
+            for (size_t state = 0; state < 3; ++state)
+                emission_scores_[symbol][state] = logScore(ML_EMIT_PROBS[symbol][state]);
+    } else if (model == ScoreModel::ProbConsRNA) {
+        constexpr double gap_open = 0.0190259293;
+        constexpr double gap_extend = 0.3269913495;
+        transition_scores_ = {{
+            {{logScore(gap_extend), impossible, logScore(1.0 - gap_extend)}},
+            {{impossible, logScore(gap_extend), logScore(1.0 - gap_extend)}},
+            {{logScore(gap_open), logScore(gap_open), logScore(1.0 - 2.0 * gap_open)}}
+        }};
+        for (size_t a = 0; a < 4; ++a) {
+            emission_scores_[a * 5 + 4][0] = logScore(PROBCONS_SINGLE[a]);
+            emission_scores_[4 * 5 + a][1] = logScore(PROBCONS_SINGLE[a]);
+            for (size_t b = 0; b < 4; ++b)
+                emission_scores_[a * 5 + b][2] = logScore(PROBCONS_PAIR[a][b]);
         }
-        
-        if (emit_probs_) {
-            for (int i = 0; i < 27; ++i) {
-                delete[] emit_probs_[i];
-            }
-            delete[] emit_probs_;
-            emit_probs_ = nullptr;
+        emission_scores_[25][2] = 0.0;
+        emission_scores_[26][2] = 0.0;
+    } else {
+        // CONTRAlign is a log-linear model.  BeamAlign consumes additive
+        // log scores, so its single-affine subset maps directly onto the
+        // three BeamAlign states.  CONTRAlign's second affine gap pair is
+        // intentionally omitted because BeamAlign has exactly three states.
+        constexpr double match_state = 0.3959924457;
+        constexpr double insert_state = -0.4431756229;
+        constexpr double match_to_match = 2.5057567100;
+        constexpr double match_to_insert = -1.2423961130;
+        constexpr double insert_extend = 1.8676346730;
+        constexpr double insert_change = -6.9696754440;
+        transition_scores_ = {{
+            {{insert_extend, insert_change, match_to_insert}},
+            {{insert_change, insert_extend, match_to_insert}},
+            {{match_to_insert, match_to_insert, match_to_match}}
+        }};
+        for (size_t a = 0; a < 4; ++a) {
+            emission_scores_[a * 5 + 4][0] = CONTRALIGN_INSERT[a] + insert_state;
+            emission_scores_[4 * 5 + a][1] = CONTRALIGN_INSERT[a] + insert_state;
+            for (size_t b = 0; b < 4; ++b)
+                emission_scores_[a * 5 + b][2] = CONTRALIGN_MATCH[a][b] + match_state;
         }
-        
-        custom_params_ = false;
+        emission_scores_[25][2] = 0.0;
+        emission_scores_[26][2] = 0.0;
     }
+
+    score_model_ = model;
+    parameters_initialized_ = true;
 }
 
 void LinearAlign::setHMMParameters(double** trans_probs, double** emit_probs)
 {
-    // Clean up default parameters if they were allocated
-    if (custom_params_) {
-        cleanupParameters();
+    if (!trans_probs || !emit_probs) {
+        parameters_initialized_ = false;
+        return;
     }
-    
-    trans_probs_ = trans_probs;
-    emit_probs_ = emit_probs;
-    custom_params_ = false;  // External parameters, don't clean up in destructor
+    for (size_t from = 0; from < 3; ++from)
+        for (size_t to = 0; to < 3; ++to)
+            transition_scores_[from][to] = trans_probs[from][to];
+    for (size_t symbol = 0; symbol < 27; ++symbol)
+        for (size_t state = 0; state < 3; ++state)
+            emission_scores_[symbol][state] = emit_probs[symbol][state];
+    parameters_initialized_ = true;
 }
 
 void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP& mp)
@@ -155,16 +237,25 @@ void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP
     try {
         // Invalid model state is a hard failure.  Continuing with an empty
         // posterior matrix makes downstream output look successful.
-        if (!trans_probs_ || !emit_probs_)
+        if (!parameters_initialized_)
             throw std::logic_error("HMM parameters are not initialized");
 
+        std::array<double*, 3> transition_rows;
+        std::array<double*, 27> emission_rows;
+        for (size_t i = 0; i < transition_rows.size(); ++i)
+            transition_rows[i] = transition_scores_[i].data();
+        for (size_t i = 0; i < emission_rows.size(); ++i)
+            emission_rows[i] = emission_scores_[i].data();
+        double** trans_probs = transition_rows.data();
+        double** emit_probs = emission_rows.data();
+
         // Step 1: Run forward algorithm
-        double forward_score = beam_align_->forward(seq1_copy, seq2_copy, trans_probs_, emit_probs_, use_prior_);
+        double forward_score = beam_align_->forward(seq1_copy, seq2_copy, trans_probs, emit_probs, use_prior_);
         if (!std::isfinite(forward_score))
             throw std::runtime_error("forward algorithm returned a non-finite score");
         
         // Step 2: Run backward algorithm  
-        double backward_score = beam_align_->backward(trans_probs_, emit_probs_, use_prior_);
+        double backward_score = beam_align_->backward(trans_probs, emit_probs, use_prior_);
         if (!std::isfinite(backward_score))
             throw std::runtime_error("backward algorithm returned a non-finite score");
         
@@ -182,12 +273,14 @@ void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP
         
     } catch (const std::exception& e) {
         throw std::runtime_error(
-            "LinearAlign failed for sequence lengths " +
+            "LinearAlign failed (score model " +
+            std::string(scoreModelName(score_model_)) + ") for sequence lengths " +
             std::to_string(seq1.size()) + " and " +
             std::to_string(seq2.size()) + ": " + e.what());
     } catch (...) {
         throw std::runtime_error(
-            "LinearAlign failed for sequence lengths " +
+            "LinearAlign failed (score model " +
+            std::string(scoreModelName(score_model_)) + ") for sequence lengths " +
             std::to_string(seq1.size()) + " and " +
             std::to_string(seq2.size()) + ": unknown exception");
     }
@@ -248,12 +341,4 @@ void LinearAlign::convertToSparseMatrix(const std::unordered_map<int, aln_ret>* 
                      return a.first < b.first;
                  });
     }
-}
-
-// Keep the old initializeDefaultParameters method for compatibility
-void LinearAlign::initializeDefaultParameters()
-{
-    // This method is now replaced by initializeMLParameters
-    // but kept for compatibility
-    initializeMLParameters();
 }

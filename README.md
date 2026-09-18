@@ -33,14 +33,20 @@ Usage
 	      --ribosum-weight arg
 	                         Weight of RIBOSUM85-60 pair-pair match scores
 	                         (default: 0.075; use 0 to disable)
+	      --final-ribosum-weight arg
+	                         Weight of the RIBOSUM85-60 self-profile bonus in
+	                         final Nussinov decoding (default: 0)
   	  -m, --max-iter T       The maximum number of iteration of the subgradient 
                          	  optimization (default: 600)
   	  -v, --verbose arg      The level of verbose outputs (default: 0)
     
  	  Aligning options:
-  	  -a, --align-model arg     Alignment model for calcualating matching 
-                            	  probablities (value=CONTRAlign, ProbCons) 
-                            	  (default: ProbCons)
+	  -a, --align-model arg     Alignment model for calculating matching
+	                           probabilities (value=CONTRAlign, ProbCons,
+	                           LinearAlign, LinearAlign-CONTRAlign,
+	                           LinearAlign-ProbCons,
+	                           LinearAlign-ProbConsRNA)
+	                           (default: ProbCons)
   	  -u, --align-th arg        Threshold for matching probabilities (default: 
                             	  0.01)
     
@@ -58,6 +64,14 @@ Usage
                               probabilities (default)
       	  --ipknot             Set optimized parameters for IPknot decoding 
                            	  (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)
+
+`--final-ribosum-weight rho` changes the final Nussinov pair score to
+`p(i,j) - threshold + rho * R(i,j)`, where `R(i,j)` is the expected
+RIBOSUM85-60 score between two draws from the aligned pair-type distribution.
+Gaps and ambiguous residues contribute zero while the denominator remains the
+total number of aligned sequences, so gappy column pairs are attenuated
+quadratically.  The bonus is evaluated on the sparse BPP support and is disabled
+by default (`rho=0`).
 
 Example
 -------

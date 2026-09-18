@@ -117,3 +117,14 @@ float RibosumProfile::pair_score(
                Ribosum85_60::pair_score(x, y);
   return static_cast<float>(score);
 }
+
+float RibosumProfile::self_pair_score(unsigned i, unsigned j) const
+{
+  const PairDistribution distribution = pair_distribution(i, j);
+  double score = 0.0;
+  for (unsigned x = 0; x < 16; ++x)
+    for (unsigned y = 0; y < 16; ++y)
+      score += static_cast<double>(distribution[x]) * distribution[y] *
+               Ribosum85_60::pair_score(x, y);
+  return static_cast<float>(score);
+}

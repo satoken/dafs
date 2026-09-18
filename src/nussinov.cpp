@@ -203,6 +203,20 @@ decode(const VVF& p, VU& ss, std::string& str)
   return dp[0][L-1];
 }
 
+float
+Nussinov::
+decode(const SparseFloatMatrix& p, const SparseFloatMatrix& pair_bonus,
+       VU& ss, std::string& str)
+{
+  assert(p.rows() == pair_bonus.rows() &&
+         p.columns() == pair_bonus.columns());
+  VVF adjusted = p.dense();
+  for (uint i = 0; i < pair_bonus.rows(); ++i)
+    for (const auto [j, value] : pair_bonus.ordered_row(i))
+      adjusted[i][j] += value;
+  return decode(adjusted, ss, str);
+}
+
 void
 Nussinov::
 make_brackets(const VU& ss, std::string& str) const
@@ -518,6 +532,20 @@ decode(const VVF& p, VU& ss, std::string& str)
 
   make_brackets(ss, str);
   return dp[0][L-1];
+}
+
+float
+SparseNussinov::
+decode(const SparseFloatMatrix& p, const SparseFloatMatrix& pair_bonus,
+       VU& ss, std::string& str)
+{
+  assert(p.rows() == pair_bonus.rows() &&
+         p.columns() == pair_bonus.columns());
+  VVF adjusted = p.dense();
+  for (uint i = 0; i < pair_bonus.rows(); ++i)
+    for (const auto [j, value] : pair_bonus.ordered_row(i))
+      adjusted[i][j] += value;
+  return decode(adjusted, ss, str);
 }
 
 void
@@ -1035,6 +1063,27 @@ decode(const SparseFloatMatrix& p, VU& ss, std::string& str)
   const float score = decode_impl(
       length, support,
       [&](uint i, uint j) { return p.get(i, j) - th_; }, ss, false).score;
+  make_brackets(ss, str);
+  return score;
+}
+
+float
+LinearNussinov::
+decode(const SparseFloatMatrix& p, const SparseFloatMatrix& pair_bonus,
+       VU& ss, std::string& str)
+{
+  const uint length = p.rows();
+  assert(p.columns() == length && pair_bonus.rows() == length &&
+         pair_bonus.columns() == length);
+  std::vector<std::vector<uint>> support(length);
+  add_sparse_pair_support(p, support);
+  add_sparse_pair_support(pair_bonus, support);
+  deduplicate_pair_support(support);
+  const float score = decode_impl(
+      length, support,
+      [&](uint i, uint j) {
+        return p.get(i, j) - th_ + pair_bonus.get(i, j);
+      }, ss, false).score;
   make_brackets(ss, str);
   return score;
 }
