@@ -537,11 +537,15 @@ decode_impl(uint L1, uint L2, Probability probability,
 {
   if (L1 == 0) {
     al.clear();
+    last_decode_unpruned_ = true;
+    last_decode_score_ = 0.0;
     return 0.0f;
   }
   const double score = aligner_->max_alignment(
       L1, L2, al,
       [&](int i, int k) { return probability(i, k) - th_ + multiplier(i, k); });
+  last_decode_unpruned_ = aligner_->max_pruned_states() == 0;
+  last_decode_score_ = score;
   return static_cast<float>(score);
 }
 

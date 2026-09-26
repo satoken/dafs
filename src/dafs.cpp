@@ -21,6 +21,7 @@
 #include "config.h"
 #endif
 #include <cstring>
+#include "dd_certificate.h"
 #include <cassert>
 #include <cmath>
 #include <unistd.h>
@@ -43,6 +44,7 @@
 #include "fa.h"
 #include "fold.h"
 #include "nussinov.h"
+#include "dd_recovery.h"
 #include "ipknot.h"
 #include "align.h"
 #include "linearalign.h"
@@ -173,7 +175,11 @@ DAFS::DAFS()
       use_sparse_structure_lagrangian_(false),
       use_sparse_alignment_lagrangian_(false),
       use_linear_structure_decoder_(false),
+      use_linear_ipknot_decoder_(false),
       use_linear_alignment_decoder_(false),
+      use_dd_tight_alignment_(false),
+      use_dd_projected_norm_(false),
+      use_dd_column_bound_(false),
       use_alifold_(false),
       use_alifold1_(false),
       g_(42)
@@ -558,14 +564,20 @@ void DAFS::
 void DAFS::
     calculate_profile_basepairing_probability(const ALN &aln, BP &bp) const
 {
-  Alifold(0.0 /*CUTOFF*/).fold(aln, fa_, bp);
+  if (const auto* linear = dynamic_cast<const LinFoldWrapper*>(s_model_.get()))
+    linear->calculate_profile(aln, fa_, bp);
+  else
+    Alifold(0.0 /*CUTOFF*/).fold(aln, fa_, bp);
 }
 
 void DAFS::
     calculate_profile_basepairing_probability(
         const ALN &aln, const std::string &constraint, BP &bp) const
 {
-  Alifold(0.0 /*CUTOFF*/).fold(aln, fa_, constraint, bp);
+  if (const auto* linear = dynamic_cast<const LinFoldWrapper*>(s_model_.get()))
+    linear->calculate_profile(aln, fa_, bp, constraint, true);
+  else
+    Alifold(0.0 /*CUTOFF*/).fold(aln, fa_, constraint, bp);
 }
 
 void DAFS::
@@ -709,7 +721,7 @@ void DAFS::
       std::string con(fa_[s].size(), '?');
       for (uint i = 0; i != L; ++i)
       {
-        if (ss[i] != -1u && rev[i] != -1u && rev[ss[i]] != -1u)
+        if (ss[i] != -1u && i < ss[i] && rev[i] != -1u && rev[ss[i]] != -1u)
         {
           if (str[i] == Fold::Decoder::left_brackets[plv])
           {
@@ -741,7 +753,7 @@ void DAFS::
       std::string con(L, '?');
       for (uint i = 0; i != L; ++i)
       {
-        if (ss[i] != -1u)
+        if (ss[i] != -1u && i < ss[i])
         {
           if (str[i] == Fold::Decoder::left_brackets[plv])
           {
@@ -1297,10 +1309,53 @@ float DAFS::
   
   float min_th_s = *std::min_element(th_s_.begin(), th_s_.end());
 
+  // Diagnostic serialization only, with a hard size cap. No exact/dense
+  // oracle is called in the production linear path. Offline enumeration
+  // can then analyze this identical fixed merge objective.
+  const bool diagnostic = dd_diagnostics_ && L1 <= 9 && L2 <= 9;
+  const auto diagnostic_matrix = [](uint rows, uint columns, auto lookup) {
+    std::string out = "[";
+    bool first = true;
+    for (uint i = 0; i < rows; ++i)
+      for (uint j = 0; j < columns; ++j) {
+        const float value = lookup(i,j);
+        if (value == 0.0f) continue;
+        if (!first) out += ',';
+        first = false;
+        out += '[' + std::to_string(i) + ',' + std::to_string(j) + ',' +
+               json_number(value) + ']';
+      }
+    return out + ']';
+  };
+  if (diagnostic) {
+    std::string columns = "[";
+    bool first = true;
+    for (const auto& [i,j] : p_x_support)
+      for (const auto& [k,l] : p_y_support) {
+        if (j < i+2 || l < k+2) continue;
+        const float intrinsic = pair_match_score(i,j,k,l);
+        if (!is_valid_cbp(i,j,k,l,p_x,p_y,p_z,N1,N2,min_th_s,intrinsic)) continue;
+        if (!first) columns += ',';
+        first = false;
+        columns += '[' + std::to_string(i) + ',' + std::to_string(j) + ',' +
+                   std::to_string(k) + ',' + std::to_string(l) + ',' + json_number(intrinsic) + ']';
+      }
+    columns += ']';
+    write_metric("dd_diagnostic_problem", {
+      {"merge_id", std::to_string(merge_id)}, {"length_x", std::to_string(L1)},
+      {"length_y", std::to_string(L2)}, {"x_weight", json_number(w_*2*N1/(N1+N2))},
+      {"y_weight", json_number(w_*2*N2/(N1+N2))},
+      {"fold_threshold", json_number(th_s_[0])}, {"align_threshold", json_number(th_a_)},
+      {"px", diagnostic_matrix(L1,L1,[&](uint i,uint j){return p_x.get(i,j);})},
+      {"py", diagnostic_matrix(L2,L2,[&](uint i,uint j){return p_y.get(i,j);})},
+      {"pz", diagnostic_matrix(L1,L2,[&](uint i,uint j){return p_z.get(i,j);})},
+      {"cbp", columns}});
+  }
+
   // precalculate the range for alignment, i.e. alignment envelope
   // (moved before dynamic CBP generation to enable decoder-based initial solution)
   VVF dense_p_x, dense_p_y, dense_p_z;
-  if (!use_linear_structure_decoder_) {
+  if (!use_linear_structure_decoder_ && !use_sparse_structure_lagrangian_) {
     dense_p_x = p_x.dense();
     dense_p_y = p_y.dense();
   }
@@ -1389,9 +1444,10 @@ float DAFS::
     metrics_cbp_added_ += initial_cbp;
 
   // Initialize gradient manager
-  GradientManager gm(eta0_, 0.0f, 1.0f,
+  GradientManager gm(dd_beam_eta_, 0.0f, 1.0f,
                      use_sparse_structure_lagrangian_,
                      use_sparse_alignment_lagrangian_);
+  gm.set_projected_norm(use_dd_projected_norm_ || use_dd_beam_projected_norm_);
   gm.initialize(L1, L2);
   // Beam subgradients are useful for primal recovery but do not minimize the
   // certified matching relaxation.  Maintain an independent, always-sparse
@@ -1403,8 +1459,86 @@ float DAFS::
   if (use_certified_dual_track) {
     certified_gm = std::make_unique<GradientManager>(
         eta0_, 0.0f, 1.0f, true, true);
+    certified_gm->set_projected_norm(use_dd_projected_norm_);
     certified_gm->initialize(L1, L2);
   }
+
+  // The opt-in tight oracle sees the union of probability support and every
+  // currently nonzero alignment multiplier support.  In particular, a
+  // q-only edge must not disappear merely because p_z is zero.  The column
+  // certificate uses the smaller union p_z + certified q_z; beam q_z is not
+  // needed for that independent certificate.  The default path does not
+  // construct or scan either union.
+  std::vector<std::pair<uint, uint>> tight_alignment_support;
+  std::unordered_set<uint64_t> tight_alignment_support_set;
+  std::vector<std::pair<uint, uint>> column_alignment_support;
+  const auto add_tight_alignment_support = [&](uint i, uint k) {
+    if (i >= L1 || k >= L2)
+      return;
+    if (tight_alignment_support_set.insert(support_key(i, k)).second)
+      tight_alignment_support.emplace_back(i, k);
+  };
+  const auto append_alignment_multiplier_support =
+      [&](const GradientManager& track, auto&& add_support) {
+    if (track.uses_sparse_alignment_storage()) {
+      const SparseFloatMatrix& q = track.sparse_q_z();
+      for (uint i = 0; i < L1; ++i)
+        for (const auto [k, value] : q.ordered_row(i))
+          if (value != 0.0f)
+            add_support(i, k);
+    } else {
+      const VVF& q = track.dense_q_z();
+      for (uint i = 0; i < L1; ++i)
+        for (uint k = 0; k < L2; ++k)
+          if (q[i][k] != 0.0f)
+            add_support(i, k);
+    }
+  };
+  const auto append_column_multiplier_support =
+      [&](const GradientManager& track) {
+    if (track.uses_sparse_alignment_storage()) {
+      track.sparse_q_z().for_each_nonzero(
+          [&](uint i, uint k, float value) {
+            if (value != 0.0f)
+              column_alignment_support.emplace_back(i, k);
+          });
+    } else {
+      const VVF& q = track.dense_q_z();
+      for (uint i = 0; i < L1; ++i)
+        for (uint k = 0; k < L2; ++k)
+          if (q[i][k] != 0.0f)
+            column_alignment_support.emplace_back(i, k);
+    }
+  };
+  const auto rebuild_alignment_supports = [&]() {
+    if (!use_dd_tight_alignment_ && !use_dd_column_bound_)
+      return;
+    if (use_dd_tight_alignment_) {
+      tight_alignment_support.clear();
+      tight_alignment_support_set.clear();
+      tight_alignment_support_set.reserve(
+          p_z_support.size() + (use_certified_dual_track ?
+                                certified_gm->sparse_q_z().nonzeros() : 0));
+      for (const auto& [i, k] : p_z_support)
+        add_tight_alignment_support(i, k);
+      if (use_linear_alignment_decoder_)
+        append_alignment_multiplier_support(gm,
+                                            add_tight_alignment_support);
+      if (use_certified_dual_track)
+        append_alignment_multiplier_support(*certified_gm,
+                                            add_tight_alignment_support);
+    }
+    if (use_dd_column_bound_ && use_certified_dual_track) {
+      // Duplicate edges are harmless for a per-column maximum.  Avoid a
+      // per-iteration hash/set allocation: the complete support is exactly
+      // p_z plus every nonzero certified q_z coordinate, and max is
+      // idempotent over any repeated coordinate.
+      column_alignment_support = p_z_support;
+      column_alignment_support.reserve(
+          p_z_support.size() + certified_gm->sparse_q_z().nonzeros());
+      append_column_multiplier_support(*certified_gm);
+    }
+  };
   
   // Certified bounds and the best feasible primal solution recovered so far.
   // The former alignment-only bound could contain a consensus pair across a
@@ -1413,6 +1547,13 @@ float DAFS::
   float best_ub = std::numeric_limits<float>::infinity();
   float best_feasible_score = std::numeric_limits<float>::lowest();
   VU best_x, best_y, best_z;
+  float best_certified_alignment_repair =
+      std::numeric_limits<float>::lowest();
+  double certified_alignment_repair_seconds = 0.0;
+  float best_certified_column_track = std::numeric_limits<float>::infinity();
+  DDRecovery::AlignmentWindow recovery_window;
+  size_t recovery_attempts = 0, recovery_improvements = 0;
+  double recovery_seconds = 0.0;
   
   float s_prev = 0.0;
   uint violated = 0;
@@ -1422,6 +1563,9 @@ float DAFS::
   std::string stop_reason = "max_iterations";
   for (t = 0; t != t_max_; ++t)
   {
+    if (dd_recovery_interval_)
+      recovery_window.push(p_z_support,
+                          [&](uint i, uint k) { return gm.q_z(i, k); });
     size_t iteration_added = 0;
     size_t iteration_priced = 0;
     size_t iteration_removed = 0;
@@ -1447,9 +1591,9 @@ float DAFS::
       s_x = x_linear_result.score;
       s_y = y_linear_result.score;
     } else if (gm.uses_sparse_structure_storage()) {
-      s_x = s_decoder_->decode(x_weight, dense_p_x,
+      s_x = s_decoder_->decode(x_weight, p_x,
                                gm.sparse_q_x(), x);
-      s_y = s_decoder_->decode(y_weight, dense_p_y,
+      s_y = s_decoder_->decode(y_weight, p_y,
                                gm.sparse_q_y(), y);
     } else {
       s_x = s_decoder_->decode(x_weight, dense_p_x, gm.dense_q_x(), x);
@@ -1465,6 +1609,12 @@ float DAFS::
           : a_decoder_->decode(dense_p_z, gm.dense_q_z(), z);
     }
     float s = s_x + s_y + s_z;
+    // Read before recovery or guide-tree code can reuse this decoder.
+    const auto* alignment_decoder = dynamic_cast<LinearNeedlemanWunsch*>(a_decoder_.get());
+    const bool alignment_unpruned = alignment_decoder && alignment_decoder->last_decode_unpruned();
+    const double alignment_exact_score = alignment_decoder ? alignment_decoder->last_decode_score() : 0.0;
+
+    rebuild_alignment_supports();
 
     // Beam maxima are feasible subproblem values, not certified maxima.  The
     // linear Nussinov decoder records every genuinely pruned state and bounds
@@ -1477,6 +1627,7 @@ float DAFS::
     RelaxedBounds::AlignmentBound z_bound_details;
     float x_certified_bound = 0.0f;
     float y_certified_bound = 0.0f;
+    float z_bound_value = 0.0f;
     if (use_linear_structure_decoder_) {
       certified_s -= s_x + s_y;
       x_certified_bound = x_linear_result.upper_bound;
@@ -1485,35 +1636,106 @@ float DAFS::
       // and protects certification against implementation or rounding drift.
       certified_s += std::max(x_certified_bound, s_x) +
                      std::max(y_certified_bound, s_y);
+    } else if (use_linear_ipknot_decoder_) {
+      // The layered beam decoder is a feasible oracle, not an exact
+      // maximizer.  Dropping crossing constraints and keeping only one pair
+      // per left endpoint bounds the original coupled objective, whose
+      // structure coefficient uses the minimum IPknot threshold.
+      // Probability support contains every structure multiplier coordinate,
+      // so both scans have O(L) size for fixed posterior threshold.
+      VU ignored_x, ignored_y;
+      x_certified_bound = RelaxedBounds::structure_left_solution(
+          p_x_support, L1, [&](uint i, uint j) {
+            return x_weight * (p_x.get(i, j) - min_th_s) - gm.q_x(i, j);
+          }, ignored_x, 1);
+      y_certified_bound = RelaxedBounds::structure_left_solution(
+          p_y_support, L2, [&](uint k, uint l) {
+            return y_weight * (p_y.get(k, l) - min_th_s) - gm.q_y(k, l);
+          }, ignored_y, 1);
+      certified_s -= s_x + s_y;
+      certified_s += std::max(x_certified_bound, s_x) +
+                     std::max(y_certified_bound, s_y);
     }
     if (use_linear_alignment_decoder_) {
       certified_s -= s_z;
-      z_bound_details = RelaxedBounds::alignment_bound(
-          p_z_support, L1, L2, [&](uint i, uint k) {
-            return p_z.get(i, k) - th_a_ + gm.q_z(i, k);
-          });
-      certified_s += std::max(z_bound_details.best, s_z);
+      if (use_dd_tight_alignment_) {
+        z_bound_details = RelaxedBounds::alignment_bound(
+            tight_alignment_support, L1, L2, [&](uint i, uint k) {
+              return p_z.get(i, k) - th_a_ + gm.q_z(i, k);
+            });
+        const RelaxedBounds::MonotoneAlignmentSolution tight_alignment =
+            RelaxedBounds::alignment_monotone_solution(
+                tight_alignment_support, L1, L2, [&](uint i, uint k) {
+                  return p_z.get(i, k) - th_a_ + gm.q_z(i, k);
+                });
+        z_bound_value = tight_alignment.value;
+      } else {
+        z_bound_details = RelaxedBounds::alignment_bound(
+            p_z_support, L1, L2, [&](uint i, uint k) {
+              return p_z.get(i, k) - th_a_ + gm.q_z(i, k);
+            });
+        z_bound_value = z_bound_details.best;
+      }
+      if (dd_unpruned_bound_ && alignment_unpruned)
+        z_bound_value = std::min(z_bound_value, DDCertificate::unpruned_alignment(
+            alignment_exact_score, std::min(L1,L2)));
+      certified_s += std::max(z_bound_value, s_z);
     }
 
     VU certified_x, certified_y, certified_z, certified_w_cbp;
     float certified_track_s = std::numeric_limits<float>::infinity();
+    float certified_column_track_s = std::numeric_limits<float>::infinity();
+    RelaxedBounds::AlignmentBound certified_column_bound_details;
+    double certified_structure_accumulator =
+        std::numeric_limits<double>::infinity();
+    double certified_w_accumulator = 0.0;
     double certified_track_accumulator =
         std::numeric_limits<double>::infinity();
     if (use_certified_dual_track) {
+      // The coupled IP objective permits all positive pair spans.  Linear
+      // Nussinov starts at span two, while IPknot's coupled model can also
+      // contain span-one pairs; include them in its capacity relaxation.
+      const uint minimum_bound_span = use_linear_ipknot_decoder_ ? 1u :
+          LinearNussinov::cached_support_minimum_pair_span;
+      const float bound_threshold = use_linear_ipknot_decoder_ ?
+          min_th_s : th_s_[0];
       certified_track_accumulator = RelaxedBounds::structure_left_solution(
           p_x_support, L1, [&](uint i, uint j) {
-            return x_weight * (p_x.get(i, j) - th_s_[0]) -
+            return x_weight * (p_x.get(i, j) - bound_threshold) -
                    certified_gm->q_x(i, j);
-          }, certified_x);
+          }, certified_x,
+          minimum_bound_span);
       certified_track_accumulator += RelaxedBounds::structure_left_solution(
           p_y_support, L2, [&](uint k, uint l) {
-            return y_weight * (p_y.get(k, l) - th_s_[0]) -
+            return y_weight * (p_y.get(k, l) - bound_threshold) -
                    certified_gm->q_y(k, l);
-          }, certified_y);
-      certified_track_accumulator += RelaxedBounds::alignment_row_solution(
-          p_z_support, L1, L2, [&](uint i, uint k) {
-            return p_z.get(i, k) - th_a_ + certified_gm->q_z(i, k);
-          }, certified_z);
+          }, certified_y,
+          minimum_bound_span);
+      certified_structure_accumulator = certified_track_accumulator;
+      if (use_dd_column_bound_) {
+        // This is an independent capacity relaxation on the complete
+        // p_z union certified-q_z support.  It is used only as a prefix UB;
+        // the row solution below remains the certified track objective and
+        // selected subgradient used by Polyak.
+        certified_column_bound_details = RelaxedBounds::alignment_bound(
+            column_alignment_support, L1, L2, [&](uint i, uint k) {
+              return p_z.get(i, k) - th_a_ + certified_gm->q_z(i, k);
+            });
+      }
+      if (use_dd_tight_alignment_) {
+        const RelaxedBounds::MonotoneAlignmentSolution tight_certified_alignment =
+            RelaxedBounds::alignment_monotone_solution(
+                tight_alignment_support, L1, L2, [&](uint i, uint k) {
+                  return p_z.get(i, k) - th_a_ + certified_gm->q_z(i, k);
+                });
+        certified_z = tight_certified_alignment.selected;
+        certified_track_accumulator += tight_certified_alignment.value;
+      } else {
+        certified_track_accumulator += RelaxedBounds::alignment_row_solution(
+            p_z_support, L1, L2, [&](uint i, uint k) {
+              return p_z.get(i, k) - th_a_ + certified_gm->q_z(i, k);
+            }, certified_z);
+      }
     }
 
     if (verbose_ >= 2)
@@ -1602,6 +1824,33 @@ float DAFS::
       }
     }
 
+    float block_beam = std::numeric_limits<float>::infinity();
+    float block_cert = std::numeric_limits<float>::infinity();
+    if (dd_block_bound_) {
+      // Full p_z union q_z support, including q-only coordinates. Duplicates
+      // need no sorting/deduplication beyond the linear radix pass.
+      std::vector<std::pair<uint,uint>> support = p_z_support;
+      const auto append = [&](const GradientManager& track) {
+        track.sparse_q_z().for_each_nonzero([&](uint i,uint k,float value) {
+          if (value!=0) support.emplace_back(i,k);
+        });
+      };
+      append(gm);
+      append(*certified_gm);
+      block_beam = DDCertificate::block_alignment(support,L1,L2,dd_block_bound_,
+          [&](uint i,uint k) { return p_z.get(i,k)-th_a_+gm.q_z(i,k); });
+      block_cert = DDCertificate::block_alignment(support,L1,L2,dd_block_bound_,
+          [&](uint i,uint k) { return p_z.get(i,k)-th_a_+certified_gm->q_z(i,k); });
+      z_bound_value = std::min(z_bound_value,block_beam);
+    }
+    // New certificates avoid subtracting float subproblem scores from a
+    // rounded total. This fixes assembly only, not all coefficient rounding.
+    const bool improved_certificate = dd_unpruned_bound_ || dd_block_bound_;
+    double beam_certificate_sum = DDCertificate::up(
+        static_cast<double>(std::max(x_certified_bound,s_x)) + std::max(y_certified_bound,s_y));
+    beam_certificate_sum = DDCertificate::up(beam_certificate_sum + std::max(z_bound_value,s_z));
+    double block_certificate_sum = DDCertificate::up(certified_structure_accumulator + block_cert);
+
     // Calculate Lagrangian value
     w_cbp.clear();
     VF cbp_reduced_cost(cbp.size(), 0.0f);
@@ -1618,6 +1867,8 @@ float DAFS::
       {
         s += s_w;
         certified_s += s_w;
+        if (improved_certificate)
+          beam_certificate_sum = DDCertificate::up(beam_certificate_sum + s_w);
         w_cbp.push_back(u);
       }
       if (use_certified_dual_track) {
@@ -1626,7 +1877,11 @@ float DAFS::
             - certified_gm->q_z(i, k) - certified_gm->q_z(j, l);
         certified_cbp_reduced_cost[u] = certified_s_w;
         if (certified_s_w > 0.0f) {
+          if (dd_block_bound_)
+            block_certificate_sum = DDCertificate::up(block_certificate_sum + certified_s_w);
           certified_track_accumulator += static_cast<double>(certified_s_w);
+          if (use_dd_column_bound_)
+            certified_w_accumulator += static_cast<double>(certified_s_w);
           certified_w_cbp.push_back(u);
         }
       }
@@ -1636,7 +1891,23 @@ float DAFS::
     if (use_certified_dual_track)
       certified_track_s =
           RelaxedBounds::round_up_to_float(certified_track_accumulator);
-    best_ub = std::min({best_ub, certified_s, certified_track_s});
+    if (use_dd_column_bound_ && use_certified_dual_track) {
+      const double certified_column_accumulator =
+          certified_structure_accumulator +
+          static_cast<double>(certified_column_bound_details.column) +
+          certified_w_accumulator;
+      certified_column_track_s =
+          RelaxedBounds::round_up_to_float(certified_column_accumulator);
+      best_certified_column_track =
+          std::min(best_certified_column_track, certified_column_track_s);
+    }
+    if (improved_certificate)
+      certified_s = RelaxedBounds::round_up_to_float(beam_certificate_sum);
+    const float block_track_s = dd_block_bound_
+        ? RelaxedBounds::round_up_to_float(block_certificate_sum)
+        : std::numeric_limits<float>::infinity();
+    best_ub = std::min({best_ub, certified_s, certified_track_s, block_track_s,
+                        certified_column_track_s});
 
     VU repaired_x, repaired_y, repaired_z;
     float intersection_feasible_score = 0.0f;
@@ -1651,14 +1922,145 @@ float DAFS::
       best_y.swap(repaired_y);
       best_z.swap(repaired_z);
     }
-    if (feasible_score > lb) {
+    float certified_alignment_repair =
+        std::numeric_limits<float>::lowest();
+    if (use_dd_tight_alignment_ && use_certified_dual_track) {
+      const auto certified_repair_start = Clock::now();
+      VU repaired_certified_x, repaired_certified_y, repaired_certified_z;
+      float ignored_intersection_score = 0.0f;
+      float ignored_consensus_score = 0.0f;
+      certified_alignment_repair = repair_feasible_solution(
+          repaired_certified_x, repaired_certified_y, repaired_certified_z,
+          x, y, certified_z, p_x, p_y, p_z, N1, N2, min_th_s,
+          pair_match_score, ignored_intersection_score,
+          ignored_consensus_score);
+      certified_alignment_repair_seconds +=
+          elapsed_seconds(certified_repair_start);
+      best_certified_alignment_repair = std::max(
+          best_certified_alignment_repair, certified_alignment_repair);
+      if (certified_alignment_repair > best_feasible_score) {
+        best_feasible_score = certified_alignment_repair;
+        best_x.swap(repaired_certified_x);
+        best_y.swap(repaired_certified_y);
+        best_z.swap(repaired_certified_z);
+      }
+    }
+    float recovery_score = std::numeric_limits<float>::lowest();
+    if (dd_recovery_interval_ && (t + 1) % dd_recovery_interval_ == 0) {
+      const auto recovery_start = Clock::now();
+      SparseFloatMatrix average_q;
+      recovery_window.average(p_z_support, L1, L2, average_q);
+      VU previous_proposal;
+      for (uint proposal = 0; proposal < 2; ++proposal) {
+        VU proposal_z, rx, ry, rz;
+        // The row-relaxed certified_z itself need not be monotone. Decode
+        // from its multipliers with the regular beam before feasible repair.
+        a_decoder_->decode(p_z, proposal == 0 ? average_q :
+                           certified_gm->sparse_q_z(), proposal_z);
+        if (!DDRecovery::monotone(proposal_z, L2))
+          throw std::runtime_error("non-monotone DD recovery proposal");
+        if (proposal_z == z || (proposal && proposal_z == previous_proposal))
+          continue;
+        previous_proposal = proposal_z;
+        ++recovery_attempts;
+        float intersection = 0.0f, consensus = 0.0f;
+        const float score = repair_feasible_solution(
+            rx, ry, rz, x, y, proposal_z, p_x, p_y, p_z,
+            N1, N2, min_th_s, pair_match_score, intersection, consensus);
+        if (!DDRecovery::coupled(rx, ry, rz))
+          throw std::runtime_error("infeasible DD recovery result");
+        // Independently rescore original coefficients; never use averaged
+        // multipliers, the proposal score, or a relaxation value as a LB.
+        float verified = 0.0f;
+        for (uint i = 0; i < L1; ++i)
+          if (rz[i] != -1u) verified += p_z.get(i, rz[i]) - th_a_;
+        for (uint i = 0; i < L1; ++i) {
+          const uint j = rx[i];
+          if (j == -1u || j <= i) continue;
+          const uint k = rz[i], l = rz[j];
+          const float intrinsic = pair_match_score(i, j, k, l);
+          if (!is_valid_cbp(i, j, k, l, p_x, p_y, p_z,
+                            N1, N2, min_th_s, intrinsic))
+            throw std::runtime_error("invalid CBP in DD recovery");
+          verified += x_weight * (p_x.get(i, j) - th_s_[0]);
+          verified += y_weight * (p_y.get(k, l) - th_s_[0]);
+          verified += intrinsic;
+        }
+        const float safe_score = std::min(score, verified);
+        if (!std::isfinite(safe_score) ||
+            safe_score > best_ub + 1e-4f * std::max(1.0f, std::abs(best_ub)))
+          throw std::runtime_error("invalid DD recovery score/bound");
+        recovery_score = std::max(recovery_score, safe_score);
+        if (safe_score > best_feasible_score) {
+          ++recovery_improvements;
+          best_feasible_score = safe_score;
+          best_x.swap(rx); best_y.swap(ry); best_z.swap(rz);
+        }
+      }
+      recovery_seconds += elapsed_seconds(recovery_start);
+    }
+    if (dd_outward_lb_) {
+      // Verify the selected primal, then rescore original coefficients, not
+      // rounded consensus/decoder totals. Directed double arithmetic followed
+      // by a downward float conversion never raises this feasible score.
+      if (!DDRecovery::coupled(best_x,best_y,best_z))
+        throw std::runtime_error("infeasible outward-LB primal");
+      double value=0;
+      for (uint i=0;i<L1;++i)
+        if (best_z[i]!=-1u)
+          value=DDCertificate::down(value+DDCertificate::down(
+              static_cast<double>(p_z.get(i,best_z[i]))-th_a_));
+      const float repair_th=*std::max_element(th_s_.begin(),th_s_.end());
+      for (uint i=0;i<L1;++i) {
+        const uint j=best_x[i];
+        if (j==-1u || j<=i) continue;
+        const uint k=best_z[i],l=best_z[j];
+        const float intrinsic=pair_match_score(i,j,k,l);
+        if (!is_valid_cbp(i,j,k,l,p_x,p_y,p_z,N1,N2,min_th_s,intrinsic))
+          throw std::runtime_error("invalid CBP in outward-LB primal");
+        value=DDCertificate::down(value+DDCertificate::lower_weighted_score(x_weight,p_x.get(i,j),repair_th));
+        value=DDCertificate::down(value+DDCertificate::lower_weighted_score(y_weight,p_y.get(k,l),repair_th));
+        value=DDCertificate::down(value+intrinsic);
+      }
+      // Empty structure/alignment is also feasible with objective zero.
+      lb=std::max({lb,0.0f,DDCertificate::lower_float(value)});
+      gm.set_lower_bound(lb);
+      certified_gm->set_lower_bound(lb);
+    }
+    if (!dd_outward_lb_ && recovery_score > lb) {
+      lb = recovery_score;
+      gm.set_lower_bound(lb);
+      certified_gm->set_lower_bound(lb);
+    }
+    if (!dd_outward_lb_ && feasible_score > lb) {
       lb = feasible_score;
       gm.set_lower_bound(lb);
       if (use_certified_dual_track)
         certified_gm->set_lower_bound(lb);
       spdlog::debug("Step: {}, improved feasible LB to {}", t, lb);
     }
+    if (!dd_outward_lb_ && certified_alignment_repair > lb) {
+      lb = certified_alignment_repair;
+      gm.set_lower_bound(lb);
+      if (use_certified_dual_track)
+        certified_gm->set_lower_bound(lb);
+      spdlog::debug("Step: {}, improved feasible LB from certified alignment repair to {}",
+                    t, lb);
+    }
 
+    if (diagnostic && (t == 0 || t == 9 || (t+1) % 100 == 0)) {
+      std::vector<std::pair<std::string,std::string>> fields{
+          {"merge_id", std::to_string(merge_id)}, {"iteration", std::to_string(t+1)},
+          {"lb", json_number(lb)}, {"best_ub", json_number(best_ub)}};
+      for (uint track = 0; track < 2; ++track) {
+        const auto& g = track ? *certified_gm : gm;
+        const std::string prefix = track ? "cert_" : "beam_";
+        fields.emplace_back(prefix+"qx", diagnostic_matrix(L1,L1,[&](uint i,uint j){return g.q_x(i,j);}));
+        fields.emplace_back(prefix+"qy", diagnostic_matrix(L2,L2,[&](uint i,uint j){return g.q_y(i,j);}));
+        fields.emplace_back(prefix+"qz", diagnostic_matrix(L1,L2,[&](uint i,uint j){return g.q_z(i,j);}));
+      }
+      write_metric("dd_diagnostic_state", fields);
+    }
     // Update gradients
     // The subgradient comes from the beam solutions x/y/z/w, so its Polyak
     // numerator must use their Lagrangian value.  The relaxed certified value
@@ -1759,9 +2161,8 @@ float DAFS::
     const float gap_tolerance = 1e-4f * std::max(1.0f, std::abs(lb));
     ++iterations_completed;
     ++metrics_dd_iterations_;
-    write_metric(
-        "dd_iteration",
-        {{"merge_id", std::to_string(merge_id)},
+    std::vector<std::pair<std::string, std::string>> iteration_metrics = {
+        {"merge_id", std::to_string(merge_id)},
          {"iteration", std::to_string(t)},
          {"beam_lagrangian", json_number(s)},
          {"polyak_lagrangian", json_number(update_s)},
@@ -1771,7 +2172,7 @@ float DAFS::
          {"certified_track_polyak_update", use_certified_dual_track
               ? json_number(certified_gm->get_last_update_size()) : "null"},
          {"x_beam", json_number(s_x)},
-         {"x_bound", use_linear_structure_decoder_
+         {"x_bound", (use_linear_structure_decoder_ || use_linear_ipknot_decoder_)
                          ? json_number(x_certified_bound) : "null"},
          {"x_bound_beam_certificate", use_linear_structure_decoder_
               ? json_number(x_linear_result.upper_bound) : "null"},
@@ -1789,7 +2190,7 @@ float DAFS::
          {"x_bound_top_k", "null"},
          {"x_bound_vertex_cover", "null"},
          {"y_beam", json_number(s_y)},
-         {"y_bound", use_linear_structure_decoder_
+         {"y_bound", (use_linear_structure_decoder_ || use_linear_ipknot_decoder_)
                          ? json_number(y_certified_bound) : "null"},
          {"y_bound_beam_certificate", use_linear_structure_decoder_
               ? json_number(y_linear_result.upper_bound) : "null"},
@@ -1808,7 +2209,9 @@ float DAFS::
          {"y_bound_vertex_cover", "null"},
          {"z_beam", json_number(s_z)},
          {"z_bound", use_linear_alignment_decoder_
-                         ? json_number(z_bound_details.best) : "null"},
+                         ? json_number(use_dd_tight_alignment_
+                             ? std::max(z_bound_value, s_z)
+                             : z_bound_value) : "null"},
          {"z_bound_row", use_linear_alignment_decoder_
                              ? json_number(z_bound_details.row) : "null"},
          {"z_bound_column", use_linear_alignment_decoder_
@@ -1838,7 +2241,69 @@ float DAFS::
          {"cbp_heuristic_added", std::to_string(iteration_added)},
          {"cbp_priced", std::to_string(iteration_priced)},
          {"cbp_removed", std::to_string(iteration_removed)},
-         {"selected_pair_matches", std::to_string(w_cbp.size())}});
+         {"selected_pair_matches", std::to_string(w_cbp.size())}};
+    if (use_dd_tight_alignment_) {
+      iteration_metrics.emplace_back(
+          "z_bound_monotone", use_linear_alignment_decoder_
+              ? json_number(z_bound_value) : "null");
+      iteration_metrics.emplace_back(
+          "certified_alignment_repair",
+          use_certified_dual_track
+              ? json_number(certified_alignment_repair) : "null");
+      iteration_metrics.emplace_back(
+          "certified_alignment_repair_seconds",
+          use_certified_dual_track
+              ? json_number(certified_alignment_repair_seconds) : "null");
+    }
+    if (dd_recovery_interval_) {
+      iteration_metrics.emplace_back("recovery_score",
+          recovery_score == std::numeric_limits<float>::lowest()
+              ? "null" : json_number(recovery_score));
+      iteration_metrics.emplace_back("recovery_improvements",
+                                     std::to_string(recovery_improvements));
+    }
+    if (use_dd_projected_norm_ || use_dd_beam_projected_norm_) {
+      iteration_metrics.emplace_back(
+          "beam_gradient_norm_squared",
+          json_number(gm.get_last_gradient_norm_squared()));
+      iteration_metrics.emplace_back(
+          "beam_projected_gradient_norm_squared",
+          json_number(gm.get_last_projected_gradient_norm_squared()));
+      iteration_metrics.emplace_back(
+          "beam_projected_norm_dropped",
+          std::to_string(gm.get_last_projected_norm_dropped()));
+      if (use_certified_dual_track) {
+        iteration_metrics.emplace_back(
+            "certified_gradient_norm_squared",
+            json_number(certified_gm->get_last_gradient_norm_squared()));
+        iteration_metrics.emplace_back(
+            "certified_projected_gradient_norm_squared",
+            json_number(
+                certified_gm->get_last_projected_gradient_norm_squared()));
+        iteration_metrics.emplace_back(
+            "certified_projected_norm_dropped",
+            std::to_string(certified_gm->get_last_projected_norm_dropped()));
+      }
+    }
+    if (use_dd_column_bound_) {
+      iteration_metrics.emplace_back(
+          "certified_column_bound_row_capacity",
+          json_number(certified_column_bound_details.row));
+      iteration_metrics.emplace_back(
+          "certified_column_bound_column_capacity",
+          json_number(certified_column_bound_details.column));
+      iteration_metrics.emplace_back(
+          "certified_column_bound_lagrangian",
+          json_number(certified_column_track_s));
+    }
+    if (improved_certificate) {
+      iteration_metrics.emplace_back("z_unpruned",alignment_unpruned ? "true" : "false");
+      iteration_metrics.emplace_back("z_unpruned_bound",dd_unpruned_bound_ && alignment_unpruned
+          ? json_number(DDCertificate::unpruned_alignment(alignment_exact_score,std::min(L1,L2))) : "null");
+      iteration_metrics.emplace_back("z_block_bound",dd_block_bound_ ? json_number(block_beam) : "null");
+      iteration_metrics.emplace_back("block_track_lagrangian",dd_block_bound_ ? json_number(block_track_s) : "null");
+    }
+    write_metric("dd_iteration", iteration_metrics);
     if (certified_gap >= 0.0f && certified_gap <= gap_tolerance) {
       stop_reason = "certified_gap";
       break;
@@ -1866,9 +2331,8 @@ float DAFS::
 
   const double dd_seconds = elapsed_seconds(dd_start);
   metrics_dd_seconds_ += dd_seconds;
-  write_metric(
-      "dd_summary",
-      {{"merge_id", std::to_string(merge_id)},
+  std::vector<std::pair<std::string, std::string>> summary_metrics = {
+       {"merge_id", std::to_string(merge_id)},
        {"iterations", std::to_string(iterations_completed)},
        {"seconds", json_number(dd_seconds)},
        {"initial_cbp", std::to_string(initial_cbp)},
@@ -1876,8 +2340,27 @@ float DAFS::
        {"best_ub", json_number(best_ub)},
        {"lb", json_number(lb)},
        {"gap", json_number(best_ub - lb)},
-       {"violated", std::to_string(violated)}},
-      {{"stop_reason", stop_reason}});
+       {"violated", std::to_string(violated)}};
+  if (use_dd_tight_alignment_) {
+    summary_metrics.emplace_back(
+        "certified_alignment_repair_best",
+        use_certified_dual_track
+            ? json_number(best_certified_alignment_repair) : "null");
+    summary_metrics.emplace_back(
+        "certified_alignment_repair_seconds",
+        use_certified_dual_track
+            ? json_number(certified_alignment_repair_seconds) : "null");
+  }
+  if (use_dd_column_bound_)
+    summary_metrics.emplace_back(
+        "certified_column_bound_best",
+        json_number(best_certified_column_track));
+  if (dd_recovery_interval_) {
+    summary_metrics.emplace_back("recovery_attempts", std::to_string(recovery_attempts));
+    summary_metrics.emplace_back("recovery_improvements", std::to_string(recovery_improvements));
+    summary_metrics.emplace_back("recovery_seconds", json_number(recovery_seconds));
+  }
+  write_metric("dd_summary", summary_metrics, {{"stop_reason", stop_reason}});
 
   return std::isfinite(best_ub) ? best_ub : s_prev;
 }
@@ -1901,10 +2384,12 @@ float DAFS::
   // integer programming
   IP ip(IP::MAX, 1);
 
-  // variables
-  VVI v_x(L1, VI(L1, -1));
-  VVI v_y(L2, VI(L2, -1));
-  VVI v_z(L1, VI(L2, -1));
+  // Keep the IP support sparse, as in current IPknot's LinearPartition path.
+  // The posterior already contains only retained probability candidates.
+  std::vector<std::unordered_map<uint, int>> v_x(L1), v_y(L2);
+  std::vector<std::vector<std::pair<uint, int>>> x_left(L1), x_right(L1);
+  std::vector<std::vector<std::pair<uint, int>>> y_left(L2), y_right(L2);
+  std::vector<std::vector<std::pair<uint, int>>> z_rows(L1), z_columns(L2);
   VI v_w;
 
   float min_th_s = th_s_[0];
@@ -1913,19 +2398,22 @@ float DAFS::
 
   // enumerate the candidates of aligned bases
   for (uint i = 0; i != L1; ++i)
-    for (uint k = 0; k != L2; ++k)
-      if (p_z.get(i, k) > CUTOFF)
-        v_z[i][k] = ip.make_variable(p_z.get(i, k) - th_a_);
+    for (const auto [k, probability] : p_z.ordered_row(i))
+      if (probability > CUTOFF)
+      {
+        const int var = ip.make_variable(probability - th_a_);
+        z_rows[i].emplace_back(k, var);
+        z_columns[k].emplace_back(i, var);
+      }
 
   // enumerate the candidates of consensus base-pairs
   std::vector<CBP> cbp;
-  for (uint i = 0; i != L1 - 1; ++i)
-    for (uint j = i + 1; j != L1; ++j)
-      if (p_x.get(i, j) > CUTOFF)
-        for (uint k = 0; k != L2 - 1; ++k)
-          if (p_z.get(i, k) > CUTOFF)
-            for (uint l = k + 1; l != L2; ++l)
-              if (p_y.get(k, l) > CUTOFF && p_z.get(j, l) > CUTOFF)
+  for (uint i = 0; i < L1; ++i)
+    for (const auto [j, px] : p_x.ordered_row(i))
+      if (i < j && px > CUTOFF)
+        for (const auto [k, z_ik] : z_rows[i])
+          for (const auto [l, z_jl] : z_rows[j])
+            if (k < l && p_y.get(k, l) > CUTOFF)
               {
                 const float ribosum = w_ribosum_ *
                     ribosum_x.pair_score(i, j, ribosum_y, k, l);
@@ -1934,12 +2422,19 @@ float DAFS::
                 {
                   cbp.push_back(std::make_pair(std::make_pair(i, j), std::make_pair(k, l)));
                   v_w.push_back(ip.make_variable(ribosum));
-                  if (v_x[i][j] < 0)
-                    v_x[i][j] = ip.make_variable(
-                        x_weight * (p_x.get(i, j) - min_th_s));
-                  if (v_y[k][l] < 0)
-                    v_y[k][l] = ip.make_variable(
+                  if (v_x[i].find(j) == v_x[i].end()) {
+                    const int var = ip.make_variable(x_weight * (px - min_th_s));
+                    v_x[i].emplace(j, var);
+                    x_left[i].emplace_back(j, var);
+                    x_right[j].emplace_back(i, var);
+                  }
+                  if (v_y[k].find(l) == v_y[k].end()) {
+                    const int var = ip.make_variable(
                         y_weight * (p_y.get(k, l) - min_th_s));
+                    v_y[k].emplace(l, var);
+                    y_left[k].emplace_back(l, var);
+                    y_right[l].emplace_back(k, var);
+                  }
                 }
               }
   ip.update();
@@ -1948,121 +2443,102 @@ float DAFS::
   for (uint i = 0; i < L1; ++i)
   {
     int row = ip.make_constraint(IP::UP, 0, 1);
-    for (uint j = 0; j < i; ++j)
-      if (v_x[j][i] >= 0)
-        ip.add_constraint(row, v_x[j][i], 1);
-    for (uint j = i + 1; j < L1; ++j)
-      if (v_x[i][j] >= 0)
-        ip.add_constraint(row, v_x[i][j], 1);
+    for (const auto [j, var] : x_right[i]) ip.add_constraint(row, var, 1);
+    for (const auto [j, var] : x_left[i]) ip.add_constraint(row, var, 1);
   }
 
   // constraints: no pseudoknots are allowed (in a)
-  for (uint i = 0; i < L1 - 1; ++i)
-    for (uint j = i + 1; j < L1; ++j)
-      if (v_x[i][j] >= 0)
+  for (uint i = 0; i < L1; ++i)
+    for (const auto [j, outer] : x_left[i])
         for (uint k = i + 1; k < j; ++k)
-          for (uint l = j + 1; l < L1; ++l)
-            if (v_x[k][l] >= 0)
+          for (const auto [l, crossing] : x_left[k])
+            if (j < l)
             {
               int row = ip.make_constraint(IP::UP, 0, 1);
-              ip.add_constraint(row, v_x[i][j], 1);
-              ip.add_constraint(row, v_x[k][l], 1);
+              ip.add_constraint(row, outer, 1);
+              ip.add_constraint(row, crossing, 1);
             }
 
   // constraints: each base is paired with at most one base (in b)
   for (uint i = 0; i < L2; ++i)
   {
     int row = ip.make_constraint(IP::UP, 0, 1);
-    for (uint j = 0; j < i; ++j)
-      if (v_y[j][i] >= 0)
-        ip.add_constraint(row, v_y[j][i], 1);
-    for (uint j = i + 1; j < L2; ++j)
-      if (v_y[i][j] >= 0)
-        ip.add_constraint(row, v_y[i][j], 1);
+    for (const auto [j, var] : y_right[i]) ip.add_constraint(row, var, 1);
+    for (const auto [j, var] : y_left[i]) ip.add_constraint(row, var, 1);
   }
 
   // constraints: no pseudoknots are allowed (in b)
-  for (uint i = 0; i < L2 - 1; ++i)
-    for (uint j = i + 1; j < L2; ++j)
-      if (v_y[i][j] >= 0)
+  for (uint i = 0; i < L2; ++i)
+    for (const auto [j, outer] : y_left[i])
         for (uint k = i + 1; k < j; ++k)
-          for (uint l = j + 1; l < L2; ++l)
-            if (v_y[k][l] >= 0)
+          for (const auto [l, crossing] : y_left[k])
+            if (j < l)
             {
               int row = ip.make_constraint(IP::UP, 0, 1);
-              ip.add_constraint(row, v_y[i][j], 1);
-              ip.add_constraint(row, v_y[k][l], 1);
+              ip.add_constraint(row, outer, 1);
+              ip.add_constraint(row, crossing, 1);
             }
 
   // constraints: each base is aligned with at most one base
   for (uint i = 0; i < L1; ++i)
   {
     int row = ip.make_constraint(IP::UP, 0, 1);
-    for (uint k = 0; k < L2; ++k)
-      if (v_z[i][k] >= 0)
-        ip.add_constraint(row, v_z[i][k], 1);
+    for (const auto [k, var] : z_rows[i]) ip.add_constraint(row, var, 1);
   }
   for (uint k = 0; k < L2; ++k)
   {
     int row = ip.make_constraint(IP::UP, 0, 1);
-    for (uint i = 0; i < L1; ++i)
-      if (v_z[i][k] >= 0)
-        ip.add_constraint(row, v_z[i][k], 1);
+    for (const auto [i, var] : z_columns[k]) ip.add_constraint(row, var, 1);
   }
 
   // constraints: no crossing matches are allowed
   for (uint i = 0; i < L1; ++i)
-    for (uint k = 0; k < L2; ++k)
-      if (v_z[i][k] >= 0)
+    for (const auto [k, first] : z_rows[i])
         for (uint j = i + 1; j < L1; ++j)
-          for (uint l = 0; l < k; ++l)
-            if (v_z[j][l] >= 0)
+          for (const auto [l, second] : z_rows[j])
+            if (l < k)
             {
               int row = ip.make_constraint(IP::UP, 0, 1);
-              ip.add_constraint(row, v_z[i][k], 1);
-              ip.add_constraint(row, v_z[j][l], 1);
+              ip.add_constraint(row, first, 1);
+              ip.add_constraint(row, second, 1);
             }
 
   // constraints for consensus base pairs
-  VVI r_x(L1, VI(L1, -1));
-  for (uint i = 0; i < L1 - 1; ++i)
-    for (uint j = i + 1; j < L1; ++j)
-      if (v_x[i][j] >= 0)
-      {
-        r_x[i][j] = ip.make_constraint(IP::FX, 0, 0);
-        ip.add_constraint(r_x[i][j], v_x[i][j], 1);
-      }
-
-  VVI r_y(L2, VI(L2, -1));
-  for (uint i = 0; i < L2 - 1; ++i)
-    for (uint j = i + 1; j < L2; ++j)
-      if (v_y[i][j] >= 0)
-      {
-        r_y[i][j] = ip.make_constraint(IP::FX, 0, 0);
-        ip.add_constraint(r_y[i][j], v_y[i][j], 1);
-      }
-
-  VVI r_z(L1, VI(L2, -1));
+  std::vector<std::unordered_map<uint, int>> r_x(L1);
   for (uint i = 0; i < L1; ++i)
-    for (uint k = 0; k < L2; ++k)
-      if (v_z[i][k] >= 0)
+    for (const auto [j, var] : x_left[i])
       {
-        r_z[i][k] = ip.make_constraint(IP::LO, 0, 0);
-        ip.add_constraint(r_z[i][k], v_z[i][k], 1);
+        const int row = ip.make_constraint(IP::FX, 0, 0);
+        r_x[i].emplace(j, row);
+        ip.add_constraint(row, var, 1);
+      }
+
+  std::vector<std::unordered_map<uint, int>> r_y(L2);
+  for (uint i = 0; i < L2; ++i)
+    for (const auto [j, var] : y_left[i])
+      {
+        const int row = ip.make_constraint(IP::FX, 0, 0);
+        r_y[i].emplace(j, row);
+        ip.add_constraint(row, var, 1);
+      }
+
+  std::vector<std::unordered_map<uint, int>> r_z(L1);
+  for (uint i = 0; i < L1; ++i)
+    for (const auto [k, var] : z_rows[i])
+      {
+        const int row = ip.make_constraint(IP::LO, 0, 0);
+        r_z[i].emplace(k, row);
+        ip.add_constraint(row, var, 1);
       }
 
   for (uint u = 0; u != cbp.size(); ++u)
   {
     const uint i = cbp[u].first.first, j = cbp[u].first.second;
     const uint k = cbp[u].second.first, l = cbp[u].second.second;
-    assert(r_x[i][j] >= 0 && v_x[i][j] >= 0);
-    ip.add_constraint(r_x[i][j], v_w[u], -1);
-    assert(r_y[k][l] >= 0 && v_y[k][l] >= 0);
-    ip.add_constraint(r_y[k][l], v_w[u], -1);
-    assert(r_z[i][k] >= 0 && v_z[i][k] >= 0);
-    ip.add_constraint(r_z[i][k], v_w[u], -1);
-    assert(r_z[j][l] >= 0 && v_z[j][l] >= 0);
-    ip.add_constraint(r_z[j][l], v_w[u], -1);
+    ip.add_constraint(r_x[i].at(j), v_w[u], -1);
+    ip.add_constraint(r_y[k].at(l), v_w[u], -1);
+    ip.add_constraint(r_z[i].at(k), v_w[u], -1);
+    ip.add_constraint(r_z[j].at(l), v_w[u], -1);
   }
 
   // execute optimization
@@ -2071,23 +2547,23 @@ float DAFS::
   // build the result
   x.resize(L1);
   std::fill(x.begin(), x.end(), -1u);
-  for (uint i = 0; i < L1 - 1; ++i)
-    for (uint j = i + 1; j < L1; ++j)
-      if (v_x[i][j] >= 0 && ip.get_value(v_x[i][j]) > 0.5)
+  for (uint i = 0; i < L1; ++i)
+    for (const auto [j, var] : x_left[i])
+      if (ip.get_value(var) > 0.5)
         x[i] = j;
 
   y.resize(L2);
   std::fill(y.begin(), y.end(), -1u);
-  for (uint i = 0; i < L2 - 1; ++i)
-    for (uint j = i + 1; j < L2; ++j)
-      if (v_y[i][j] >= 0 && ip.get_value(v_y[i][j]) > 0.5)
+  for (uint i = 0; i < L2; ++i)
+    for (const auto [j, var] : y_left[i])
+      if (ip.get_value(var) > 0.5)
         y[i] = j;
 
   z.resize(L1);
   std::fill(z.begin(), z.end(), -1u);
   for (uint i = 0; i < L1; ++i)
-    for (uint k = 0; k < L2; ++k)
-      if (v_z[i][k] >= 0 && ip.get_value(v_z[i][k]) > 0.5)
+    for (const auto [k, var] : z_rows[i])
+      if (ip.get_value(var) > 0.5)
         z[i] = k;
 
   return s;
@@ -2269,6 +2745,16 @@ parse_options(int& argc, char**& argv)
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"))
     ("dynamic-cbp", "Use dynamic CBP generation instead of pre-enumeration")
     ("dense-lagrangian", "Force dense Lagrange multiplier storage")
+    ("dd-tight-alignment", "Use an exact sparse monotone alignment bound in DD (opt-in)")
+    ("dd-projected-norm", "Use the projected-active Z norm in the DD Polyak denominator (opt-in)")
+    ("dd-beam-projected-norm", "Use projected norm on the beam track only (opt-in)")
+    ("dd-beam-eta", "Override Polyak scale on the beam track only", cxxopts::value<std::string>())
+    ("dd-recovery-interval", "Try two feasible primal proposals every N iterations (0=off)", cxxopts::value<int>()->default_value("0"))
+    ("dd-diagnostics", "Serialize fixed merges up to length 9 for offline exact diagnostics (requires metrics)")
+    ("dd-unpruned-bound", "Use a max-alignment certificate only when no state was pruned (opt-in)")
+    ("dd-outward-lb", "Verify and downward-rescore the feasible DD lower bound (opt-in)")
+    ("dd-block-bound", "Fixed row-block monotone certificate width (0=off, maximum 64)", cxxopts::value<int>()->default_value("0"))
+    ("dd-column-bound", "Use an independent certified column-capacity alignment bound in DD (opt-in)")
     ("metrics-jsonl", "Write machine-readable benchmark metrics to FILE",
       cxxopts::value<std::string>(), "FILE")
     ;
@@ -2290,8 +2776,9 @@ parse_options(int& argc, char**& argv)
     ("q,fold-pct", "Weight of PCT for base-pairing probabilities", cxxopts::value<float>()->default_value("0.25"))
     ("t,fold-th", "Threshold for base-pairing probabilities", cxxopts::value<std::vector<float>>()->default_value("0.2"))
     ("g,gamma", "Specify the threshold for base-pairing probabilities by 1/(gamma+1))", cxxopts::value<std::vector<float>>())
-    ("alifold", "Use RNAalifold for profile base-pairing probabilities (disabled by default)")
-    ("no-alifold", "Disable RNAalifold for profile base-pairing probabilities (default)")
+    ("alifold", "Use profile base-pairing probabilities (LinearAlifold for lpv/lpc, RNAalifold otherwise)")
+    ("no-alifold", "Disable profile base-pairing probabilities (default)")
+    ("alifold-stages", "Profile base-pairing stages: none, progressive, final, or both (experimental)", cxxopts::value<std::string>())
     ("final-ribosum-weight", "Weight of the RIBOSUM85-60 self-profile bonus in final Nussinov decoding", cxxopts::value<float>()->default_value("0"))
     ("T,fold-th1", "Threshold for base-pairing probabilities of the conclusive common secondary structures", cxxopts::value<std::vector<float>>())
     ("G,gamma1", "Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))", cxxopts::value<std::vector<float>>())
@@ -2301,7 +2788,9 @@ parse_options(int& argc, char**& argv)
     ("fold-aux", "Load base-pairing probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME")
     ("linfold-beam", "Beam size for LinearPartition probability calculation", cxxopts::value<int>()->default_value("100"), "SIZE")
     ("fold-dd-beam", "Beam size for the folding DD decoder (default: --linfold-beam)", cxxopts::value<int>(), "SIZE")
-    ("fold-final-beam", "Beam size for final consensus folding (default: --linfold-beam)", cxxopts::value<int>(), "SIZE");
+    ("fold-final-beam", "Beam size for final consensus folding (default: --linfold-beam)", cxxopts::value<int>(), "SIZE")
+    ("linear-profile-energy", "Profile thermodynamic score for lpv/lpc: legacy or rnaalifold",
+      cxxopts::value<std::string>()->default_value("rnaalifold"));
 
   options.parse_positional({"input"});
   options.positional_help("FILE").show_positional_help();
@@ -2331,6 +2820,24 @@ parse_options(int& argc, char**& argv)
       throw std::invalid_argument(
           "--final-ribosum-weight must be finite and non-negative");
     eta0_ = res["eta"].as<float>();
+    dd_beam_eta_explicit_ = res.count("dd-beam-eta") > 0;
+    dd_beam_eta_ = eta0_;
+    if (dd_beam_eta_explicit_) {
+      const std::string value = res["dd-beam-eta"].as<std::string>();
+      size_t parsed = 0;
+      dd_beam_eta_ = std::stof(value, &parsed);
+      if (parsed != value.size())
+        throw std::invalid_argument("--dd-beam-eta must be finite and positive");
+    }
+    if (dd_beam_eta_explicit_ && (!std::isfinite(dd_beam_eta_) || dd_beam_eta_ <= 0.0f))
+      throw std::invalid_argument("--dd-beam-eta must be finite and positive");
+    const int recovery_interval = res["dd-recovery-interval"].as<int>();
+    if (recovery_interval < 0)
+      throw std::invalid_argument("--dd-recovery-interval must be non-negative");
+    dd_recovery_interval_ = static_cast<uint>(recovery_interval);
+    dd_diagnostics_ = res.count("dd-diagnostics") > 0;
+    if (dd_diagnostics_ && !res.count("metrics-jsonl"))
+      throw std::invalid_argument("--dd-diagnostics requires --metrics-jsonl");
     const int requested_max_iter = res["max-iter"].as<int>();
     if (requested_max_iter < 0)
       throw std::invalid_argument("--max-iter must be non-negative");
@@ -2338,6 +2845,26 @@ parse_options(int& argc, char**& argv)
     w_pct_f_ = res["fourway-pct"].as<float>();
     verbose_ = res["verbose"].as<int>();
     use_dynamic_cbp_ = res.count("dynamic-cbp") > 0;
+    use_dd_tight_alignment_ = res.count("dd-tight-alignment") > 0;
+    use_dd_projected_norm_ = res.count("dd-projected-norm") > 0;
+    use_dd_beam_projected_norm_ = res.count("dd-beam-projected-norm") > 0;
+    if (use_dd_projected_norm_ && use_dd_beam_projected_norm_)
+      throw std::invalid_argument("choose either --dd-projected-norm or --dd-beam-projected-norm");
+    use_dd_column_bound_ = res.count("dd-column-bound") > 0;
+    dd_unpruned_bound_ = res.count("dd-unpruned-bound") > 0;
+    dd_outward_lb_ = res.count("dd-outward-lb") > 0;
+    const int block_width = res["dd-block-bound"].as<int>();
+    if (block_width<0 || block_width>64)
+      throw std::invalid_argument("--dd-block-bound must be in 0..64");
+    dd_block_bound_ = block_width;
+    if (use_dd_column_bound_ && use_dd_projected_norm_)
+      throw std::invalid_argument(
+          "--dd-column-bound requires --dd-projected-norm to be disabled");
+#if defined(USE_ADAGRAD) || defined(USE_ADAM)
+    if (use_dd_projected_norm_ || use_dd_beam_projected_norm_)
+      throw std::invalid_argument(
+          "--dd-projected-norm is unsupported with adaptive gradient updates");
+#endif
     switch (verbose_)
     {
     default:
@@ -2355,6 +2882,14 @@ parse_options(int& argc, char**& argv)
     // options for alignments
     w_pct_a_ = res["align-pct"].as<float>();
     th_a_ = res["align-th"].as<float>();
+    if (use_dd_tight_alignment_ &&
+        (!std::isfinite(th_a_) || th_a_ < 0.0f))
+      throw std::invalid_argument(
+          "--dd-tight-alignment requires a finite, non-negative --align-th");
+    if (use_dd_column_bound_ &&
+        (!std::isfinite(th_a_) || th_a_ < 0.0f))
+      throw std::invalid_argument(
+          "--dd-column-bound requires a finite, non-negative --align-th");
     const std::string align_model = res["align-model"].as<std::string>();
     const AlignmentModelSelection alignment_selection =
         parse_alignment_model(align_model);
@@ -2388,6 +2923,9 @@ parse_options(int& argc, char**& argv)
     assert(a_model_);
     use_linear_alignment_decoder_ = !res["align-aux"].count() &&
                                     alignment_selection.linear;
+    if (use_dd_column_bound_ && !use_linear_alignment_decoder_)
+      throw std::invalid_argument(
+          "--dd-column-bound requires a linear alignment decoder and certified dual track");
     if (use_linear_alignment_decoder_)
       a_decoder_ = std::make_unique<LinearNeedlemanWunsch>(
           th_a_, align_dd_beam);
@@ -2398,9 +2936,40 @@ parse_options(int& argc, char**& argv)
     w_pct_s_ = res["fold-pct"].as<float>();
     if (res.count("alifold") && res.count("no-alifold"))
       throw std::invalid_argument("--alifold and --no-alifold are mutually exclusive");
-    use_alifold_ = res.count("alifold") > 0;
+    if (res.count("alifold-stages") &&
+        (res.count("alifold") || res.count("no-alifold")))
+      throw std::invalid_argument(
+          "--alifold-stages cannot be combined with --alifold or --no-alifold");
+    std::string alifold_stage_mode = "none";
+    if (res.count("alifold-stages")) {
+      alifold_stage_mode = res["alifold-stages"].as<std::string>();
+      if (alifold_stage_mode != "none" &&
+          alifold_stage_mode != "progressive" &&
+          alifold_stage_mode != "final" &&
+          alifold_stage_mode != "both")
+        throw std::invalid_argument(
+            "--alifold-stages must be one of none, progressive, final, or both");
+      use_alifold_ = alifold_stage_mode == "progressive" ||
+                     alifold_stage_mode == "both";
+      use_alifold1_ = alifold_stage_mode == "final" ||
+                      alifold_stage_mode == "both";
+    } else {
+      use_alifold_ = res.count("alifold") > 0;
+      use_alifold1_ = use_alifold_;
+      alifold_stage_mode = use_alifold_ ? "both" : "none";
+    }
     const std::string fold_model = res["fold-model"].as<std::string>();
     fold_model_name_ = fold_model;
+    const std::string linear_profile_energy =
+        res["linear-profile-energy"].as<std::string>();
+    LinFoldWrapper::ProfileEnergyMode profile_energy_mode;
+    if (linear_profile_energy == "legacy")
+      profile_energy_mode = LinFoldWrapper::ProfileEnergyMode::Legacy;
+    else if (linear_profile_energy == "rnaalifold")
+      profile_energy_mode = LinFoldWrapper::ProfileEnergyMode::RNAalifold;
+    else
+      throw std::invalid_argument(
+          "--linear-profile-energy must be legacy or rnaalifold");
     const int requested_fold_beam = res["linfold-beam"].as<int>();
     const int requested_fold_dd_beam = res.count("fold-dd-beam")
         ? res["fold-dd-beam"].as<int>() : requested_fold_beam;
@@ -2431,11 +3000,15 @@ parse_options(int& argc, char**& argv)
       s_model_ = std::make_unique<CONTRAfold>(CUTOFF);
     else if (fold_model == "lpv" || fold_model == "LinFold")
     {
-      s_model_ = std::make_unique<LinFoldWrapper>(CUTOFF, LinFoldWrapper::ModelType::LPV, fold_probability_beam);
+      s_model_ = std::make_unique<LinFoldWrapper>(
+          CUTOFF, LinFoldWrapper::ModelType::LPV, fold_probability_beam,
+          profile_energy_mode);
     }
     else if (fold_model == "lpc")
     {
-      s_model_ = std::make_unique<LinFoldWrapper>(CUTOFF, LinFoldWrapper::ModelType::LPC, fold_probability_beam);
+      s_model_ = std::make_unique<LinFoldWrapper>(
+          CUTOFF, LinFoldWrapper::ModelType::LPC, fold_probability_beam,
+          profile_energy_mode);
     }
     else
       throw "Unknown folding model: " + fold_model;
@@ -2443,16 +3016,6 @@ parse_options(int& argc, char**& argv)
     const bool linear_probability_folding = !res["fold-aux"].count() &&
         (fold_model == "lpv" || fold_model == "lpc" ||
          fold_model == "LinFold");
-    // A majority-consensus sequence discards compensatory substitutions and
-    // proved both slower and less accurate than the already available mean of
-    // the per-sequence BPPs.  Vienna RNAalifold would break linearity, so a
-    // linear probability engine deliberately disables both profile surrogates.
-    if (linear_probability_folding && use_alifold_) {
-      spdlog::info("LinearPartition profile folding disabled; using averaged per-sequence BPPs");
-      use_alifold_ = false;
-    }
-    use_alifold1_ = use_alifold_;
-
     if (res["fold-th"].count())
     {
       th_s_ = res["fold-th"].as<std::vector<float>>();
@@ -2497,20 +3060,32 @@ parse_options(int& argc, char**& argv)
     }
 
     const std::string fold_decoder = res["fold-decoder"].as<std::string>();
+    const bool linear_folding = fold_model == "lpv" ||
+                                fold_model == "lpc" ||
+                                fold_model == "LinFold";
     if (w_final_ribosum_ > 0.0f &&
         (fold_decoder != "Nussinov" || res["ipknot"].count()))
       throw std::invalid_argument(
           "--final-ribosum-weight is supported only by Nussinov decoding");
+    const bool linear_ipknot = !res["fold-aux"].count() && linear_folding &&
+                                (fold_decoder == "IPknot" ||
+                                 res["ipknot"].count());
     if (fold_decoder == "IPknot" || res["ipknot"].count())
     {
-      s_decoder_ = std::make_unique<IPknot>(th_s_);
-      s_decoder1_ = std::make_unique<IPknot>(th_s1);
+      if (linear_ipknot) {
+        // IPknot's layered objective is retained, while each layer is solved
+        // by the fixed-beam linear recurrence over LinearPartition support.
+        // This path is independent of the DAFS --max-iter setting.
+        s_decoder_ = std::make_unique<LinearIPknot>(th_s_, fold_dd_beam);
+        s_decoder1_ = std::make_unique<LinearIPknot>(th_s1, fold_final_beam);
+        use_linear_ipknot_decoder_ = true;
+      } else {
+        s_decoder_ = std::make_unique<IPknot>(th_s_);
+        s_decoder1_ = std::make_unique<IPknot>(th_s1);
+      }
     }
     else if (fold_decoder == "Nussinov")
     {
-      const bool linear_folding = fold_model == "lpv" ||
-                                  fold_model == "lpc" ||
-                                  fold_model == "LinFold";
       use_linear_structure_decoder_ = !res["fold-aux"].count() && linear_folding;
       if (use_linear_structure_decoder_) {
         s_decoder_ = std::make_unique<LinearNussinov>(th_s_[0], fold_dd_beam);
@@ -2523,31 +3098,44 @@ parse_options(int& argc, char**& argv)
     else
       throw "Unknown folding decoder: " + res["fold-decoder"].as<std::string>();
     assert(s_decoder_);
+    if ((dd_recovery_interval_ || use_dd_beam_projected_norm_ || dd_beam_eta_explicit_ || dd_diagnostics_) &&
+        (!use_linear_structure_decoder_ || !use_linear_alignment_decoder_ || t_max_ == 0))
+      throw std::invalid_argument("DD recovery/beam controls require linear folding and alignment DD decoders");
 
     // Sparse multiplier lookup has expected O(1) cost but a larger constant
     // than direct dense indexing.  Select it independently for probability
     // components produced by Linear models; other components retain the
     // original dense decoder path unchanged.
-    const bool linear_folding = fold_model == "lpv" ||
-                                fold_model == "lpc" ||
-                                fold_model == "LinFold";
     const bool force_dense = res["dense-lagrangian"].count();
     use_sparse_structure_lagrangian_ = !force_dense &&
                                         !res["fold-aux"].count() &&
-                                        use_linear_structure_decoder_ &&
-                                        fold_decoder == "Nussinov" &&
-                                        !res["ipknot"].count();
+                                        linear_folding &&
+                                        (use_linear_structure_decoder_ ||
+                                         fold_decoder == "IPknot" ||
+                                         res["ipknot"].count());
     use_sparse_alignment_lagrangian_ = !force_dense &&
                                         !res["align-aux"].count() &&
                                         use_linear_alignment_decoder_;
     spdlog::info("DAFS decoder: structure={}, alignment={}",
-                 use_linear_structure_decoder_ ? "beam-max" : "exact-DP",
+                 use_linear_structure_decoder_ ? "beam-max" :
+                   use_linear_ipknot_decoder_ ? "linear-IPknot" :
+                   (fold_decoder == "IPknot" || res["ipknot"].count()
+                    ? "MIP" : "exact-DP"),
                  use_linear_alignment_decoder_ ? "beam-max" : "exact-DP");
     spdlog::info("Lagrangian storage: structure={}, alignment={}",
                  use_sparse_structure_lagrangian_ ? "sparse" : "dense",
                  use_sparse_alignment_lagrangian_ ? "sparse" : "dense");
-    spdlog::info("Profile folding: {}",
-                 !use_alifold_ ? "disabled" : "Vienna-RNAalifold");
+    const char* profile_folding_name =
+        linear_probability_folding ? "LinearAlifold" : "Vienna-RNAalifold";
+    if (!use_alifold_ && !use_alifold1_)
+      spdlog::info("Profile folding: disabled");
+    else if (use_alifold_ && use_alifold1_)
+      spdlog::info("Profile folding: {}", profile_folding_name);
+    else
+      spdlog::info("Profile folding: {} ({})", profile_folding_name,
+                   use_alifold_ ? "progressive only" : "final only");
+    if (linear_probability_folding)
+      spdlog::info("LinearAlifold profile energy: {}", linear_profile_energy);
     spdlog::info("RIBOSUM85-60 pair-pair weight: {}", w_ribosum_);
     spdlog::info("Final RIBOSUM85-60 self-profile weight: {}",
                  w_final_ribosum_);
@@ -2599,9 +3187,8 @@ int DAFS::
   metrics_cbp_priced_ = 0;
   metrics_cbp_removed_ = 0;
   metrics_dd_seconds_ = 0.0;
-  write_metric(
-      "run_start",
-      {{"sequence_count", std::to_string(N)},
+  std::vector<std::pair<std::string, std::string>> run_start_metrics = {
+       {"sequence_count", std::to_string(N)},
        {"total_residues", std::to_string(total_residues)},
        {"minimum_length", std::to_string(minimum_length)},
        {"maximum_length", std::to_string(maximum_length)},
@@ -2615,16 +3202,46 @@ int DAFS::
        {"folding_beam", std::to_string(fold_probability_beam_)},
        {"folding_dd_beam", std::to_string(fold_dd_beam_)},
        {"folding_final_beam", std::to_string(fold_final_beam_)},
-       {"alifold", use_alifold_ ? "true" : "false"},
+       {"alifold", (use_alifold_ || use_alifold1_) ? "true" : "false"},
+       {"alifold_progressive", use_alifold_ ? "true" : "false"},
+       {"alifold_final", use_alifold1_ ? "true" : "false"},
        {"dynamic_cbp", use_dynamic_cbp_ ? "true" : "false"},
        {"sparse_structure_lagrangian",
         use_sparse_structure_lagrangian_ ? "true" : "false"},
        {"sparse_alignment_lagrangian",
-        use_sparse_alignment_lagrangian_ ? "true" : "false"}},
+        use_sparse_alignment_lagrangian_ ? "true" : "false"}};
+  if (use_dd_tight_alignment_)
+    run_start_metrics.emplace_back("dd_tight_alignment", "true");
+  if (use_dd_projected_norm_)
+    run_start_metrics.emplace_back("dd_projected_norm", "true");
+  if (use_dd_column_bound_)
+    run_start_metrics.emplace_back("dd_column_bound", "true");
+  if (dd_unpruned_bound_ || dd_block_bound_ || dd_outward_lb_) {
+    if (!use_linear_alignment_decoder_ || !use_linear_structure_decoder_ ||
+        !use_sparse_alignment_lagrangian_ || !std::isfinite(th_a_) || th_a_<0)
+      throw std::invalid_argument("new DD certificates require linear folding/alignment, sparse multipliers and nonnegative finite align-th");
+    run_start_metrics.emplace_back("dd_unpruned_bound",dd_unpruned_bound_ ? "true" : "false");
+    run_start_metrics.emplace_back("dd_block_bound",std::to_string(dd_block_bound_));
+    if (dd_outward_lb_ && (!std::isfinite(w_) || w_<0))
+      throw std::invalid_argument("--dd-outward-lb requires a finite nonnegative weight");
+    run_start_metrics.emplace_back("dd_outward_lb",dd_outward_lb_ ? "true" : "false");
+  }
+  if (use_dd_beam_projected_norm_)
+    run_start_metrics.emplace_back("dd_beam_projected_norm", "true");
+  if (dd_beam_eta_explicit_)
+    run_start_metrics.emplace_back("dd_beam_eta", json_number(dd_beam_eta_));
+  if (dd_recovery_interval_)
+    run_start_metrics.emplace_back("dd_recovery_interval", std::to_string(dd_recovery_interval_));
+  write_metric(
+      "run_start", run_start_metrics,
       {{"input", input_path_},
        {"alignment_model", align_model_name_},
        {"alignment_score_model", align_score_model_name_},
-       {"folding_model", fold_model_name_}});
+       {"folding_model", fold_model_name_},
+       {"structure_decoder", t_max_ == 0 ? "exact-coupled-IP" :
+            (use_linear_ipknot_decoder_
+            ? "linear-IPknot"
+            : (use_linear_structure_decoder_ ? "linear-Nussinov" : "exact"))}});
 
   // calculate base-pairing probabilities
   auto stage_start = Clock::now();

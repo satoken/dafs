@@ -58,6 +58,27 @@ decode(float w, const VVF& p, const VVF& q, VU& ss)
 
 float
 IPknot::
+decode(float w, const SparseFloatMatrix& p, const VVF& q, VU& ss)
+{
+  IP ip(IP::MAX, n_th_);
+  make_objective(ip, w, p, q);
+  make_constraints(ip);
+  return solve(ip, ss);
+}
+
+float
+IPknot::
+decode(float w, const SparseFloatMatrix& p,
+       const SparseFloatMatrix& q, VU& ss)
+{
+  IP ip(IP::MAX, n_th_);
+  make_objective(ip, w, p, q);
+  make_constraints(ip);
+  return solve(ip, ss);
+}
+
+float
+IPknot::
 decode(const VVF& p, VU& ss, std::string& str)
 {
   IP ip(IP::MAX, n_th_);
@@ -65,6 +86,18 @@ decode(const VVF& p, VU& ss, std::string& str)
   make_constraints(ip);
   float s=solve(ip, ss);
   str=::make_brackets(ss, plevel_);
+  return s;
+}
+
+float
+IPknot::
+decode(const SparseFloatMatrix& p, VU& ss, std::string& str)
+{
+  IP ip(IP::MAX, n_th_);
+  make_objective(ip, p);
+  make_constraints(ip);
+  float s = solve(ip, ss);
+  str = ::make_brackets(ss, plevel_);
   return s;
 }
 
@@ -79,59 +112,98 @@ make_brackets(const VU& ss, std::string& str) const
 
 void
 IPknot::
-make_objective(IP& ip, float w, const VVF& p, const VVF& q) 
+reset_candidates(uint length)
 {
-  const uint L=p.size();
-  const uint P=th_.size();
-  
-  v_.clear(); v_.resize(P, VVI(L, VI(L, -1)));
-  w_.clear(); w_.resize(P, VVI(L));
-    
-  // make objective variables with their weights
-  for (uint j=1; j!=L; ++j)
-  {
-    for (uint i=j-1; i!=-1u; --i)
-    {
-      for (uint lv=0; lv!=P; ++lv)
-      {
-        float s=w*(p[i][j]-th_[lv])-q[i][j];
-        if (s>0.0)
-        {
-          v_[lv][i][j] = ip.make_variable(s*alpha_[lv]);
-          w_[lv][i].push_back(j);
-        }
-      }
-    }
+  v_left_.assign(th_.size(), SparseVariables(length));
+  v_right_.assign(th_.size(), SparseVariables(length));
+}
+
+void
+IPknot::
+add_candidate(IP& ip, uint lv, uint i, uint j, float score)
+{
+  if (score <= 0.0f) return;
+  const int var = ip.make_variable(score * alpha_[lv]);
+  v_left_[lv][i].emplace_back(j, var);
+  v_right_[lv][j].emplace_back(i, var);
+}
+
+void
+IPknot::
+make_objective(IP& ip, float w, const VVF& p, const VVF& q)
+{
+  const uint L = p.size();
+  reset_candidates(L);
+  for (uint j = 1; j < L; ++j)
+    for (uint i = 0; i < j; ++i)
+      for (uint lv = 0; lv < th_.size(); ++lv)
+        add_candidate(ip, lv, i, j, w * (p[i][j] - th_[lv]) - q[i][j]);
+  ip.update();
+}
+
+void
+IPknot::
+make_objective(IP& ip, float w, const SparseFloatMatrix& p,
+               const VVF& q)
+{
+  const uint L = p.rows();
+  reset_candidates(L);
+  // Dense multipliers can make a pair absent from the BPP support profitable.
+  for (uint j = 1; j < L; ++j)
+    for (uint i = 0; i < j; ++i)
+      for (uint lv = 0; lv < th_.size(); ++lv)
+        add_candidate(ip, lv, i, j,
+                      w * (p.get(i, j) - th_[lv]) - q[i][j]);
+  ip.update();
+}
+
+void
+IPknot::
+make_objective(IP& ip, float w, const SparseFloatMatrix& p,
+               const SparseFloatMatrix& q)
+{
+  const uint L = p.rows();
+  reset_candidates(L);
+  // Visit the union of probability and multiplier supports.  A negative
+  // multiplier can introduce a pair absent from LinearPartition's output.
+  for (uint i = 0; i < L; ++i) {
+    for (const auto [j, probability] : p.ordered_row(i))
+      if (i < j)
+        for (uint lv = 0; lv < th_.size(); ++lv)
+          add_candidate(ip, lv, i, j,
+                        w * (probability - th_[lv]) - q.get(i, j));
+    for (const auto [j, multiplier] : q.ordered_row(i))
+      if (i < j && p.get(i, j) == 0.0f)
+        for (uint lv = 0; lv < th_.size(); ++lv)
+          add_candidate(ip, lv, i, j, -w * th_[lv] - multiplier);
   }
   ip.update();
 }
 
 void
 IPknot::
-make_objective(IP& ip, const VVF& p) 
+make_objective(IP& ip, const VVF& p)
 {
-  const uint L=p.size();
-  const uint P=th_.size();
+  const uint L = p.size();
+  reset_candidates(L);
+  for (uint j = 1; j < L; ++j)
+    for (uint i = 0; i < j; ++i)
+      for (uint lv = 0; lv < th_.size(); ++lv)
+        add_candidate(ip, lv, i, j, p[i][j] - th_[lv]);
+  ip.update();
+}
 
-  v_.clear(); v_.resize(P, VVI(L, VI(L, -1)));
-  w_.clear(); w_.resize(P, VVI(L));
-    
-  // make objective variables with their weights
-  for (uint j=1; j!=L; ++j)
-  {
-    for (uint i=j-1; i!=-1u; --i)
-    {
-      for (uint lv=0; lv!=P; ++lv)
-      {
-        float s=p[i][j]-th_[lv];
-        if (s>0.0)
-        {
-          v_[lv][i][j] = ip.make_variable(s*alpha_[lv]);
-          w_[lv][i].push_back(j);
-        }
-      }
-    }
-  }
+void
+IPknot::
+make_objective(IP& ip, const SparseFloatMatrix& p)
+{
+  const uint L = p.rows();
+  reset_candidates(L);
+  for (uint i = 0; i < L; ++i)
+    for (const auto [j, probability] : p.ordered_row(i))
+      if (i < j)
+        for (uint lv = 0; lv < th_.size(); ++lv)
+          add_candidate(ip, lv, i, j, probability - th_[lv]);
   ip.update();
 }
 
@@ -139,7 +211,7 @@ void
 IPknot::
 make_constraints(IP& ip)
 {
-  const uint L=v_[0].size();
+  const uint L=v_left_[0].size();
   const uint P=th_.size();
 
   // constraint 1: each s_i is paired with at most one base
@@ -148,12 +220,10 @@ make_constraints(IP& ip)
     int row = ip.make_constraint(IP::UP, 0, 1);
     for (uint lv=0; lv!=P; ++lv)
     {
-      for (uint j=0; j<i; ++j)
-        if (v_[lv][j][i]>=0)
-          ip.add_constraint(row, v_[lv][j][i], 1);
-      for (uint j=i+1; j<L; ++j)
-        if (v_[lv][i][j]>=0)
-          ip.add_constraint(row, v_[lv][i][j], 1);
+      for (const auto [j, var] : v_right_[lv][i])
+        ip.add_constraint(row, var, 1);
+      for (const auto [j, var] : v_left_[lv][i])
+        ip.add_constraint(row, var, 1);
     }
   }
 
@@ -161,46 +231,41 @@ make_constraints(IP& ip)
   {
     // constraint 2: disallow pseudoknots in x[lv]
     for (uint lv=0; lv!=P; ++lv)
-      for (uint i=0; i<w_[lv].size(); ++i)
-        for (uint p=0; p<w_[lv][i].size(); ++p)
+      for (uint i=0; i<L; ++i)
+        for (const auto [j, first] : v_left_[lv][i])
         {
-          uint j=w_[lv][i][p];
           for (uint k=i+1; k<j; ++k)
-            for (uint q=0; q<w_[lv][k].size(); ++q)
+            for (const auto [l, second] : v_left_[lv][k])
             {
-              uint l=w_[lv][k][q];
               if (j<l)
               {
                 int row = ip.make_constraint(IP::UP, 0, 1);
-                ip.add_constraint(row, v_[lv][i][j], 1);
-                ip.add_constraint(row, v_[lv][k][l], 1);
+                ip.add_constraint(row, first, 1);
+                ip.add_constraint(row, second, 1);
               }
             }
         }
 
     // constraint 3: any x[t]_kl must be pseudoknotted with x[u]_ij for t>u
     for (uint lv=1; lv!=P; ++lv)
-      for (uint k=0; k<w_[lv].size(); ++k)
-        for (uint q=0; q<w_[lv][k].size(); ++q)
+      for (uint k=0; k<L; ++k)
+        for (const auto [l, var] : v_left_[lv][k])
         {
-          uint l=w_[lv][k][q];
           for (uint plv=0; plv!=lv; ++plv)
           {
             int row = ip.make_constraint(IP::LO, 0, 0);
-            ip.add_constraint(row, v_[lv][k][l], -1);
+            ip.add_constraint(row, var, -1);
             for (uint i=0; i<k; ++i)
-              for (uint p=0; p<w_[plv][i].size(); ++p)
+              for (const auto [j, crossing] : v_left_[plv][i])
               {
-                uint j=w_[plv][i][p];
                 if (k<j && j<l)
-                  ip.add_constraint(row, v_[plv][i][j], 1);
+                  ip.add_constraint(row, crossing, 1);
               }
             for (uint i=k+1; i<l; ++i)
-              for (uint p=0; p<w_[plv][i].size(); ++p)
+              for (const auto [j, crossing] : v_left_[plv][i])
               {
-                uint j=w_[plv][i][p];
                 if (l<j)
-                  ip.add_constraint(row, v_[plv][i][j], 1);
+                  ip.add_constraint(row, crossing, 1);
               }
           }
         }
@@ -214,34 +279,28 @@ make_constraints(IP& ip)
       for (uint i=0; i<L; ++i)
       {
         int row = ip.make_constraint(IP::LO, 0, 0);
-        for (uint j=0; j<i; ++j)
-          if (v_[lv][j][i]>=0)
-            ip.add_constraint(row, v_[lv][j][i], -1);
+        for (const auto [j, var] : v_right_[lv][i])
+          ip.add_constraint(row, var, -1);
         if (i>0)
-          for (uint j=0; j<i-1; ++j)
-            if (v_[lv][j][i-1]>=0)
-              ip.add_constraint(row, v_[lv][j][i-1], 1);
+          for (const auto [j, var] : v_right_[lv][i-1])
+            ip.add_constraint(row, var, 1);
         if (i+1<L)
-          for (uint j=0; j<i+1; ++j)
-            if (v_[lv][j][i+1]>=0)
-              ip.add_constraint(row, v_[lv][j][i+1], 1);
+          for (const auto [j, var] : v_right_[lv][i+1])
+            ip.add_constraint(row, var, 1);
       }
 
       // downstream
       for (uint i=0; i<L; ++i)
       {
         int row = ip.make_constraint(IP::LO, 0, 0);
-        for (uint j=i+1; j<L; ++j)
-          if (v_[lv][i][j]>=0)
-            ip.add_constraint(row, v_[lv][i][j], -1);
+        for (const auto [j, var] : v_left_[lv][i])
+          ip.add_constraint(row, var, -1);
         if (i>0)
-          for (uint j=i; j<L; ++j)
-            if (v_[lv][i-1][j]>=0)
-              ip.add_constraint(row, v_[lv][i-1][j], 1);
+          for (const auto [j, var] : v_left_[lv][i-1])
+            ip.add_constraint(row, var, 1);
         if (i+1<L)
-          for (uint j=i+2; j<L; ++j)
-            if (v_[lv][i+1][j]>=0)
-              ip.add_constraint(row, v_[lv][i+1][j], 1);
+          for (const auto [j, var] : v_left_[lv][i+1])
+            ip.add_constraint(row, var, 1);
       }
     }
   }
@@ -251,7 +310,7 @@ float
 IPknot::
 solve(IP& ip, VU& ss)
 {
-  const uint L=v_[0].size();
+  const uint L=v_left_[0].size();
   const uint P=th_.size();
 
   // execute optimization
@@ -265,8 +324,8 @@ solve(IP& ip, VU& ss)
   for (uint lv=0; lv!=P; ++lv)
   {
     for (uint i=0; i<L; ++i)
-      for (uint j=i+1; j<L; ++j)
-        if (v_[lv][i][j]>=0 && ip.get_value(v_[lv][i][j])>0.5)
+      for (const auto [j, var] : v_left_[lv][i])
+        if (ip.get_value(var)>0.5)
         {
           ss[i]=j; //ss[j]=i;
           plevel_[i]=plevel_[j]=lv;
@@ -276,6 +335,261 @@ solve(IP& ip, VU& ss)
   if (!levelwise_) decompose_plevel(ss, plevel_);
 
   return s;
+}
+
+LinearIPknot::
+LinearIPknot(const VF& th, uint beam_size)
+  : th_(th), beam_size_(std::max(1u, beam_size))
+{
+}
+
+void
+LinearIPknot::
+dense_to_sparse(const VVF& dense, SparseFloatMatrix& sparse)
+{
+  const uint length = dense.size();
+  sparse.assign(length, length);
+  for (uint i = 0; i < length; ++i) {
+    assert(dense[i].size() == length);
+    for (uint j = 0; j < length; ++j)
+      if (dense[i][j] != 0.0f)
+        sparse.set(i, j, dense[i][j]);
+  }
+}
+
+float
+LinearIPknot::
+decode(float w, const VVF& p, const VVF& q, VU& ss)
+{
+  SparseFloatMatrix sparse_p, sparse_q;
+  dense_to_sparse(p, sparse_p);
+  dense_to_sparse(q, sparse_q);
+  return decode_sparse(w, sparse_p, sparse_q, ss);
+}
+
+float
+LinearIPknot::
+decode(float w, const SparseFloatMatrix& p, const VVF& q, VU& ss)
+{
+  SparseFloatMatrix sparse_q;
+  dense_to_sparse(q, sparse_q);
+  return decode_sparse(w, p, sparse_q, ss);
+}
+
+float
+LinearIPknot::
+decode(float w, const SparseFloatMatrix& p,
+       const SparseFloatMatrix& q, VU& ss)
+{
+  return decode_sparse(w, p, q, ss);
+}
+
+float
+LinearIPknot::
+decode(const VVF& p, VU& ss, std::string& str)
+{
+  SparseFloatMatrix sparse_p;
+  dense_to_sparse(p, sparse_p);
+  SparseFloatMatrix empty_q;
+  empty_q.assign(p.size(), p.size());
+  const float score = decode_sparse(1.0f, sparse_p, empty_q, ss);
+  str = brackets_for(ss);
+  return score;
+}
+
+float
+LinearIPknot::
+decode(const SparseFloatMatrix& p, VU& ss, std::string& str)
+{
+  SparseFloatMatrix empty_q;
+  empty_q.assign(p.rows(), p.columns());
+  const float score = decode_sparse(1.0f, p, empty_q, ss);
+  str = brackets_for(ss);
+  return score;
+}
+
+float
+LinearIPknot::
+decode_sparse(float w, const SparseFloatMatrix& p,
+             const SparseFloatMatrix& q, VU& ss)
+{
+  const uint length = p.rows();
+  assert(p.columns() == length && q.rows() == length &&
+         q.columns() == length && !th_.empty());
+  ss.assign(length, -1u);
+  plevel_.assign(length, -1u);
+
+  std::vector<std::pair<uint, uint>> selected_pairs;
+  std::vector<char> used(length, 0);
+  float total_score = 0.0f;
+  const uint levels = std::min<uint>(th_.size(), n_support_brackets);
+
+  // The support is visited once per level.  With a fixed LinearPartition beam
+  // and fixed level count this is linear in the retained sparse support.
+  for (uint level = 0; level < levels; ++level) {
+    SparseFloatMatrix level_p, level_q;
+    level_p.assign(length, length);
+    level_q.assign(length, length);
+
+    // Build O(1) crossing witnesses for the sparse candidate scan.  A pair
+    // (i,j) crosses a previously selected pair (k,l) iff either
+    //   k < i < l < j, or i < k < j < l.
+    // The first case needs an endpoint l in (i,j) among intervals that start
+    // before i.  A prefix maximum is insufficient: a larger endpoint can
+    // hide a smaller valid endpoint.  Every selected level is noncrossing,
+    // so a stack per level supplies both the smallest active right endpoint
+    // and the largest active start.  Each selected pair is pushed and popped
+    // once, giving a strict O(levels * L + selected_pairs) sweep.
+    std::vector<uint> min_right_before(length, -1u);
+    std::vector<uint> max_active_start(length, 0);
+    if (level > 0 && length != 0) {
+      std::vector<uint> selected_right(length, -1u);
+      std::vector<uint> selected_level(length, -1u);
+      for (const auto& [left, right] : selected_pairs)
+        if (left < length && right < length && plevel_[left] < levels) {
+          selected_right[left] = right;
+          selected_level[left] = plevel_[left];
+        }
+      std::vector<std::vector<std::pair<uint, uint>>> active(levels);
+      for (uint position = 0; position < length; ++position) {
+        uint minimum_right = length;
+        uint maximum_start = 0;
+        bool found_active = false;
+        for (uint selected_level_index = 0;
+             selected_level_index < levels; ++selected_level_index) {
+          auto& stack = active[selected_level_index];
+          while (!stack.empty() && stack.back().second <= position)
+            stack.pop_back();
+          if (!stack.empty()) {
+            found_active = true;
+            minimum_right = std::min(minimum_right, stack.back().second);
+            maximum_start = std::max(maximum_start,
+                                     stack.back().first);
+          }
+        }
+        min_right_before[position] = found_active ? minimum_right : -1u;
+        max_active_start[position] = found_active ? maximum_start : 0;
+
+        const uint right = selected_right[position];
+        const uint selected_level_index = selected_level[position];
+        if (right > position && right < length &&
+            selected_level_index < levels)
+          active[selected_level_index].emplace_back(position, right);
+      }
+    }
+    const auto consider = [&](uint i, uint j) {
+      if (i >= j || used[i] || used[j])
+        return;
+      if (level > 0) {
+        const bool left_crossing = min_right_before[i] < j;
+        const bool right_crossing = max_active_start[j] > i;
+        if (!left_crossing && !right_crossing)
+          return;
+      }
+      const float probability = p.get(i, j);
+      const float multiplier = q.get(i, j);
+      const float score = w * (probability - th_[level]) - multiplier;
+      if (!(score > 0.0f))
+        return;
+      if (probability != 0.0f)
+        level_p.set(i, j, probability);
+      if (multiplier != 0.0f)
+        level_q.set(i, j, multiplier);
+    };
+    // These scans only need coverage.  ordered_row() sorts every raw row,
+    // which is unnecessary here and can cost O(m log m) for a large row.  The
+    // q scan includes q-only entries because a negative multiplier can make a
+    // pair absent from the posterior support profitable.
+    p.for_each_nonzero([&](uint i, uint j, float value) {
+      if (value != 0.0f)
+        consider(i, j);
+    });
+    q.for_each_nonzero([&](uint i, uint j, float value) {
+      if (value != 0.0f && p.get(i, j) == 0.0f)
+        consider(i, j);
+    });
+    LinearNussinov decoder(th_[level], beam_size_);
+    VU level_structure;
+    const float level_score = decoder.decode(w, level_p, level_q,
+                                             level_structure);
+    bool selected_any = false;
+    for (uint i = 0; i < length; ++i) {
+      const uint j = level_structure[i];
+      if (j == -1u || j <= i || used[i] || used[j])
+        continue;
+      selected_any = true;
+      ss[i] = j;
+      used[i] = used[j] = 1;
+      plevel_[i] = plevel_[j] = level;
+      selected_pairs.emplace_back(i, j);
+    }
+    if (!selected_any)
+      continue;
+    total_score += level_score;
+  }
+  last_structure_ = ss;
+  return total_score;
+}
+
+void
+LinearIPknot::
+linear_decompose_plevel(const VU& ss, VU& plevel)
+{
+  // Process pairs by increasing left endpoint.  For a pair (i,j), all
+  // already processed pairs start before i, so the only possible crossing is
+  // k < i < l < j.  A noncrossing level has nested active arcs, making the
+  // top of a stack its smallest active right endpoint.  With the fixed
+  // bracket alphabet this is O(n * n_support_brackets) time and O(n) memory.
+  const uint length = ss.size();
+  const uint level_count = Fold::Decoder::n_support_brackets;
+  plevel.assign(length, -1u);
+  if (length == 0 || level_count == 0)
+    return;
+
+  std::vector<std::vector<std::pair<uint, uint>>> active(level_count);
+  for (uint left = 0; left < length; ++left) {
+    const uint right = ss[left];
+    if (right == -1u || right <= left || right >= length)
+      continue;
+    uint level = level_count;
+    for (uint candidate = 0; candidate < level_count; ++candidate) {
+      auto& stack = active[candidate];
+      while (!stack.empty() && stack.back().second <= left)
+        stack.pop_back();
+      if (stack.empty() || stack.back().second >= right) {
+        level = candidate;
+        break;
+      }
+    }
+    if (level == level_count)
+      continue;
+    plevel[left] = plevel[right] = level;
+    active[level].emplace_back(left, right);
+  }
+}
+
+std::string
+LinearIPknot::
+brackets_for(const VU& ss) const
+{
+  VU levels;
+  if (last_structure_ == ss && plevel_.size() == ss.size())
+    levels = plevel_;
+  else
+    linear_decompose_plevel(ss, levels);
+  return ::make_brackets(ss, levels);
+}
+
+void
+LinearIPknot::
+make_brackets(const VU& ss, std::string& str) const
+{
+  VU levels;
+  if (last_structure_ == ss && plevel_.size() == ss.size())
+    levels = plevel_;
+  else
+    linear_decompose_plevel(ss, levels);
+  str = ::make_brackets(ss, levels);
 }
 
 struct cmp_by_degree : public std::less<int>

@@ -12,9 +12,10 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY / "benchmarks"))
 
-from score import (SCIConfig, calculate_sci, parse_alignment,
-                   parse_linearturbofold, match_prediction_names, score,
-                   StructuralAlignment, structure_pairs)  # noqa: E402
+from score import (SCIConfig, calculate_sci, derive_consensus_structure,
+                   parse_alignment, parse_linearturbofold,
+                   match_prediction_names, score, StructuralAlignment,
+                   structure_pairs, with_consensus_structure)  # noqa: E402
 
 
 class BenchmarkScorerTest(unittest.TestCase):
@@ -39,6 +40,45 @@ class BenchmarkScorerTest(unittest.TestCase):
 
     def test_wuss_pseudoknot_symbols(self):
         self.assertEqual(structure_pairs("<A..>a"), {(0, 4), (1, 5)})
+
+    def test_clustal_alignment_is_normalized(self):
+        with tempfile.TemporaryDirectory(prefix="clustal-score-test-") as directory:
+            path = Path(directory) / "prediction.aln"
+            path.write_text(dedent("""\
+                CLUSTAL W (1.82) multiple sequence alignment
+
+                seq1        GGGAA-CCC
+                seq2        GGGAAUCCC
+                            ***** ***
+            """), encoding="utf-8")
+            prediction = parse_alignment(path)
+
+        self.assertEqual(list(prediction.sequences), ["seq1", "seq2"])
+        self.assertEqual(prediction.sequences["seq1"], "GGGAA-CCC")
+        self.assertEqual(prediction.sequences["seq2"], "GGGAAUCCC")
+        self.assertIsNone(prediction.structure)
+
+    def test_external_alignment_can_receive_rnaalifold_consensus(self):
+        alignment = StructuralAlignment(
+            OrderedDict((
+                ("seq1", "GGGAA-CCC"),
+                ("seq2", "GGGAAUCCC"),
+            )),
+            None,
+        )
+        with tempfile.TemporaryDirectory(prefix="consensus-score-test-") as directory:
+            tool = Path(directory) / "RNAalifold"
+            tool.write_text(dedent(f"""\
+                #!{sys.executable}
+                print("(((...))) (-6.00)")
+            """), encoding="utf-8")
+            tool.chmod(tool.stat().st_mode | stat.S_IXUSR)
+            config = SCIConfig(tool, tool, "test", 10)
+            prediction = with_consensus_structure(alignment, config)
+            derived = derive_consensus_structure(alignment, config)
+
+        self.assertEqual(prediction.structure, "(((...)))")
+        self.assertEqual(derived, "(((...)))")
 
     def test_match_prediction_names_restores_linear_turbofold_separator(self):
         prediction = StructuralAlignment(

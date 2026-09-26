@@ -25,8 +25,12 @@ target_include_directories(dafs PRIVATE "cxxopts/include")
 target_compile_features(dafs PUBLIC cxx_std_17)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(VIENNARNA RNAlib2)
+pkg_check_modules(VIENNARNA REQUIRED RNAlib2>=2.7)
 if (VIENNARNA_FOUND)
+  # Only nearest-neighbor energy primitives are used by the linear profile
+  # model; its partition/inside/outside algorithms remain in LinFold.
+  target_include_directories(linearfold PUBLIC ${VIENNARNA_INCLUDE_DIRS})
+  target_link_libraries(linearfold PUBLIC ${VIENNARNA_LDFLAGS} ${CMAKE_DL_LIBS})
   target_include_directories(dafs PRIVATE ${VIENNARNA_INCLUDE_DIRS})
   target_compile_definitions(dafs PRIVATE HAVE_VIENNA18 HAVE_VIENNA20)
   target_link_libraries(dafs PRIVATE ${VIENNARNA_LDFLAGS} ${CMAKE_DL_LIBS})
@@ -79,11 +83,17 @@ endif()
 target_link_libraries(dafs PRIVATE contrafold probcons contralign linearfold linearalign)
 
 if(BUILD_TESTING)
+  add_executable(dd_certificate_test ../tests/dd_certificate_test.cpp)
+  target_include_directories(dd_certificate_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(dd_certificate_test PRIVATE cxx_std_17)
+  add_test(NAME dd_certificate COMMAND dd_certificate_test)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME dd_certificate_pipeline COMMAND ${Python3_EXECUTABLE}
+      ${PROJECT_SOURCE_DIR}/tests/test_dd_certificates.py $<TARGET_FILE:dafs>)
   add_executable(
       linear_models_fail_fast_test
       ../tests/linear_models_fail_fast.cpp
-      linfold_wrapper.cpp linearalign.cpp)
+      linfold_wrapper.cpp linearalign.cpp ribosum.cpp)
   target_include_directories(linear_models_fail_fast_test PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR})
   target_compile_features(linear_models_fail_fast_test PRIVATE cxx_std_17)
@@ -91,10 +101,45 @@ if(BUILD_TESTING)
 
   add_test(NAME linear_models_fail_fast COMMAND linear_models_fail_fast_test)
 
+  add_executable(linear_profile_oracle_test
+      ../tests/linear_profile_oracle_test.cpp linfold_wrapper.cpp ribosum.cpp)
+  target_include_directories(linear_profile_oracle_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(linear_profile_oracle_test PRIVATE cxx_std_17)
+  target_link_libraries(linear_profile_oracle_test PRIVATE linearfold)
+  add_test(NAME linear_profile_oracle COMMAND linear_profile_oracle_test)
+
+  add_executable(linear_partition_test ../tests/linear_partition_test.cpp)
+  target_include_directories(linear_partition_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(linear_partition_test PRIVATE cxx_std_17)
+  target_link_libraries(linear_partition_test PRIVATE linearfold)
+  add_test(NAME linear_partition_exhaustive COMMAND linear_partition_test)
+
+  add_executable(linear_capacity_test ../tests/linear_capacity_test.cpp)
+  target_include_directories(linear_capacity_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(linear_capacity_test PRIVATE cxx_std_17)
+  target_link_libraries(linear_capacity_test PRIVATE linearfold)
+  add_test(NAME linear_partition_capacity COMMAND linear_capacity_test
+      ${PROJECT_SOURCE_DIR}/tests/data/linear_capacity_sequence.fa)
+
   add_executable(relaxed_bounds_test ../tests/relaxed_bounds_test.cpp)
   target_include_directories(relaxed_bounds_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_compile_features(relaxed_bounds_test PRIVATE cxx_std_17)
   add_test(NAME relaxed_bounds COMMAND relaxed_bounds_test)
+
+  add_executable(
+      gradient_manager_test
+      ../tests/gradient_manager_test.cpp gradient_manager.cpp)
+  target_include_directories(gradient_manager_test PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(gradient_manager_test PRIVATE cxx_std_17)
+  add_test(NAME gradient_manager COMMAND gradient_manager_test)
+
+  add_executable(dd_recovery_test ../tests/dd_recovery_test.cpp)
+  target_include_directories(dd_recovery_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(dd_recovery_test PRIVATE cxx_std_17)
+  add_test(NAME dd_recovery COMMAND dd_recovery_test)
+  add_test(NAME dd_recovery_pipeline COMMAND ${Python3_EXECUTABLE}
+      ${PROJECT_SOURCE_DIR}/tests/test_dd_recovery.py $<TARGET_FILE:dafs>)
 
   add_executable(linear_nussinov_test
       ../tests/linear_nussinov_test.cpp nussinov.cpp)
@@ -139,7 +184,44 @@ if(BUILD_TESTING)
         -P ${PROJECT_SOURCE_DIR}/tests/linear_pipeline_smoke.cmake)
   set_tests_properties(linear_pipeline_smoke PROPERTIES TIMEOUT 60)
 
+  if(GLPK_FOUND OR NOT DAFS_HAS_IP_BACKEND)
+    add_executable(linear_ipknot_test
+        ../tests/linear_ipknot_test.cpp ipknot.cpp ip.cpp nussinov.cpp)
+    target_include_directories(linear_ipknot_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_features(linear_ipknot_test PRIVATE cxx_std_17)
+    if(GLPK_FOUND)
+      target_include_directories(linear_ipknot_test PRIVATE ${GLPK_INCLUDE_DIR})
+      target_compile_definitions(linear_ipknot_test PRIVATE WITH_GLPK)
+      target_link_libraries(linear_ipknot_test PRIVATE ${GLPK_LIBRARY})
+    endif()
+    add_test(NAME linear_ipknot COMMAND linear_ipknot_test)
+  endif()
+  add_test(NAME linear_ipknot_pipeline
+      COMMAND ${CMAKE_COMMAND}
+        -DDAFS=$<TARGET_FILE:dafs>
+        -DINPUT=${PROJECT_SOURCE_DIR}/tests/data/tiny.fa
+        -P ${PROJECT_SOURCE_DIR}/tests/linear_ipknot_pipeline.cmake)
+  set_tests_properties(linear_ipknot_pipeline PROPERTIES TIMEOUT 60)
+
   if(DAFS_HAS_IP_BACKEND)
+    if(GLPK_FOUND)
+      add_executable(ipknot_sparse_support_test
+          ../tests/ipknot_sparse_support_test.cpp ipknot.cpp ip.cpp nussinov.cpp)
+      target_include_directories(ipknot_sparse_support_test PRIVATE
+          ${CMAKE_CURRENT_SOURCE_DIR} ${GLPK_INCLUDE_DIR})
+      target_compile_features(ipknot_sparse_support_test PRIVATE cxx_std_17)
+      target_compile_definitions(ipknot_sparse_support_test PRIVATE WITH_GLPK)
+      target_link_libraries(ipknot_sparse_support_test PRIVATE ${GLPK_LIBRARY})
+      add_test(NAME ipknot_sparse_support COMMAND ipknot_sparse_support_test)
+    endif()
+    add_test(
+        NAME ipknot_sparse_pipeline
+        COMMAND ${CMAKE_COMMAND}
+          -DDAFS=$<TARGET_FILE:dafs>
+          -DINPUT=${PROJECT_SOURCE_DIR}/tests/data/tiny.fa
+          -P ${PROJECT_SOURCE_DIR}/tests/ipknot_sparse_pipeline.cmake)
+    set_tests_properties(ipknot_sparse_pipeline PROPERTIES TIMEOUT 60)
     add_test(
         NAME zero_max_iter_uses_ip
         COMMAND ${CMAKE_COMMAND}

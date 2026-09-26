@@ -31,6 +31,18 @@ public:
   uint columns() const { return columns_; }
   size_t nonzeros() const { return nonzeros_; }
 
+  // Visit materialized entries without imposing column order.  This keeps
+  // scans that only need coverage/maxima linear in the raw sparse support;
+  // ordered_row() remains available for decoders whose recurrence requires
+  // sorted columns.
+  template <typename Visitor>
+  void for_each_nonzero(Visitor&& visitor) const
+  {
+    for (uint row = 0; row < rows_.size(); ++row)
+      for (const auto& [column, value] : rows_[row])
+        visitor(row, column, value);
+  }
+
   void add(uint row, uint column, float value)
   {
     if (value == 0.0f)

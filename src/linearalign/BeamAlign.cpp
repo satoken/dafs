@@ -21,6 +21,7 @@
 #include <stdio.h> 
 #include <set> 
 #include <cstdint>
+#include <stdexcept>
 
 #include "BeamAlign.h"
 
@@ -336,18 +337,43 @@ double BeamAlign::max_alignment(unsigned length1, unsigned length2,
                                 std::vector<unsigned>& mapping,
                                 MatchScoreFunction match_score)
 {
-    struct MaxNode {
-        double score = VALUE_MIN;
-        uint64_t previous = 0;
-        char operation = 0;
-    };
-
+    max_pruned_states_ = 0;
+    max_score_ = VALUE_MIN;
     const unsigned stride = length2 + 1;
     const auto key_of = [stride](unsigned i, unsigned k) {
         return static_cast<uint64_t>(i) * stride + k;
     };
-    std::vector<std::unordered_map<uint64_t, MaxNode>> layers(length1 + length2 + 1);
-    layers[0][0].score = 0.0;
+    const size_t layer_count = static_cast<size_t>(length1) + length2 + 1;
+    if (max_layers_.size() < layer_count)
+        max_layers_.resize(layer_count);
+    for (size_t layer = 0; layer < layer_count; ++layer)
+        max_layers_[layer].entries.clear();
+    auto& layers = max_layers_;
+
+    // MaxNode scores cannot be NaN here: nodes start at the finite VALUE_MIN
+    // sentinel, and update_max stores a candidate only after node.score <
+    // score succeeds.  Thus a NaN callback result (or NaN sum) is rejected,
+    // and the original finite score/key order remains a strict weak order.
+    const auto ranking_before = [](double lhs_score, uint64_t lhs_key,
+                                   double rhs_score, uint64_t rhs_key) {
+        if (lhs_score != rhs_score)
+            return lhs_score > rhs_score;
+        return lhs_key < rhs_key;
+    };
+
+    const auto node_at = [](const MaxLayer& layer, uint64_t key) {
+        const auto position = std::lower_bound(
+            layer.entries.begin(), layer.entries.end(), key,
+            [](const MaxEntry& entry, uint64_t candidate) {
+                return entry.key < candidate;
+            });
+        return position == layer.entries.end() || position->key != key
+             ? static_cast<const MaxNode*>(nullptr)
+             : &position->node;
+    };
+
+    layers[0].entries.push_back(MaxEntry{0, MaxNode{}});
+    layers[0].entries.front().node.score = 0.0;
 
     const auto update_max = [](MaxNode& node, double score,
                                uint64_t previous, char operation) {
@@ -358,64 +384,180 @@ double BeamAlign::max_alignment(unsigned length1, unsigned length2,
         }
     };
 
-    for (unsigned step = 0; step < length1 + length2; ++step) {
-        auto& layer = layers[step];
-        if (beam > 0 && layer.size() > static_cast<size_t>(beam)) {
-            std::vector<std::pair<double, uint64_t>> ranked;
-            ranked.reserve(layer.size());
-            for (const auto& [key, node] : layer)
-                ranked.emplace_back(node.score, key);
-            std::sort(ranked.begin(), ranked.end(),
-                      [](const auto& lhs, const auto& rhs) {
-                        return lhs.first != rhs.first
-                             ? lhs.first > rhs.first
-                             : lhs.second < rhs.second;
-                      });
-            for (size_t r = beam; r < ranked.size(); ++r)
-                layer.erase(ranked[r].second);
+    // At the start of step s, layer s+1 contains only match offers from
+    // step s-1.  The current layer supplies two sorted gap streams: X moves
+    // a source one row down, while Y leaves its row unchanged.  Merge those
+    // streams with the existing match stream, applying the same strict update
+    // in offer order (existing match, X, then Y) for equal destination keys.
+    const auto merge_gap_successors = [&](unsigned step) {
+        MaxLayer& source = layers[step];
+        MaxLayer& target = layers[step + 1];
+
+        // Keep the old target entries in one reusable scratch vector while
+        // rebuilding target in key order.  No row-sized scratch array or
+        // per-layer allocation is needed.
+        max_existing_.swap(target.entries);
+        target.entries.clear();
+        target.entries.reserve(max_existing_.size() + source.entries.size() * 2);
+
+        size_t existing_index = 0;
+        // On a fixed diagonal, source keys are ordered by i.  Therefore X
+        // successors are a valid prefix (i < length1), while Y successors
+        // are a valid suffix (k < length2).  Find those bounds once so the
+        // merge itself does not repeatedly divide/modulo every source key.
+        size_t x_index = 0;
+        size_t x_end = source.entries.size();
+        if (step >= length1) {
+            const uint64_t first_invalid_x =
+                key_of(length1, step - length1);
+            x_end = static_cast<size_t>(std::lower_bound(
+                source.entries.begin(), source.entries.end(), first_invalid_x,
+                [](const MaxEntry& entry, uint64_t candidate) {
+                    return entry.key < candidate;
+                }) - source.entries.begin());
         }
 
-        std::vector<uint64_t> keys;
-        keys.reserve(layer.size());
-        for (const auto& [key, node] : layer) keys.push_back(key);
-        std::sort(keys.begin(), keys.end());
-        for (const uint64_t key : keys) {
-            const MaxNode& node = layer.at(key);
+        size_t y_index = 0;
+        if (step >= length2) {
+            const uint64_t last_invalid_y =
+                key_of(step - length2, length2);
+            y_index = static_cast<size_t>(std::upper_bound(
+                source.entries.begin(), source.entries.end(), last_invalid_y,
+                [](uint64_t candidate, const MaxEntry& entry) {
+                    return candidate < entry.key;
+                }) - source.entries.begin());
+        }
+
+        while (true) {
+            if (existing_index == max_existing_.size() &&
+                x_index == x_end &&
+                y_index == source.entries.size())
+                break;
+
+            const bool has_existing = existing_index < max_existing_.size();
+            const bool has_x = x_index < x_end;
+            const bool has_y = y_index < source.entries.size();
+
+            uint64_t next_key = std::numeric_limits<uint64_t>::max();
+            if (has_existing)
+                next_key = std::min(next_key,
+                                    max_existing_[existing_index].key);
+            if (has_x)
+                next_key = std::min(next_key,
+                                    source.entries[x_index].key + stride);
+            if (has_y)
+                next_key = std::min(next_key,
+                                    source.entries[y_index].key + 1);
+
+            // Construct a default node first.  This deliberately preserves
+            // the old node_for-then-update behavior when the first offer is
+            // exactly VALUE_MIN or NaN.
+            MaxNode node;
+            if (has_existing &&
+                max_existing_[existing_index].key == next_key) {
+                node = max_existing_[existing_index].node;
+                ++existing_index;
+            }
+
+            // X from source i-1 is offered before Y from source i for the
+            // same destination.  update_max is strict, so this also keeps
+            // the original winner on equal scores.
+            if (has_x && source.entries[x_index].key + stride == next_key) {
+                const MaxEntry& entry = source.entries[x_index];
+                update_max(node, entry.node.score, entry.key, 'X');
+                ++x_index;
+            }
+            if (has_y && source.entries[y_index].key + 1 == next_key) {
+                const MaxEntry& entry = source.entries[y_index];
+                update_max(node, entry.node.score, entry.key, 'Y');
+                ++y_index;
+            }
+
+            target.entries.push_back(MaxEntry{next_key, node});
+        }
+        max_existing_.clear();
+    };
+
+    for (unsigned step = 0; step < length1 + length2; ++step) {
+        auto& layer = layers[step];
+        if (beam > 0 && layer.entries.size() > static_cast<size_t>(beam)) {
+            max_pruned_states_ += layer.entries.size() - static_cast<size_t>(beam);
+            max_ranked_.clear();
+            max_ranked_.reserve(layer.entries.size());
+            for (const MaxEntry& entry : layer.entries)
+                max_ranked_.emplace_back(entry.node.score, entry.key);
+            const auto ranking_order = [&](const auto& lhs, const auto& rhs) {
+                return ranking_before(lhs.first, lhs.second,
+                                      rhs.first, rhs.second);
+            };
+            std::nth_element(
+                max_ranked_.begin(), max_ranked_.begin() + beam,
+                max_ranked_.end(), ranking_order);
+
+            // The element at `beam` is the first excluded rank.  Since the
+            // key makes every rank unique, filtering the already key-sorted
+            // layer by this cutoff keeps exactly the same top-beam entries
+            // without sorting or separately storing their keys.
+            const auto cutoff = max_ranked_[beam];
+            size_t write = 0;
+            for (size_t read = 0; read < layer.entries.size(); ++read) {
+                const MaxEntry& entry = layer.entries[read];
+                if (!ranking_before(entry.node.score, entry.key,
+                                    cutoff.first, cutoff.second))
+                    continue;
+                if (write != read)
+                    layer.entries[write] = entry;
+                ++write;
+            }
+            layer.entries.resize(write);
+        }
+
+        // layer[step+2] is empty here: only the current layer can offer a
+        // match to it.  Its successor keys are monotone in source key order,
+        // so append directly instead of inserting into a sorted vector.  The
+        // final layer cannot have a match successor, so avoid forming the
+        // otherwise out-of-range step+2 reference there.
+        MaxLayer* match_target = nullptr;
+        if (step + 2 < layer_count) {
+            match_target = &layers[step + 2];
+            match_target->entries.reserve(layer.entries.size());
+        }
+        for (const MaxEntry& entry : layer.entries) {
+            const uint64_t key = entry.key;
+            const MaxNode& node = entry.node;
             const unsigned i = key / stride;
             const unsigned k = key % stride;
             if (i < length1 && k < length2) {
                 const uint64_t next = key_of(i + 1, k + 1);
-                update_max(layers[step + 2][next],
-                           node.score + match_score(i, k), key, 'M');
-            }
-            if (i < length1) {
-                const uint64_t next = key_of(i + 1, k);
-                update_max(layers[step + 1][next], node.score, key, 'X');
-            }
-            if (k < length2) {
-                const uint64_t next = key_of(i, k + 1);
-                update_max(layers[step + 1][next], node.score, key, 'Y');
+                MaxNode match_node;
+                update_max(match_node, node.score + match_score(i, k),
+                           key, 'M');
+                match_target->entries.push_back(MaxEntry{next, match_node});
             }
         }
+        merge_gap_successors(step);
     }
 
     mapping.assign(length1, -1u);
     uint64_t key = key_of(length1, length2);
     unsigned step = length1 + length2;
-    const auto terminal = layers[step].find(key);
-    if (terminal == layers[step].end()) return VALUE_MIN;
-    const double score = terminal->second.score;
+    const MaxNode* terminal = node_at(layers[step], key);
+    if (terminal == nullptr) return VALUE_MIN;
+    const double score = terminal->score;
+    max_score_ = score;
     while (step > 0) {
-        const MaxNode& node = layers[step].at(key);
+        const MaxNode* node = node_at(layers[step], key);
+        if (node == nullptr)
+            throw std::out_of_range("MaxLayer::at");
         const unsigned i = key / stride;
         const unsigned k = key % stride;
-        if (node.operation == 'M') {
+        if (node->operation == 'M') {
             mapping[i - 1] = k - 1;
             step -= 2;
         } else {
             --step;
         }
-        key = node.previous;
+        key = node->previous;
     }
     return score;
 }

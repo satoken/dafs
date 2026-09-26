@@ -4,7 +4,7 @@ DAFS: simultaneous aligning and folding of RNA sequences by dual decomposition
 Requirements
 ------------
 
-* [Vienna RNA package](http://www.tbi.univie.ac.at/~ivo/RNA/) (>= 1.8)
+* [Vienna RNA package](http://www.tbi.univie.ac.at/~ivo/RNA/) (>= 2.7; also supplies nearest-neighbor energy primitives for linear profile folding)
 * (optional)
   [GNU Linear Programming Kit](http://www.gnu.org/software/glpk/) (>=4.41)
   or [Gurobi Optimizer](http://www.gurobi.com/) (>=2.0)
@@ -18,8 +18,38 @@ Install
 	cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build . 
 	cmake --install . # optional
 
-To use "--ipknot" option for pseudoknotted common secondary structure
-prediction, build DAFS with an IP solver.
+The exact IPknot decoder and `--max-iter=0` require an IP solver. The linear
+IPknot path described below works without one.
+
+With `-s lpc` or `-s lpv` together with `--fold-decoder=IPknot` (or
+`--ipknot`), DAFS uses a fixed-beam `LinearIPknot` decoder. It keeps IPknot's
+threshold layers and selects each layer with `LinearNussinov` over the sparse
+LinearPartition support; the support and crossing witnesses are scanned in
+linear time for a fixed beam and number of layers. This is the linear folding
+decoder used during positive-iteration dual decomposition, so `--max-iter`
+only controls the number of coupling iterations. `--max-iter=0` remains the
+explicit exact coupled integer-program path and is reported separately.
+The linear bound applies to the sparse LinearPartition overload used by DAFS;
+the standalone dense matrix overload necessarily has quadratic input size.
+With a fixed number of sequences, fixed probability and decoder beams, fixed
+positive posterior cutoff, fixed layer count, and fixed DD iteration count,
+the sparse decoder and its DAFS multiplier/bound path use linear time and
+memory in sequence length. `--dense-lagrangian` and `--max-iter=0` select
+separate dense or exact paths. The `--ipknot` option also requests a fixed
+number of constrained LinearPartition refolds for the final prediction.
+
+For nonlinear folding models, IPknot continues to use the exact MIP decoder.
+The fixed-beam linear decoder is an approximation: it does not provide the
+global IP optimum, and the full DAFS run still includes alignment and dual
+iteration costs.
+
+For each ungapped input sequence, LinearPartition-C/V caps retained states per
+column with its beam and caps internal-loop and helix lengths. Its inside,
+outside, and sparse base-pair probability passes therefore use expected
+linear time and linear memory in sequence length when those limits are fixed.
+The implementation uses hash maps and `nth_element`, so this is not a strict
+worst-case timing guarantee. Constrained refolding uses the same sparse
+passes; its posterior capacity correction also scans only retained pairs.
 
 Usage
 -----
@@ -52,16 +82,22 @@ Usage
     
  	  Folding options:
   	  -s, --fold-model arg     Folding model for calculating base-pairing 
-                           	  probablities (value=Boltzmann, Vienna, 
-                           	  CONTRAfold) (default: Boltzmann)
+                              probablities (value=Boltzmann, Vienna,
+                              CONTRAfold, lpv, lpc) (default: Boltzmann)
   	  -t, --fold-th arg        Threshold for base-pairing probabilities 
                            	  (default: 0.2)
       -T, --fold-th1 arg       Threshold for base-pairing probabilities of the
                               conclusive common secondary structures
-          --alifold           Use RNAalifold for profile base-pairing
-                              probabilities (disabled by default)
-          --no-alifold        Disable RNAalifold for profile base-pairing
-                              probabilities (default)
+          --alifold           Use profile base-pairing probabilities
+                              (LinearAlifold for lpv/lpc, RNAalifold otherwise;
+                              disabled by default)
+          --no-alifold        Disable profile base-pairing probabilities
+                              (default)
+          --alifold-stages arg
+                              Select profile folding stages: none, progressive,
+                              final, or both. This is mutually exclusive with
+                              --alifold/--no-alifold; default behavior is both
+                              when --alifold is given.
       	  --ipknot             Set optimized parameters for IPknot decoding 
                            	  (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)
 
@@ -72,6 +108,32 @@ Gaps and ambiguous residues contribute zero while the denominator remains the
 total number of aligned sequences, so gappy column pairs are attenuated
 quadratically.  The bonus is evaluated on the sparse BPP support and is disabled
 by default (`rho=0`).
+
+Experimental linear-DD controls (all disabled by default):
+
+- `--dd-recovery-interval=10` proposes alignments from an eight-iterate
+  multiplier window and from the certified track every ten iterations, then
+  verifies and scores repaired feasible solutions using the original objective.
+- `--dd-beam-projected-norm` changes the beam track's norm only;
+  `--dd-beam-eta=0.75` overrides its Polyak scale without changing the certified
+  track's scale. These require linear alignment and folding DD decoders.
+- `--dd-diagnostics --metrics-jsonl=FILE` serializes fixed merges of length at
+  most nine for offline exhaustive/LP diagnosis; no exact oracle is added to
+  the production linear algorithm.
+- `--dd-unpruned-bound` uses the full max-alignment value as a certificate
+  only when that particular beam call discarded no states.
+- `--dd-block-bound=32` adds fixed-width row-block monotone alignment upper
+  bounds on both multiplier tracks (width 1–64; 0 disables it). Inter-block
+  constraints are relaxed; fixed-width work is linear in sparse support size.
+- `--dd-outward-lb` verifies and downward-rescores the best feasible solution.
+  This addresses lower-bound rounding stalls, but can change subsequent
+  Polyak updates and predictions. It does not interval-certify every existing
+  upper-bound/CBP arithmetic path.
+
+These options do not loosen certificate tolerances or guarantee faster
+convergence. They are experimental controls and may alter runtime or the
+resulting alignment; compare quality against the fixed baseline before using
+them in production.
 
 Example
 -------

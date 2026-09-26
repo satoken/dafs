@@ -136,12 +136,36 @@ def parse_fasta_alignment(path: Path) -> StructuralAlignment:
     return _validate(sequences, structure, path)
 
 
+def parse_clustal_alignment(path: Path) -> StructuralAlignment:
+    """Read the CLUSTAL-like alignment written by LocARNA and similar tools."""
+    fragments: OrderedDict[str, list[str]] = OrderedDict()
+    sequence_token = re.compile(r"[A-Za-z0-9_.:/|+\-~]+$")
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.rstrip()
+        if not line or line.upper().startswith(("CLUSTAL", "MUSCLE", "PROBCONS")):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            # Consensus rows contain only symbols such as '*' or ':'.
+            continue
+        name, fragment = parts[0], parts[1]
+        if not sequence_token.fullmatch(fragment):
+            continue
+        fragments.setdefault(name, []).append(fragment)
+    sequences = OrderedDict((name, "".join(parts))
+                            for name, parts in fragments.items())
+    return _validate(sequences, None, path)
+
+
 def parse_alignment(path: str | Path) -> StructuralAlignment:
     source = Path(path)
     first = next((line.strip() for line in source.read_text(encoding="utf-8").splitlines()
                   if line.strip()), "")
-    return (parse_stockholm(source) if first.startswith("# STOCKHOLM")
-            else parse_fasta_alignment(source))
+    if first.startswith("# STOCKHOLM"):
+        return parse_stockholm(source)
+    if first.upper().startswith(("CLUSTAL", "MUSCLE", "PROBCONS")):
+        return parse_clustal_alignment(source)
+    return parse_fasta_alignment(source)
 
 
 def _linearturbofold_db_sort_key(path: Path) -> tuple[int, str]:
@@ -383,6 +407,44 @@ def calculate_sci(alignment: StructuralAlignment,
         "sci_rnafold": rnafold,
         "sci_reason": None,
     }
+
+
+def derive_consensus_structure(alignment: StructuralAlignment,
+                               config: SCIConfig) -> str:
+    """Derive a common dot-bracket structure with the configured RNAalifold.
+
+    External aligners such as MAFFT intentionally write only an alignment.  The
+    original DAFS paper evaluated those alignments after a common structure was
+    predicted, so the comparison runner uses this helper to make that step
+    explicit and version-pinned.
+    """
+    rnaalifold = _resolve_executable(config.rnaalifold)
+    output, _ = _run_sci_command(
+        rnaalifold, ["--noPS", "--input-format=F"],
+        _sci_fasta(alignment, aligned=True), Path.cwd(), config.timeout_seconds)
+    structure_symbols = set(".()[]{}<>")
+    for line in output.splitlines():
+        for token in line.strip().split():
+            if (len(token) == alignment.columns and
+                    any(symbol in structure_symbols for symbol in token) and
+                    set(token) <= structure_symbols | set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")):
+                # Validate WUSS/pseudoknot brackets before returning the token.
+                structure_pairs(token)
+                return token
+    tail = "\n".join(output.splitlines()[-12:])
+    raise ValueError(f"could not parse RNAalifold consensus structure\n{tail}")
+
+
+def with_consensus_structure(alignment: StructuralAlignment,
+                             config: SCIConfig) -> StructuralAlignment:
+    """Return an alignment with an RNAalifold consensus when none is present."""
+    if alignment.structure is not None:
+        return alignment
+    return StructuralAlignment(
+        alignment.sequences,
+        derive_consensus_structure(alignment, config),
+        alignment.structures,
+    )
 
 
 def structure_pairs(structure: str) -> set[tuple[int, int]]:

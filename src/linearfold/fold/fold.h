@@ -36,6 +36,7 @@ class _Fold
             float neg_unpaired;
             std::vector<float> score_paired_position_;
             std::function<float(u_int32_t, u_int32_t)> pair_score_;
+            std::function<bool(u_int32_t, u_int32_t)> position_pair_;
             std::vector<std::vector<bool>> allowed_pairs_;
 
             Options() : 
@@ -95,6 +96,12 @@ class _Fold
             Options& pair_score(std::function<float(u_int32_t, u_int32_t)> sc)
             {
                 pair_score_ = std::move(sc);
+                return *this;
+            }
+
+            Options& position_pair(std::function<bool(u_int32_t, u_int32_t)> check)
+            {
+                position_pair_ = std::move(check);
                 return *this;
             }
 

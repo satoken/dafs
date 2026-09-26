@@ -9,6 +9,7 @@
 #ifndef BEAM_ALIGNMENT_H
 #define BEAM_ALIGNMENT_H
 
+#include <cstdint>
 #include <string>
 #include <limits>
 #include <vector>
@@ -83,15 +84,43 @@ public:
 	double max_alignment(unsigned length1, unsigned length2,
 	                     std::vector<unsigned>& mapping,
 	                     MatchScoreFunction match_score);
+    size_t max_pruned_states() const { return max_pruned_states_; }
+    double max_score() const { return max_score_; }
 	double forward(string seq1, string seq2, double** &trans_probs, double** &emit_probs, bool prior);
 	double backward(double** &transprobs, double** &emitprobs, bool prior);
 	std::unordered_map<int, aln_ret>* cal_align_prob(double forward_score, double threshold, std::unordered_map<int, aln_ret>* &aln_ret);
 
 private:
+    struct MaxNode {
+        double score = VALUE_MIN;
+        uint64_t previous = 0;
+        char operation = 0;
+    };
+
+    struct MaxEntry {
+        uint64_t key = 0;
+        MaxNode node;
+    };
+
+    struct MaxLayer {
+        // Entries stay in key order.  A layer is sparse after beam pruning,
+        // but its storage is contiguous and re-used between calls.
+        vector<MaxEntry> entries;
+    };
+
     unordered_map<int, AlignState> *bestINS1, *bestINS2, *bestALN;
     int *nucs1, *nucs2;
     vector<pair<double, int>> scores;
     unsigned seq1_len, seq2_len, max_len;
+
+    // DD calls max_alignment many times with the same profile dimensions.
+    // Clearing these containers preserves their allocated buckets/capacity
+    // without changing beam ordering or traceback semantics.
+    vector<MaxLayer> max_layers_;
+    vector<MaxEntry> max_existing_;
+    vector<pair<double, uint64_t>> max_ranked_;
+    size_t max_pruned_states_ = 0;
+    double max_score_ = 0.0;
     
     // Memory management helpers
     void cleanup_arrays();

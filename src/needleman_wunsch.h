@@ -67,6 +67,10 @@ public:
                const SparseFloatMatrix& q, VU& al) const;
   float decode(const SparseFloatMatrix& p, VU& al) const;
   float similarity_score(const MP& p, uint length1, uint length2) const;
+  // Valid only immediately after decode(): subsequent similarity/recovery
+  // calls reuse the same BeamAlign buffers and certificate metadata.
+  bool last_decode_unpruned() const { return last_decode_unpruned_; }
+  double last_decode_score() const { return last_decode_score_; }
 
 private:
   template <typename Probability, typename Multiplier>
@@ -75,6 +79,8 @@ private:
 
   float th_;
   std::unique_ptr<BeamAlign> aligner_;
+  mutable bool last_decode_unpruned_ = false;
+  mutable double last_decode_score_ = 0.0;
 };
 
 #endif  //  __INC_NEEDLEMAN_WUNSCH_H__

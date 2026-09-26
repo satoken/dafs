@@ -22,6 +22,7 @@
 
 #include "typedefs.h"
 #include "sparse_matrix.h"
+#include <cstddef>
 #include <map>
 #include <memory>
 #include <cmath>
@@ -69,12 +70,28 @@ public:
     uint get_violations() const { return violations_; }
     
     // Get the current Polyak scaling coefficient alpha_t.  The actual step is
-    // alpha_t * (L(q_t) - LB) / ||g_t||^2.
+    // alpha_t * (L(q_t) - LB) / ||g_t||^2, or / ||h_t||^2 in projected mode.
     float get_step_size() const { return current_eta_; }
     // Actual multiplier applied to the materialized subgradient in the most
     // recent update.  Unlike get_step_size(), this includes the duality gap
     // and squared-gradient denominator.
     float get_last_update_size() const { return last_update_size_; }
+
+    // Use the relative-domain projected subgradient norm for the Polyak
+    // denominator.  This is opt-in because it changes the dual trajectory.
+    // It is unsupported when an adaptive update compile-time mode replaces
+    // the Polyak update.
+    void set_projected_norm(bool enabled);
+    bool uses_projected_norm() const { return use_projected_norm_; }
+    float get_last_gradient_norm_squared() const {
+        return last_gradient_norm_squared_;
+    }
+    float get_last_projected_gradient_norm_squared() const {
+        return last_projected_gradient_norm_squared_;
+    }
+    size_t get_last_projected_norm_dropped() const {
+        return last_projected_norm_dropped_;
+    }
     
     // Set lower bound for adaptive method
     void set_lower_bound(float lb) { lb_ = lb; }
@@ -88,8 +105,12 @@ private:
     float lb_;            // Lower bound
     float current_eta_;   // Current step size
     float last_update_size_; // Actual Polyak multiplier used most recently
+    float last_gradient_norm_squared_; // ||g_t||^2 before projection activity
+    float last_projected_gradient_norm_squared_; // ||h_t||^2
+    size_t last_projected_norm_dropped_; // outward Z entries at q_z == 0
     uint violations_;     // Number of constraint violations
     float gradient_clip_; // Gradient clipping threshold
+    bool use_projected_norm_; // Use ||h_t||^2 in the Polyak denominator
     bool sparse_structure_storage_; // Sparse q_x/q_y for LinearFold models
     bool sparse_alignment_storage_; // Sparse q_z for LinearAlign
     

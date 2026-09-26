@@ -32,6 +32,12 @@ struct AlignmentBound
   float best = 0.0f;
 };
 
+struct MonotoneAlignmentSolution
+{
+  float value = 0.0f;
+  std::vector<unsigned> selected;
+};
+
 struct WeightedEdge
 {
   unsigned first;
@@ -206,12 +212,14 @@ float structure(const std::vector<std::pair<unsigned, unsigned>>& support,
 template <typename Score>
 float structure_left_solution(
     const std::vector<std::pair<unsigned, unsigned>>& support,
-    unsigned length, Score score, std::vector<unsigned>& selected)
+    unsigned length, Score score, std::vector<unsigned>& selected,
+    unsigned minimum_pair_span = 3)
 {
   selected.assign(length, std::numeric_limits<unsigned>::max());
   std::vector<float> best(length, 0.0f);
   for (const auto& [i, j] : support) {
-    if (i >= length || j >= length || j <= i + 2)
+    if (i >= length || j >= length || j <= i ||
+        j - i < minimum_pair_span)
       continue;
     const float value = score(i, j);
     if (value > best[i]) {
@@ -261,6 +269,155 @@ float alignment(const std::vector<std::pair<unsigned, unsigned>>& support,
                 unsigned rows, unsigned columns, Score score)
 {
   return alignment_bound(support, rows, columns, score).best;
+}
+
+// Exact optimizer for the positive-weight monotone matching relaxation.
+// Candidate edges are processed row by row.  A Fenwick tree stores the best
+// predecessor whose last column is strictly smaller than the current column;
+// delaying all updates from one row until that row has been evaluated prevents
+// two edges from the same row being chained together.  Invalid and duplicate
+// support coordinates are ignored/merged, so callers may pass a support union
+// assembled from more than one sparse source.
+//
+// The returned mapping is a subgradient of this convex maximum-of-affines
+// function.  Its value is accumulated in double precision and rounded
+// outward to float for use as a certified upper bound.  The sort is
+// O(m log m), which is O(m log L) for an L-by-L sparse matrix, and the DP
+// storage is O(m + L).
+template <typename Score>
+MonotoneAlignmentSolution alignment_monotone_solution(
+    const std::vector<std::pair<unsigned, unsigned>>& support,
+    unsigned rows, unsigned columns, Score score)
+{
+  constexpr std::size_t no_edge = std::numeric_limits<std::size_t>::max();
+  const unsigned missing = std::numeric_limits<unsigned>::max();
+
+  MonotoneAlignmentSolution result;
+  result.selected.assign(rows, missing);
+
+  struct Candidate
+  {
+    unsigned row;
+    unsigned column;
+    float score;
+    double total = 0.0;
+    std::size_t previous = std::numeric_limits<std::size_t>::max();
+  };
+
+  std::vector<Candidate> candidates;
+  candidates.reserve(support.size());
+  for (const auto& [row, column] : support) {
+    if (row >= rows || column >= columns)
+      continue;
+    const float value = score(row, column);
+    // A non-positive edge can never improve a maximum matching that may
+    // leave rows unmatched.  The comparison also safely ignores NaN input.
+    if (!(value > 0.0f))
+      continue;
+    candidates.push_back({row, column, value});
+  }
+
+  std::sort(candidates.begin(), candidates.end(),
+            [](const Candidate& lhs, const Candidate& rhs) {
+              if (lhs.row != rhs.row)
+                return lhs.row < rhs.row;
+              if (lhs.column != rhs.column)
+                return lhs.column < rhs.column;
+              return lhs.score > rhs.score;
+            });
+  // The support is normally already unique, but canonicalizing here keeps
+  // malformed test/support unions deterministic and does not change the
+  // sparse asymptotic storage bound.
+  std::size_t unique_size = 0;
+  for (const Candidate& candidate : candidates) {
+    if (unique_size != 0 &&
+        candidates[unique_size - 1].row == candidate.row &&
+        candidates[unique_size - 1].column == candidate.column)
+      continue;
+    candidates[unique_size++] = candidate;
+  }
+  candidates.resize(unique_size);
+
+  struct State
+  {
+    double value;
+    std::size_t edge;
+  };
+  const State empty{0.0, no_edge};
+  const auto better = [&](const State& lhs, const State& rhs) {
+    if (lhs.value > rhs.value)
+      return lhs;
+    if (rhs.value > lhs.value)
+      return rhs;
+    if (lhs.edge == no_edge)
+      return rhs;
+    if (rhs.edge == no_edge)
+      return lhs;
+    // Equal-valued states with a smaller last column dominate the other state
+    // for every future strict-prefix query.  The edge index is a final stable
+    // tie breaker after the canonical row/column ordering above.
+    if (candidates[lhs.edge].column != candidates[rhs.edge].column)
+      return candidates[lhs.edge].column < candidates[rhs.edge].column
+           ? lhs : rhs;
+    return lhs.edge < rhs.edge ? lhs : rhs;
+  };
+
+  std::vector<State> fenwick(columns + 1, empty);
+  const auto prefix_best = [&](unsigned count) {
+    State best = empty;
+    std::size_t index = count;
+    while (index != 0) {
+      best = better(best, fenwick[index]);
+      index &= index - 1;
+    }
+    return best;
+  };
+
+  std::size_t begin = 0;
+  while (begin < candidates.size()) {
+    std::size_t end = begin + 1;
+    while (end < candidates.size() &&
+           candidates[end].row == candidates[begin].row)
+      ++end;
+
+    // Compute the whole row before updating the tree.  Otherwise two edges
+    // from this row could incorrectly form one matching path.
+    for (std::size_t edge = begin; edge < end; ++edge) {
+      const State predecessor = prefix_best(candidates[edge].column);
+      candidates[edge].previous = predecessor.edge;
+      candidates[edge].total = predecessor.value +
+          static_cast<double>(candidates[edge].score);
+    }
+    for (std::size_t edge = begin; edge < end; ++edge) {
+      State candidate_state{candidates[edge].total, edge};
+      std::size_t index = static_cast<std::size_t>(candidates[edge].column) + 1;
+      while (index <= columns) {
+        fenwick[index] = better(fenwick[index], candidate_state);
+        index += index & (~index + 1);
+      }
+    }
+    begin = end;
+  }
+
+  const State best = prefix_best(columns);
+  for (std::size_t edge = best.edge; edge != no_edge;
+       edge = candidates[edge].previous)
+    result.selected[candidates[edge].row] = candidates[edge].column;
+  result.value = round_up_to_float(best.value);
+  return result;
+}
+
+// Convenience form matching the existing relaxed-bound helpers.
+template <typename Score>
+float alignment_monotone_solution(
+    const std::vector<std::pair<unsigned, unsigned>>& support,
+    unsigned rows, unsigned columns, Score score,
+    std::vector<unsigned>& selected)
+{
+  MonotoneAlignmentSolution result = alignment_monotone_solution(
+      support, rows, columns, score);
+  selected = std::move(result.selected);
+  return result.value;
 }
 
 

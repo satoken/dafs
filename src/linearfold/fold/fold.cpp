@@ -34,9 +34,12 @@ bool
 _Fold::Options::
 allow_paired(const std::string& seq, u_int32_t i, u_int32_t j) const
 {
-    std::tie(i, j) = std::minmax(i, j);
+    // std::minmax returns references to its arguments.  Assigning those
+    // references through std::tie aliases i/j and corrupts reversed pairs.
+    if (i > j) std::swap(i, j);
     return j-i>min_hairpin 
         && this->allow_paired(seq[i-1], seq[j-1])
+        && (!position_pair_ || position_pair_(i, j))
         && (stru[i]==Options::ANY || stru[i]==Options::PAIRED_L || stru[i]==Options::PAIRED_LR || stru[i]==j) 
         && (stru[j]==Options::ANY || stru[j]==Options::PAIRED_R || stru[j]==Options::PAIRED_LR || stru[j]==i);
 }

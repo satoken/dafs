@@ -61,12 +61,85 @@ if(NOT no_alifold_result EQUAL 0)
 endif()
 if(NOT output STREQUAL no_alifold_output)
   message(FATAL_ERROR
-          "linear profile surrogate was not disabled consistently")
+          "linear default differs from explicit --no-alifold")
 endif()
 
-# The public defaults are RIBOSUM 0.075 and RNAalifold disabled.  Check the
-# nonlinear path because the linear folding engine disables RNAalifold on its
-# own to preserve linear complexity.
+execute_process(
+  COMMAND "${DAFS}" -a LinearAlign -s lpc --alifold --verbose=1
+          --align-beam=7 --align-dd-beam=9
+          --linfold-beam=11 --fold-dd-beam=13 --fold-final-beam=15
+          --ribosum-weight=0.1 --final-ribosum-weight=0.1
+          --max-iter=2 "${INPUT}"
+  RESULT_VARIABLE alifold_result
+  OUTPUT_VARIABLE alifold_output
+  ERROR_VARIABLE alifold_error)
+if(NOT alifold_result EQUAL 0 OR
+   NOT alifold_output MATCHES ">SS_cons" OR
+   NOT alifold_output MATCHES "Profile folding: LinearAlifold")
+  message(FATAL_ERROR
+          "linear --alifold pipeline failed\n${alifold_output}${alifold_error}")
+endif()
+
+foreach(alifold_stage IN ITEMS progressive final)
+  execute_process(
+    COMMAND "${DAFS}" -a LinearAlign -s lpc
+            --alifold-stages=${alifold_stage} --verbose=1
+            --align-beam=7 --align-dd-beam=9
+            --linfold-beam=11 --fold-dd-beam=13 --fold-final-beam=15
+            --ribosum-weight=0.1 --final-ribosum-weight=0.1
+            --max-iter=2 "${INPUT}"
+    RESULT_VARIABLE stage_result
+    OUTPUT_VARIABLE stage_output
+    ERROR_VARIABLE stage_error)
+  if(NOT stage_result EQUAL 0 OR
+     NOT stage_output MATCHES ">SS_cons" OR
+     NOT stage_output MATCHES "Profile folding: LinearAlifold \\(${alifold_stage} only\\)")
+    message(FATAL_ERROR
+            "linear --alifold-stages=${alifold_stage} pipeline failed\n${stage_output}${stage_error}")
+  endif()
+endforeach()
+
+execute_process(
+  COMMAND "${DAFS}" -a LinearAlign -s lpc --alifold-stages=invalid
+          --max-iter=1 "${INPUT}"
+  RESULT_VARIABLE invalid_alifold_stage_result
+  OUTPUT_QUIET
+  ERROR_QUIET)
+if(invalid_alifold_stage_result EQUAL 0)
+  message(FATAL_ERROR "invalid --alifold-stages value was accepted")
+endif()
+
+execute_process(
+  COMMAND "${DAFS}" -a LinearAlign -s lpv --alifold --bp-update1
+          --max-iter=2 --align-beam=100 --align-dd-beam=100
+          --linfold-beam=100 --fold-dd-beam=100 --fold-final-beam=100
+          "${INPUT}"
+  RESULT_VARIABLE constrained_alifold_result
+  OUTPUT_VARIABLE constrained_alifold_output
+  ERROR_VARIABLE constrained_alifold_error)
+if(NOT constrained_alifold_result EQUAL 0 OR
+   NOT constrained_alifold_output MATCHES ">SS_cons[\r\n]+\\(\\(\\(\\.\\.\\.\\)\\)\\)")
+  message(FATAL_ERROR
+          "constrained linear --alifold pipeline failed\n${constrained_alifold_output}${constrained_alifold_error}")
+endif()
+
+# Refinement may predict a pair supported by only a minority of profile rows.
+set(minority_input "${CMAKE_CURRENT_BINARY_DIR}/linear-minority.fa")
+file(WRITE "${minority_input}" ">one\nGGGAAACCC\n>two\nAAAAAAAAA\n>three\nAAAAAAAAA\n")
+execute_process(
+  COMMAND "${DAFS}" -a LinearAlign -s lpv --alifold --bp-update1
+          --gamma1=100 --fold-th=0.2 --final-ribosum-weight=0
+          --max-iter=100 --align-beam=100 --align-dd-beam=100
+          --linfold-beam=100 --fold-dd-beam=100 --fold-final-beam=100
+          "${minority_input}"
+  RESULT_VARIABLE minority_result
+  OUTPUT_VARIABLE minority_output
+  ERROR_VARIABLE minority_error)
+if(NOT minority_result EQUAL 0 OR NOT minority_output MATCHES ">SS_cons")
+  message(FATAL_ERROR "minority-supported profile update failed\n${minority_output}${minority_error}")
+endif()
+
+# The public defaults are RIBOSUM 0.075 and profile folding disabled.
 execute_process(
   COMMAND "${DAFS}" -a CONTRAlign -s CONTRAfold --dynamic-cbp --max-iter=2
           "${INPUT}"

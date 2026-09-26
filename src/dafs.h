@@ -189,7 +189,19 @@ private:
   bool use_sparse_structure_lagrangian_; // sparse q_x/q_y for LinearFold
   bool use_sparse_alignment_lagrangian_; // sparse q_z for LinearAlign
   bool use_linear_structure_decoder_;    // beam max decoder for folding
+  bool use_linear_ipknot_decoder_;      // fixed-beam layered IPknot decoder
   bool use_linear_alignment_decoder_;    // beam max decoder for alignment
+  bool use_dd_tight_alignment_;          // opt-in exact sparse monotone z bound
+  bool use_dd_projected_norm_;            // opt-in active projected Z norm
+  bool use_dd_column_bound_;              // opt-in certified column-capacity UB
+  bool use_dd_beam_projected_norm_ = false;
+  float dd_beam_eta_ = 0.5f;
+  bool dd_beam_eta_explicit_ = false;
+  uint dd_recovery_interval_ = 0;
+  bool dd_diagnostics_ = false;
+  bool dd_unpruned_bound_ = false;
+  uint dd_block_bound_ = 0;
+  bool dd_outward_lb_ = false;
   std::unordered_set<CBP, CBPHash> cbp_set_; // for expected O(1) duplicate removal
   
   bool use_alifold_;

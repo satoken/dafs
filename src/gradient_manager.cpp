@@ -20,6 +20,7 @@
 #include "gradient_manager.h"
 #include <algorithm>
 #include <cassert>
+#include <stdexcept>
 #include <vector>
 
 #include "spdlog/spdlog.h"
@@ -48,10 +49,23 @@ GradientManager::GradientManager(float eta0, float lb, float gradient_clip,
                                  bool sparse_structure_storage,
                                  bool sparse_alignment_storage)
     : eta0_(eta0), lb_(lb), current_eta_(eta0),
-      last_update_size_(0.0f), violations_(0), gradient_clip_(gradient_clip),
+      last_update_size_(0.0f), last_gradient_norm_squared_(0.0f),
+      last_projected_gradient_norm_squared_(0.0f),
+      last_projected_norm_dropped_(0), violations_(0),
+      gradient_clip_(gradient_clip), use_projected_norm_(false),
       sparse_structure_storage_(sparse_structure_storage),
       sparse_alignment_storage_(sparse_alignment_storage)
 {
+}
+
+void GradientManager::set_projected_norm(bool enabled)
+{
+#if defined(USE_ADAGRAD) || defined(USE_ADAM)
+    if (enabled)
+        throw std::invalid_argument(
+            "projected DD norm is unsupported with adaptive gradient updates");
+#endif
+    use_projected_norm_ = enabled;
 }
 
 void GradientManager::initialize(uint L1, uint L2)
@@ -274,16 +288,45 @@ uint GradientManager::update_gradients(const std::vector<CBP>& cbp,
     }
 
     float g2 = 0.0f;
-    for (const GradientEntry& gradient : gradients)
-        g2 += gradient.value * gradient.value;
+    float projected_g2 = 0.0f;
+    size_t projected_norm_dropped = 0;
+    if (!use_projected_norm_) {
+        // Keep the legacy norm calculation as a separate path.  In
+        // particular, do not even read q_z when the opt-in is disabled.
+        for (const GradientEntry& gradient : gradients)
+            g2 += gradient.value * gradient.value;
+        projected_g2 = g2;
+    } else {
+        for (const GradientEntry& gradient : gradients) {
+            const float squared = gradient.value * gradient.value;
+            g2 += squared;
+            const bool outward_at_boundary =
+                gradient.block == GradientBlock::Z &&
+                gradient.value > 0.0f &&
+                q_z(gradient.row, gradient.column) == 0.0f;
+            if (outward_at_boundary) {
+                ++projected_norm_dropped;
+                continue;
+            }
+            projected_g2 += squared;
+        }
+    }
+    last_gradient_norm_squared_ = g2;
+    last_projected_gradient_norm_squared_ = projected_g2;
+    last_projected_norm_dropped_ = projected_norm_dropped;
 
     // Polyak step for minimizing the Lagrangian dual upper bound:
     //   eta_t = alpha_t * (L(q_t) - LB) / ||g_t||^2.
+    // In projected-norm mode, h is the relative-domain subgradient obtained
+    // by removing only outward Z components at q_z == 0.  The multiplier
+    // update below still materializes g and projects it, which is identical
+    // on those removed coordinates.
     // Clamp the duality gap to zero so rounding error cannot reverse the
     // subgradient direction.  With a zero subgradient no update is needed.
     const float duality_gap = std::max(0.0f, score - lb_);
-    const float eta = g2 > 0.0f
-                    ? current_eta_ * duality_gap / g2
+    const float norm_squared = use_projected_norm_ ? projected_g2 : g2;
+    const float eta = norm_squared > 0.0f
+                    ? current_eta_ * duality_gap / norm_squared
                     : 0.0f;
     last_update_size_ = eta;
     spdlog::debug("eta: {}, gap: {}, g^2: {}, score: {}, lb_: {}",

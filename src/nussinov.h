@@ -21,6 +21,7 @@
 #define __INC_NUSSINOV_H__
 
 #include <cstddef>
+#include <memory>
 
 #include "fold.h"
 
@@ -69,7 +70,12 @@ private:
 class LinearNussinov : public Fold::Decoder
 {
 public:
-  LinearNussinov(float th, uint beam_size) : th_(th), beam_size_(beam_size) { }
+  static constexpr uint cached_support_minimum_pair_span = 2;
+
+  LinearNussinov(float th, uint beam_size);
+  ~LinearNussinov() override;
+  LinearNussinov(const LinearNussinov&) = delete;
+  LinearNussinov& operator=(const LinearNussinov&) = delete;
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
   float decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss);
   float decode(float w, const SparseFloatMatrix& p, const VVF& q, VU& ss);
@@ -94,6 +100,8 @@ public:
   void make_brackets(const VU& ss, std::string& str) const;
 
 private:
+  struct Workspace;
+
   template <typename PairScore>
   LinearNussinovResult decode_impl(
       uint length,
@@ -102,6 +110,7 @@ private:
 
   float th_;
   uint beam_size_;
+  std::unique_ptr<Workspace> workspace_;
 };
 
 #endif  //  __INC_NUSSINOV_H__
