@@ -181,6 +181,8 @@ private:
   std::vector<Fasta> fa_;           // input sequences
   std::vector<std::vector<MP>> mp_; // alignment matching probability matrices
   std::vector<BP> bp_;              // base-pairing probability matrices
+  std::string guide_tree_method_ = "mafft";
+  VVF raf_tree_distances_; // raw posteriors, separate from PCT similarities
   VVF sim_;                         // simalarity matrix between input sequences
   std::vector<node_t> tree_;        // guide tree
   

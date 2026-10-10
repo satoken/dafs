@@ -14,7 +14,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 add_executable(
     dafs
     alifold.cpp align.cpp boltzmann_param.c dafs.cpp fa.cpp fold.cpp
-    gradient_manager.cpp ip.cpp ipknot.cpp linfold_wrapper.cpp linearalign.cpp needleman_wunsch.cpp nussinov.cpp ribosum.cpp tree.cpp
+    gradient_manager.cpp guide_tree.cpp ip.cpp ipknot.cpp linfold_wrapper.cpp linearalign.cpp needleman_wunsch.cpp nussinov.cpp ribosum.cpp tree.cpp
 )
 
 target_compile_definitions(dafs PRIVATE PACKAGE="dafs")
@@ -88,6 +88,13 @@ if(BUILD_TESTING)
   target_compile_features(dd_certificate_test PRIVATE cxx_std_17)
   add_test(NAME dd_certificate COMMAND dd_certificate_test)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_executable(guide_tree_test ../tests/guide_tree_test.cpp guide_tree.cpp)
+  target_include_directories(guide_tree_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(guide_tree_test PRIVATE cxx_std_17)
+  add_test(NAME guide_tree_algorithms COMMAND guide_tree_test)
+  add_test(NAME guide_tree_pipeline COMMAND ${Python3_EXECUTABLE}
+      ${PROJECT_SOURCE_DIR}/tests/test_guide_tree.py $<TARGET_FILE:dafs>)
+  set_tests_properties(guide_tree_pipeline PROPERTIES TIMEOUT 60)
   add_test(NAME dd_certificate_pipeline COMMAND ${Python3_EXECUTABLE}
       ${PROJECT_SOURCE_DIR}/tests/test_dd_certificates.py $<TARGET_FILE:dafs>)
   add_executable(
@@ -233,3 +240,5 @@ if(BUILD_TESTING)
 endif()
 
 install(TARGETS dafs RUNTIME DESTINATION bin)
+install(FILES ${PROJECT_SOURCE_DIR}/COPYING ${PROJECT_SOURCE_DIR}/THIRD_PARTY_NOTICES
+    DESTINATION share/doc/dafs)

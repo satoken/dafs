@@ -51,6 +51,34 @@ The implementation uses hash maps and `nth_element`, so this is not a strict
 worst-case timing guarantee. Constrained refolding uses the same sparse
 passes; its posterior capacity correction also scans only retained pairs.
 
+Guide tree
+----------
+
+The default `--guide-tree=mafft` builds the guide tree inside DAFS for both
+linear and nonlinear models. It reimplements MAFFT 7.526's nucleotide
+`--globalpair --retree 0 --mixedlinkage 0.1` method: Kimura-200 scoring,
+affine global pairwise scores normalized by the smaller self score, and
+90% minimum / 10% unweighted-average linkage. MAFFT's terminal-gap rules,
+nearest-neighbor tie handling, and left/right child order are preserved.
+No MAFFT executable, subprocess, or temporary alignment is required.
+Pairwise scoring takes quadratic time in sequence length and linear working
+memory; the distance matrix uses quadratic memory in sequence count, including
+when DAFS's probability/decoding models are linear. Guide-tree time is included
+in DAFS wall time and the `guide_tree` metrics stage.
+
+* `--guide-tree=mafft` (default): the internally implemented MAFFT-global tree.
+* `--guide-tree=dafs`: the original posterior-similarity tree.
+* `--guide-tree=raf`: the internally implemented RAF 1.00 tree. Distances use
+  raw alignment posteriors before PCT, normalized by the shorter sequence.
+  This compatibility mode intentionally retains RAF 1.00's upper-triangle-only
+  initialization and subsequent lower-triangle reads, which can produce
+  input-order-dependent chain trees. It matches the RAF mode benchmarked here.
+
+All methods align the original input sequences and preserve their names and
+input order. The guide-tree choice does not replace the similarities used to
+weight PCT. `--metrics-jsonl` records the selected `guide_tree_method`.
+See `THIRD_PARTY_NOTICES` for MAFFT's BSD license.
+
 Usage
 -----
 	DAFS: dual decomposition for simultaneous aligning and folding RNA sequences.

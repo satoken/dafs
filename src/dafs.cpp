@@ -55,6 +55,7 @@
 #include "gradient_manager.h"
 #include "relaxed_bounds.h"
 #include "dafs.h"
+#include "guide_tree.h"
 #include "linfold_wrapper.h"
 
 namespace Vienna
@@ -497,6 +498,14 @@ void DAFS::
 void DAFS::
     build_tree()
 {
+  if (guide_tree_method_ == "mafft") {
+    tree_ = guide_tree::mafft(fa_);
+    return;
+  }
+  if (guide_tree_method_ == "raf") {
+    tree_ = guide_tree::raf(raf_tree_distances_);
+    return;
+  }
   uint n = fa_.size();
   tree_.resize(2 * n - 1);
   std::fill(tree_.begin(), tree_.end(), std::make_pair(0.0, std::make_pair(-1u, -1u)));
@@ -2736,6 +2745,8 @@ parse_options(int& argc, char**& argv)
     ("version", "Print version")
     ("input", "Input file", cxxopts::value<std::string>(), "FILE")
     ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
+    ("guide-tree", "Guide-tree construction: mafft (globalpair), dafs (original), raf (RAF 1.00)",
+      cxxopts::value<std::string>()->default_value("mafft"))
     ("seed", "Random seed for shuffling", cxxopts::value<int>()->default_value("42"), "N")
     ("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
     ("ribosum-weight", "Weight of RIBOSUM85-60 pair-pair match scores", cxxopts::value<float>()->default_value("0.075"))
@@ -2809,6 +2820,10 @@ parse_options(int& argc, char**& argv)
       exit(0);
     }
     // general options
+    guide_tree_method_ = res["guide-tree"].as<std::string>();
+    if (guide_tree_method_ != "mafft" && guide_tree_method_ != "dafs" &&
+        guide_tree_method_ != "raf")
+      throw std::invalid_argument("--guide-tree must be mafft, dafs, or raf");
     n_refinement_ = res["refinement"].as<int>();
     g_ = std::mt19937(res["seed"].as<int>());
     w_ = res["weight"].as<float>();
@@ -3148,6 +3163,10 @@ parse_options(int& argc, char**& argv)
     // trace, without mixing it into the prediction written to stdout.
     input_path_ = res["input"].as<std::string>();
     Fasta::load(fa_, input_path_.c_str());
+    if (fa_.empty()) throw std::invalid_argument("Input FASTA contains no sequences");
+    for (const auto& sequence : fa_)
+      if (sequence.seq().empty())
+        throw std::invalid_argument("Input FASTA contains an empty sequence");
     if (res["metrics-jsonl"].count()) {
       metrics_jsonl_path_ = res["metrics-jsonl"].as<std::string>();
       metrics_stream_.open(metrics_jsonl_path_, std::ios::out | std::ios::trunc);
@@ -3235,6 +3254,7 @@ int DAFS::
   write_metric(
       "run_start", run_start_metrics,
       {{"input", input_path_},
+       {"guide_tree_method", guide_tree_method_},
        {"alignment_model", align_model_name_},
        {"alignment_score_model", align_score_model_name_},
        {"folding_model", fold_model_name_},
@@ -3280,6 +3300,21 @@ int DAFS::
     save_mp(os, mp_);
   }
 #endif
+
+  // RAF 1.00 distances use every raw posterior entry, before any PCT.
+  // Only its upper triangle is populated, matching the benchmarked RAF tree.
+  // sim_ remains unchanged: it also controls DAFS's PCT/scoring weights.
+  if (guide_tree_method_ == "raf") {
+    raf_tree_distances_.assign(N, VF(N, 0.0f));
+    for (uint i = 0; i < N; ++i)
+      for (uint j = i + 1; j < N; ++j) {
+        float sum = 0;
+        for (const auto& row : mp_[i][j])
+          for (const auto& entry : row) sum += entry.second;
+        raf_tree_distances_[i][j] =
+            1.0f - sum / std::min(fa_[i].size(), fa_[j].size());
+      }
+  }
 
   // four-way probabilistic consistency tranformation
   stage_start = Clock::now();
@@ -3335,7 +3370,7 @@ int DAFS::
   build_tree();
   write_metric("stage",
                {{"seconds", json_number(elapsed_seconds(stage_start))}},
-               {{"name", "guide_tree"}});
+               {{"name", "guide_tree"}, {"method", guide_tree_method_}});
   print_tree(std::cout, tree_.size() - 1);
   std::cout << std::endl;
 
