@@ -135,6 +135,93 @@ double global_score(const std::vector<size_t>& first,
   return best;
 }
 
+struct Entry {
+  size_t i;
+  double score;
+};
+using Frontier = std::array<std::vector<Entry>, 3>; // match, gap in second, gap in first
+
+double beam_global_score(const std::vector<size_t>& first,
+                         const std::vector<size_t>& second, const ScoreMatrix& scores,
+                         size_t beam, BeamStats* stats)
+{
+  // Consumed-prefix affine Viterbi DP. Matches advance two antidiagonals;
+  // gaps advance one. Keep only three antidiagonals and at most beam entries
+  // per state. No traceback, dense grid, or quadratic fallback is allocated.
+  const size_t n = first.size(), m = second.size();
+  std::array<Frontier, 3> ring;
+  ring[0][0].push_back({0, 0});
+  std::vector<Entry> ranking;
+  const auto better = [](const Entry& a, const Entry& b) {
+    return a.score != b.score ? a.score > b.score : a.i < b.i;
+  };
+  for (size_t step = 1; step <= n + m; ++step) {
+    auto& current = ring[step % 3];
+    const auto& previous = ring[(step + 2) % 3];
+    const auto& older = ring[(step + 1) % 3];
+    for (size_t state = 0; state < 3; ++state) {
+      auto& output = current[state];
+      output.clear();
+      const auto& source = state == 0 ? older : previous;
+      const std::array<size_t, 3> states = state == 2
+          ? std::array<size_t, 3>{0, 2, 0} : std::array<size_t, 3>{0, 1, 2};
+      const size_t streams = state == 0 ? 3 : 2;
+      std::array<size_t, 3> cursor{};
+      const size_t shift = state == 2 ? 0 : 1;
+      // All source vectors are sorted by i. A fixed-size merge deduplicates
+      // candidates in linear time without hashing or sorting the frontier.
+      while (true) {
+        size_t i = std::numeric_limits<size_t>::max();
+        for (size_t s = 0; s < streams; ++s)
+          if (cursor[s] < source[states[s]].size())
+            i = std::min(i, source[states[s]][cursor[s]].i + shift);
+        if (i == std::numeric_limits<size_t>::max()) break;
+        double best = -infinity;
+        for (size_t s = 0; s < streams; ++s) {
+          const auto& entries = source[states[s]];
+          if (cursor[s] < entries.size() && entries[cursor[s]].i + shift == i) {
+            const double opening = state != 0 && s == 0 ? gap_open : 0;
+            best = std::max(best, entries[cursor[s]++].score + opening);
+          }
+        }
+        if (i > n || i > step || step - i > m) continue;
+        const size_t j = step - i;
+        if (state == 0) {
+          if (step < 2 || i == 0 || j == 0) continue;
+          best += scores[first[i - 1]][second[j - 1]];
+        } else if (state == 1) {
+          // A gap cannot switch directly into the opposite gap. Discard
+          // boundary states that can no longer reach a match or the end.
+          if (i == 0 || (i == n && j < m)) continue;
+          if (j > 0 && j < m) best += gap_extend;
+        } else {
+          if (j == 0 || (j == m && i < n)) continue;
+          if (i > 0 && i < n) best += gap_extend;
+        }
+        output.push_back({i, best});
+      }
+      if (stats) stats->peak_candidates = std::max(stats->peak_candidates, output.size());
+      if (output.size() > beam) {
+        ranking.assign(output.begin(), output.end());
+        std::nth_element(ranking.begin(), ranking.begin() + beam - 1, ranking.end(), better);
+        const Entry cutoff = ranking[beam - 1];
+        // Tie-break by coordinate to enforce a hard cap even on flat scores.
+        output.erase(std::remove_if(output.begin(), output.end(),
+                      [&](const Entry& entry) { return better(cutoff, entry); }), output.end());
+      }
+      if (stats) {
+        stats->retained_states += output.size();
+        stats->peak_retained = std::max(stats->peak_retained, output.size());
+      }
+    }
+  }
+  double best = -infinity;
+  for (const auto& entries : ring[(n + m) % 3])
+    for (const auto& entry : entries) best = std::max(best, entry.score);
+  if (!std::isfinite(best)) throw std::runtime_error("MAFFT beam search has no complete path");
+  return best;
+}
+
 std::vector<Node> empty_tree(size_t count)
 {
   if (count == 0 || count > std::numeric_limits<unsigned int>::max() / 2)
@@ -143,16 +230,22 @@ std::vector<Node> empty_tree(size_t count)
 }
 } // namespace
 
-double mafft_global_distance(const std::string& first, const std::string& second)
+double mafft_global_distance(const std::string& first, const std::string& second,
+                             size_t beam, BeamStats* stats)
 {
+  if (stats) *stats = BeamStats{};
   static const ScoreMatrix scores = nucleotide_scores();
-  const auto a = encode(first), b = encode(second);
+  auto a = encode(first), b = encode(second);
   double self_a = 0, self_b = 0;
   for (const auto symbol : a) self_a += scores[symbol][symbol];
   for (const auto symbol : b) self_b += scores[symbol][symbol];
   const double denominator = std::min(self_a, self_b);
   if (denominator == 0) return 2;
-  const double score = global_score(a, b, scores);
+  // Canonical orientation makes pruning ties independent of which sequence
+  // happened to be passed first. Exact DP needs no such tie convention.
+  if (beam && (a.size() > b.size() || (a.size() == b.size() && b < a))) a.swap(b);
+  const double score = beam ? beam_global_score(a, b, scores, beam, stats)
+                            : global_score(a, b, scores);
   return denominator < score ? 0 : (1 - score / denominator) * 2;
 }
 
@@ -227,14 +320,14 @@ std::vector<Node> mafft_linkage(std::vector<std::vector<double>> distances)
   return tree;
 }
 
-std::vector<Node> mafft(const std::vector<Fasta>& sequences)
+std::vector<Node> mafft(const std::vector<Fasta>& sequences, size_t beam)
 {
   const size_t n = sequences.size();
   if (n < 2) return empty_tree(n);
   std::vector<std::vector<double>> distances(n, std::vector<double>(n));
   for (size_t i = 0; i < n; ++i)
     for (size_t j = i + 1; j < n; ++j)
-      distances[i][j] = mafft_global_distance(sequences[i].seq(), sequences[j].seq());
+      distances[i][j] = mafft_global_distance(sequences[i].seq(), sequences[j].seq(), beam);
   return mafft_linkage(std::move(distances));
 }
 

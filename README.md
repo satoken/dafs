@@ -61,12 +61,26 @@ affine global pairwise scores normalized by the smaller self score, and
 90% minimum / 10% unweighted-average linkage. MAFFT's terminal-gap rules,
 nearest-neighbor tie handling, and left/right child order are preserved.
 No MAFFT executable, subprocess, or temporary alignment is required.
-Pairwise scoring takes quadratic time in sequence length and linear working
-memory; the distance matrix uses quadratic memory in sequence count, including
-when DAFS's probability/decoding models are linear. Guide-tree time is included
-in DAFS wall time and the `guide_tree` metrics stage.
+Exact pairwise scoring takes quadratic time in sequence length and linear
+working memory. For linear-time guide-tree scoring, select `mafft-linear` below.
+Both methods store a quadratic distance matrix in sequence count. Guide-tree
+time is included in DAFS wall time and the `guide_tree` metrics stage.
 
 * `--guide-tree=mafft` (default): the internally implemented MAFFT-global tree.
+* `--guide-tree=mafft-linear --guide-tree-beam=200`: an approximate version of
+  the same distance, using affine Viterbi beam search. It keeps at most B
+  entries per match/gap state on each antidiagonal, with the same substitution
+  scores, opening/extension costs, terminal-gap rules, and mixed linkage as
+  exact MAFFT. A fixed B gives expected O(B(L1+L2)) time per sequence pair,
+  using O(B+L1+L2) working memory. Only three antidiagonals are retained;
+  there is no quadratic fallback. `nth_element` selection gives an expected
+  rather than strict worst-case time bound. Ties obey the hard beam cap.
+  Larger positive beams retain more candidates and usually approach exact
+  scoring (not necessarily monotonically); B above the shorter sequence
+  length disables pruning and recovers the exact score. Pair orientation is
+  canonicalized so reversing the two sequences gives the same distance.
+  Beam size is independent of `--align-beam` and `--linfold-beam` used by the
+  probability models.
 * `--guide-tree=dafs`: the original posterior-similarity tree.
 * `--guide-tree=raf`: the internally implemented RAF 1.00 tree. Distances use
   raw alignment posteriors before PCT, normalized by the shorter sequence.
@@ -76,8 +90,14 @@ in DAFS wall time and the `guide_tree` metrics stage.
 
 All methods align the original input sequences and preserve their names and
 input order. The guide-tree choice does not replace the similarities used to
-weight PCT. `--metrics-jsonl` records the selected `guide_tree_method`.
+weight PCT. `--metrics-jsonl` records the selected `guide_tree_method` and
+`guide_tree_beam` (0 for the exact/non-beam methods).
 See `THIRD_PARTY_NOTICES` for MAFFT's BSD license.
+
+With beam 200, all 85 Murlet dataset1 ordered trees and all 3,825 pairwise
+distances matched exact scoring. Beam 100 matched 83/85 trees. These are
+guide-tree checks; see [validation details](docs/mafft-linear-guide-tree.md)
+for the inputs, limitations, and per-input results.
 
 Usage
 -----

@@ -498,8 +498,8 @@ void DAFS::
 void DAFS::
     build_tree()
 {
-  if (guide_tree_method_ == "mafft") {
-    tree_ = guide_tree::mafft(fa_);
+  if (guide_tree_method_ == "mafft" || guide_tree_method_ == "mafft-linear") {
+    tree_ = guide_tree::mafft(fa_, guide_tree_method_ == "mafft-linear" ? guide_tree_beam_ : 0);
     return;
   }
   if (guide_tree_method_ == "raf") {
@@ -2745,8 +2745,10 @@ parse_options(int& argc, char**& argv)
     ("version", "Print version")
     ("input", "Input file", cxxopts::value<std::string>(), "FILE")
     ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
-    ("guide-tree", "Guide-tree construction: mafft (globalpair), dafs (original), raf (RAF 1.00)",
+    ("guide-tree", "Guide-tree construction: mafft, mafft-linear (beam globalpair), dafs, raf",
       cxxopts::value<std::string>()->default_value("mafft"))
+    ("guide-tree-beam", "States per antidiagonal and affine state for mafft-linear (positive)",
+      cxxopts::value<int>()->default_value("200"), "B")
     ("seed", "Random seed for shuffling", cxxopts::value<int>()->default_value("42"), "N")
     ("w,weight", "Weight of the expected accuracy score for secondary structures", cxxopts::value<float>()->default_value("4.0"))
     ("ribosum-weight", "Weight of RIBOSUM85-60 pair-pair match scores", cxxopts::value<float>()->default_value("0.075"))
@@ -2821,9 +2823,12 @@ parse_options(int& argc, char**& argv)
     }
     // general options
     guide_tree_method_ = res["guide-tree"].as<std::string>();
-    if (guide_tree_method_ != "mafft" && guide_tree_method_ != "dafs" &&
+    if (guide_tree_method_ != "mafft" && guide_tree_method_ != "mafft-linear" && guide_tree_method_ != "dafs" &&
         guide_tree_method_ != "raf")
-      throw std::invalid_argument("--guide-tree must be mafft, dafs, or raf");
+      throw std::invalid_argument("--guide-tree must be mafft, mafft-linear, dafs, or raf");
+    guide_tree_beam_ = res["guide-tree-beam"].as<int>();
+    if (guide_tree_beam_ <= 0)
+      throw std::invalid_argument("--guide-tree-beam must be positive");
     n_refinement_ = res["refinement"].as<int>();
     g_ = std::mt19937(res["seed"].as<int>());
     w_ = res["weight"].as<float>();
@@ -3177,8 +3182,8 @@ parse_options(int& argc, char**& argv)
   }
   catch (const cxxopts::exceptions::exception& e)
   {
-    std::cout << options.help() << std::endl;
-    exit(0);
+    std::cerr << e.what() << '\n' << options.help() << std::endl;
+    exit(EXIT_FAILURE);
   }
 
   return *this;
@@ -3251,6 +3256,8 @@ int DAFS::
     run_start_metrics.emplace_back("dd_beam_eta", json_number(dd_beam_eta_));
   if (dd_recovery_interval_)
     run_start_metrics.emplace_back("dd_recovery_interval", std::to_string(dd_recovery_interval_));
+  run_start_metrics.emplace_back("guide_tree_beam",
+      std::to_string(guide_tree_method_ == "mafft-linear" ? guide_tree_beam_ : 0));
   write_metric(
       "run_start", run_start_metrics,
       {{"input", input_path_},
@@ -3369,7 +3376,8 @@ int DAFS::
   stage_start = Clock::now();
   build_tree();
   write_metric("stage",
-               {{"seconds", json_number(elapsed_seconds(stage_start))}},
+               {{"seconds", json_number(elapsed_seconds(stage_start))},
+                {"beam", std::to_string(guide_tree_method_ == "mafft-linear" ? guide_tree_beam_ : 0)}},
                {{"name", "guide_tree"}, {"method", guide_tree_method_}});
   print_tree(std::cout, tree_.size() - 1);
   std::cout << std::endl;

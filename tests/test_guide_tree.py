@@ -46,7 +46,7 @@ class GuideTreeTests(unittest.TestCase):
         self.assertGreater(stage["seconds"], 0)
 
     def test_all_trees_on_linear_and_nonlinear_paths(self):
-        for method in ["mafft", "dafs", "raf"]:
+        for method in ["mafft", "mafft-linear", "dafs", "raf"]:
             for model in [(), ("--alifold",),
                           ("-a", "LinearAlign", "-s", "lpc", "--dynamic-cbp")]:
                 with self.subTest(method=method, model=model):
@@ -73,13 +73,33 @@ class GuideTreeTests(unittest.TestCase):
         self.assert_success(changed)
         self.assertEqual(default.stdout.splitlines()[0], changed.stdout.splitlines()[0])
 
+    def test_wide_beam_matches_exact_and_records_width(self):
+        metrics = self.root / "beam.jsonl"
+        exact = self.run_dafs("--guide-tree=mafft")
+        beam = self.run_dafs("--guide-tree=mafft-linear", "--guide-tree-beam=20",
+                             "--metrics-jsonl=" + str(metrics))
+        self.assert_success(beam)
+        self.assertEqual(exact.stdout, beam.stdout)
+        records = [json.loads(line) for line in metrics.read_text().splitlines()]
+        self.assertEqual(records[0]["guide_tree_method"], "mafft-linear")
+        self.assertEqual(records[0]["guide_tree_beam"], 20)
+        stage = next(item for item in records if item.get("name") == "guide_tree")
+        self.assertEqual(stage["beam"], 20)
+
+    def test_linear_default_beam_is_200(self):
+        metrics = self.root / "linear-default.jsonl"
+        result = self.run_dafs("--guide-tree=mafft-linear", "--metrics-jsonl=" + str(metrics))
+        self.assert_success(result)
+        records = [json.loads(line) for line in metrics.read_text().splitlines()]
+        self.assertEqual(records[0]["guide_tree_beam"], 200)
+
     def test_duplicate_names_preserved(self):
         result = self.run_dafs(data=FASTA.replace("second", "third"))
         self.assert_success(result)
         self.assertEqual(result.stdout.count("> third\n"), 2)
 
     def test_single_sequence_on_all_trees(self):
-        for method in ["mafft", "dafs", "raf"]:
+        for method in ["mafft", "mafft-linear", "dafs", "raf"]:
             with self.subTest(method=method):
                 self.assert_success(self.run_dafs("--guide-tree=" + method,
                                                  data=">single\nGGGAAACCC\n"))
@@ -88,6 +108,10 @@ class GuideTreeTests(unittest.TestCase):
         invalid = self.run_dafs("--guide-tree=typo")
         self.assertNotEqual(invalid.returncode, 0)
         self.assertIn("--guide-tree", invalid.stderr)
+        for width in ["0", "-1", "2147483648", "abc"]:
+            with self.subTest(width=width):
+                self.assertNotEqual(self.run_dafs("--guide-tree=mafft-linear",
+                                                 "--guide-tree-beam=" + width).returncode, 0)
         for data in ["", ">empty\n", ">empty\n>other\nACGU\n"]:
             with self.subTest(data=data):
                 self.assertNotEqual(self.run_dafs(data=data).returncode, 0)
