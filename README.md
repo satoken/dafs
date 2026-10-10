@@ -5,10 +5,13 @@ Requirements
 ------------
 
 * [Vienna RNA package](http://www.tbi.univie.ac.at/~ivo/RNA/) (>= 2.7; also supplies nearest-neighbor energy primitives for linear profile folding)
+* [IPknot](https://github.com/satoken/ipknot/tree/dev) `dev` checkout with the
+  reusable `decoder/` library, or an installed `IPknotDecoder` CMake package
 * (optional)
   [GNU Linear Programming Kit](http://www.gnu.org/software/glpk/) (>=4.41)
   or [Gurobi Optimizer](http://www.gurobi.com/) (>=2.0)
-  or [ILOG CPLEX](http://www.ibm.com/software/products/ibmilogcple/) (>=12.0)
+  or [ILOG CPLEX](http://www.ibm.com/software/products/ibmilogcple/) (>=12.0),
+  SCIP, or HiGHS
 
 Install
 -------
@@ -18,30 +21,74 @@ Install
 	cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build . 
 	cmake --install . # optional
 
-The exact IPknot decoder and `--max-iter=0` require an IP solver. The linear
-IPknot path described below works without one.
+CMake defaults to the IPknot checkout at `../ipknot` and builds only its
+reusable `IPknot::decoder` library. To use another checkout:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DIPKNOT_SOURCE_DIR=/path/to/ipknot
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+```
+
+For an installed decoder, set `-DIPKNOT_SOURCE_DIR=` and
+`-DCMAKE_PREFIX_PATH=/path/to/ipknot-decoder-install` instead. The decoder's
+public headers and exported CMake target are sufficient for this mode.
+
+The exact IPknot decoder and `--max-iter=0` require an IP solver. Solver
+selection uses `ENABLE_CPLEX`, `ENABLE_GUROBI`, `ENABLE_SCIP`, or `ENABLE_HIGHS`;
+otherwise GLPK is discovered automatically. These settings apply to both DAFS
+and the decoder built from source. An installed decoder retains its own
+build-time solver selection. Set `-DENABLE_ILP=OFF` for a solver-free source
+build; the linear IPknot path described below works without a solver.
 
 With `-s lpc` or `-s lpv` together with `--fold-decoder=IPknot` (or
-`--ipknot`), DAFS uses a fixed-beam `LinearIPknot` decoder. It keeps IPknot's
-threshold layers and selects each layer with `LinearNussinov` over the sparse
-LinearPartition support; the support and crossing witnesses are scanned in
-linear time for a fixed beam and number of layers. This is the linear folding
-decoder used during positive-iteration dual decomposition, so `--max-iter`
-only controls the number of coupling iterations. `--max-iter=0` remains the
-explicit exact coupled integer-program path and is reported separately.
-The linear bound applies to the sparse LinearPartition overload used by DAFS;
-the standalone dense matrix overload necessarily has quadratic input size.
-With a fixed number of sequences, fixed probability and decoder beams, fixed
-positive posterior cutoff, fixed layer count, and fixed DD iteration count,
-the sparse decoder and its DAFS multiplier/bound path use linear time and
-memory in sequence length. `--dense-lagrangian` and `--max-iter=0` select
-separate dense or exact paths. The `--ipknot` option also requests a fixed
-number of constrained LinearPartition refolds for the final prediction.
+`--ipknot`), DAFS uses the reusable IPknot decoder's bounded beam dual
+decomposition backend. `--fold-dd-beam` and `--fold-final-beam` set its
+Nussinov beam for coupling and final prediction, respectively. Its other DD
+settings use upstream defaults: 50 inner iterations, crossing beam 100, and
+16 witnesses. These inner iterations are independent of DAFS's `--max-iter`,
+which controls the outer alignment/folding coupling iterations.
+`--max-iter=0` remains the explicit exact coupled integer-program path and is
+reported separately. The `--ipknot` option also requests a fixed number of
+constrained LinearPartition refolds for the final prediction.
 
-For nonlinear folding models, IPknot continues to use the exact MIP decoder.
-The fixed-beam linear decoder is an approximation: it does not provide the
-global IP optimum, and the full DAFS run still includes alignment and dual
-iteration costs.
+For nonlinear folding models, IPknot uses the same library's ILP backend.
+Both backends receive DAFS's objective `w * (posterior - threshold) - multiplier`,
+including pairs present only in the multiplier support. DAFS preserves summed
+level scores rather than IPknot's default level average. Returned symmetric
+partners and level assignments are converted to DAFS's one-sided structures
+and bracket strings.
+
+All structure decoders prohibit isolated base pairs by default. Add
+`--allow-isolated` to permit them during progressive, final, and constrained
+refinement decoding, including the exact coupled `--max-iter=0` path.
+Nussinov, SparseNussinov, and LinearNussinov require each selected pair to
+have an immediately adjacent stacked pair; `--allow-isolated` restores their
+previous behavior. The constrained recurrences retain below-threshold
+candidates when they support a profitable helix. Missing posterior and
+multiplier entries are not added as artificial stack partners. LinearNussinov
+keeps paired states on the sparse candidate support alongside its interval
+beam, preserving linear work and storage for fixed beams and sparse degrees.
+DD repair removes pairs that lose stack support on either aligned profile.
+
+For IPknot, the setting applies to both DD and ILP. Without this flag,
+DD requires an immediately adjacent stacked pair on the same level; ILP
+requires neighboring paired left endpoints and neighboring paired right
+endpoints on that level. The DD
+backend can produce different predictions from DAFS's previous greedy
+layer-by-layer approximation. It is approximate and does not guarantee the
+full ILP optimum. Its bounds refer to its retained crossing/witness graph.
+
+For fixed levels, beams, witness widths, inner iteration counts, and recovery
+budgets, bounded DD uses expected linear time and memory in sequence length
+plus retained sparse candidates. The DAFS adapter scans sparse probability
+and multiplier supports without densifying them. The dense overload has
+quadratic input size. With a fixed number of sequences, fixed probability
+beams, positive posterior cutoff, and fixed outer DD iterations, the sparse
+decoder and DAFS multiplier/bound path remain linear in sequence length.
+`--dense-lagrangian` and `--max-iter=0` select separate dense or exact paths;
+the full DAFS run also includes guide-tree and alignment costs.
 
 For each ungapped input sequence, LinearPartition-C/V caps retained states per
 column with its beam and caps internal-loop and helix lengths. Its inside,
@@ -146,6 +193,7 @@ Usage
                               final, or both. This is mutually exclusive with
                               --alifold/--no-alifold; default behavior is both
                               when --alifold is given.
+          --allow-isolated     Allow isolated base pairs in structure decoding
       	  --ipknot             Set optimized parameters for IPknot decoding 
                            	  (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)
 

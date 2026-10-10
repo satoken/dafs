@@ -1139,9 +1139,8 @@ float DAFS::
   // Using the largest threshold is conservative and keeps this a lower bound.
   const float repair_th = *std::max_element(th_s_.begin(), th_s_.end());
 
-  // Keep only base pairs on which both folding subproblems and both alignment
-  // endpoints agree.  Removing pairs preserves the structural constraints,
-  // so this intersection is feasible for the original coupled problem.
+  // Keep base pairs on which both folding subproblems and the alignment
+  // agree. Intersection can break stack support, so repair that below.
   for (uint i = 0; i + 1 < L1; ++i) {
     const uint j = x[i];
     if (j == -1u || j <= i || j >= L1)
@@ -1160,6 +1159,19 @@ float DAFS::
     intersection_score += x_weight * (p_x.get(i, j) - repair_th);
     intersection_score += y_weight * (p_y.get(k, l) - repair_th);
     intersection_score += pair_match;
+  }
+
+  if (!allow_isolated_) {
+    DDRecovery::remove_isolated(repaired_x, repaired_y, repaired_z);
+    intersection_score = alignment_score;
+    for (uint i = 0; i < L1; ++i) {
+      const uint j = repaired_x[i];
+      if (j == -1u || j <= i) continue;
+      const uint k = z[i], l = z[j];
+      intersection_score += x_weight * (p_x.get(i, j) - repair_th);
+      intersection_score += y_weight * (p_y.get(k, l) - repair_th);
+      intersection_score += pair_match_score(i, j, k, l);
+    }
   }
 
   intersection_score_out = intersection_score;
@@ -1192,29 +1204,33 @@ float DAFS::
       const float contribution =
           x_weight * (probability - repair_th) +
           y_weight * (p_y.get(k, l) - repair_th) + pair_match;
-      if (contribution > 0.0f)
+      if (contribution > 0.0f || (!allow_isolated_ && contribution < 0.0f))
         consensus_pair_score.set(i, j, contribution);
     }
   }
 
-  LinearNussinov repair_decoder(0.0f, fold_dd_beam_);
+  LinearNussinov repair_decoder(0.0f, fold_dd_beam_, allow_isolated_);
   VU consensus_x;
   std::string brackets;
   const float consensus_structure_score =
       repair_decoder.decode(consensus_pair_score, consensus_x, brackets);
-  const float consensus_score = alignment_score + consensus_structure_score;
+  VU consensus_y(L2, -1u);
+  for (uint i = 0; i < L1; ++i) {
+    const uint j = consensus_x[i];
+    if (j == -1u || j <= i) continue;
+    consensus_y[z[i]] = z[j];
+  }
+  if (!allow_isolated_)
+    DDRecovery::remove_isolated(consensus_x, consensus_y, z);
+  float consensus_score = alignment_score + consensus_structure_score;
+  if (!allow_isolated_) {
+    consensus_score = alignment_score;
+    for (uint i = 0; i < L1; ++i)
+      if (consensus_x[i] != -1u && consensus_x[i] > i)
+        consensus_score += consensus_pair_score.get(i, consensus_x[i]);
+  }
   consensus_score_out = consensus_score;
   if (consensus_score > intersection_score) {
-    VU consensus_y(L2, -1u);
-    for (uint i = 0; i < L1; ++i) {
-      const uint j = consensus_x[i];
-      if (j == -1u || j <= i)
-        continue;
-      const uint k = z[i];
-      const uint l = z[j];
-      assert(k != -1u && l != -1u && k < l);
-      consensus_y[k] = l;
-    }
     repaired_x.swap(consensus_x);
     repaired_y.swap(consensus_y);
     return consensus_score;
@@ -1355,6 +1371,7 @@ float DAFS::
       {"length_y", std::to_string(L2)}, {"x_weight", json_number(w_*2*N1/(N1+N2))},
       {"y_weight", json_number(w_*2*N2/(N1+N2))},
       {"fold_threshold", json_number(th_s_[0])}, {"align_threshold", json_number(th_a_)},
+      {"allow_isolated", allow_isolated_ ? "true" : "false"},
       {"px", diagnostic_matrix(L1,L1,[&](uint i,uint j){return p_x.get(i,j);})},
       {"py", diagnostic_matrix(L2,L2,[&](uint i,uint j){return p_y.get(i,j);})},
       {"pz", diagnostic_matrix(L1,L2,[&](uint i,uint j){return p_z.get(i,j);})},
@@ -1976,7 +1993,7 @@ float DAFS::
         const float score = repair_feasible_solution(
             rx, ry, rz, x, y, proposal_z, p_x, p_y, p_z,
             N1, N2, min_th_s, pair_match_score, intersection, consensus);
-        if (!DDRecovery::coupled(rx, ry, rz))
+        if (!DDRecovery::coupled(rx, ry, rz, allow_isolated_))
           throw std::runtime_error("infeasible DD recovery result");
         // Independently rescore original coefficients; never use averaged
         // multipliers, the proposal score, or a relaxation value as a LB.
@@ -2012,7 +2029,7 @@ float DAFS::
       // Verify the selected primal, then rescore original coefficients, not
       // rounded consensus/decoder totals. Directed double arithmetic followed
       // by a downward float conversion never raises this feasible score.
-      if (!DDRecovery::coupled(best_x,best_y,best_z))
+      if (!DDRecovery::coupled(best_x,best_y,best_z,allow_isolated_))
         throw std::runtime_error("infeasible outward-LB primal");
       double value=0;
       for (uint i=0;i<L1;++i)
@@ -2448,6 +2465,29 @@ float DAFS::
               }
   ip.update();
 
+  if (!allow_isolated_) {
+    const auto require_stack = [&](const auto& variables) {
+      const uint length = variables.size();
+      for (uint i = 0; i < length; ++i)
+        for (const auto [j, var] : variables[i]) {
+          const int row = ip.make_constraint(IP::UP, 0, 0);
+          ip.add_constraint(row, var, 1);
+          if (i > 0 && j + 1 < length) {
+            const auto outer = variables[i-1].find(j+1);
+            if (outer != variables[i-1].end())
+              ip.add_constraint(row, outer->second, -1);
+          }
+          if (i + 1 < j) {
+            const auto inner = variables[i+1].find(j-1);
+            if (inner != variables[i+1].end())
+              ip.add_constraint(row, inner->second, -1);
+          }
+        }
+    };
+    require_stack(v_x);
+    require_stack(v_y);
+  }
+
   // constraints: each base is paired with at most one base (in a)
   for (uint i = 0; i < L1; ++i)
   {
@@ -2796,6 +2836,8 @@ parse_options(int& argc, char**& argv)
     ("T,fold-th1", "Threshold for base-pairing probabilities of the conclusive common secondary structures", cxxopts::value<std::vector<float>>())
     ("G,gamma1", "Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))", cxxopts::value<std::vector<float>>())
     ("ipknot", "Set optimized parameters for IPknot decoding (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)")
+    ("allow-isolated", "Allow isolated base-pairs in secondary structure decoding",
+      cxxopts::value<bool>()->default_value("false"))
     ("bp-update", "Use the iterative update of BPs")
     ("bp-update1", "Use the iterative update of BPs for the final prediction")
     ("fold-aux", "Load base-pairing probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME")
@@ -3080,6 +3122,7 @@ parse_options(int& argc, char**& argv)
     }
 
     const std::string fold_decoder = res["fold-decoder"].as<std::string>();
+    allow_isolated_ = res["allow-isolated"].as<bool>();
     const bool linear_folding = fold_model == "lpv" ||
                                 fold_model == "lpc" ||
                                 fold_model == "LinFold";
@@ -3093,26 +3136,25 @@ parse_options(int& argc, char**& argv)
     if (fold_decoder == "IPknot" || res["ipknot"].count())
     {
       if (linear_ipknot) {
-        // IPknot's layered objective is retained, while each layer is solved
-        // by the fixed-beam linear recurrence over LinearPartition support.
-        // This path is independent of the DAFS --max-iter setting.
-        s_decoder_ = std::make_unique<LinearIPknot>(th_s_, fold_dd_beam);
-        s_decoder1_ = std::make_unique<LinearIPknot>(th_s1, fold_final_beam);
+        // Use IPknot's bounded beam DD decoder over LinearPartition support.
+        // Its inner iteration budget is independent of DAFS --max-iter.
+        s_decoder_ = std::make_unique<LinearIPknot>(th_s_, fold_dd_beam, allow_isolated_);
+        s_decoder1_ = std::make_unique<LinearIPknot>(th_s1, fold_final_beam, allow_isolated_);
         use_linear_ipknot_decoder_ = true;
       } else {
-        s_decoder_ = std::make_unique<IPknot>(th_s_);
-        s_decoder1_ = std::make_unique<IPknot>(th_s1);
+        s_decoder_ = std::make_unique<IPknot>(th_s_, 1, allow_isolated_);
+        s_decoder1_ = std::make_unique<IPknot>(th_s1, 1, allow_isolated_);
       }
     }
     else if (fold_decoder == "Nussinov")
     {
       use_linear_structure_decoder_ = !res["fold-aux"].count() && linear_folding;
       if (use_linear_structure_decoder_) {
-        s_decoder_ = std::make_unique<LinearNussinov>(th_s_[0], fold_dd_beam);
-        s_decoder1_ = std::make_unique<LinearNussinov>(th_s1[0], fold_final_beam);
+        s_decoder_ = std::make_unique<LinearNussinov>(th_s_[0], fold_dd_beam, allow_isolated_);
+        s_decoder1_ = std::make_unique<LinearNussinov>(th_s1[0], fold_final_beam, allow_isolated_);
       } else {
-        s_decoder_ = std::make_unique<SparseNussinov>(th_s_[0]);
-        s_decoder1_ = std::make_unique<SparseNussinov>(th_s1[0]);
+        s_decoder_ = std::make_unique<SparseNussinov>(th_s_[0], allow_isolated_);
+        s_decoder1_ = std::make_unique<SparseNussinov>(th_s1[0], allow_isolated_);
       }
     }
     else
@@ -3221,6 +3263,7 @@ int DAFS::
        {"final_ribosum_weight", json_number(w_final_ribosum_)},
        {"alignment_threshold", json_number(th_a_)},
        {"max_iterations", std::to_string(t_max_)},
+       {"allow_isolated", allow_isolated_ ? "true" : "false"},
        {"alignment_beam", std::to_string(align_probability_beam_)},
        {"alignment_dd_beam", std::to_string(align_dd_beam_)},
        {"folding_beam", std::to_string(fold_probability_beam_)},
@@ -3525,6 +3568,11 @@ bool DAFS::is_valid_cbp(uint i, uint j, uint k, uint l,
         
         assert(p_x.get(i, j) <= 1.0);
         assert(p_y.get(k, l) <= 1.0);
+        // A non-positive column can support a profitable stacked neighbor.
+        // The historical positive-contribution filter assumes pairs may be
+        // removed independently, which is false when isolated pairs are banned.
+        if (!allow_isolated_)
+          return true;
         float p = (N1 * p_x.get(i, j) + N2 * p_y.get(k, l)) / (N1 + N2);
         float q = (p_z.get(i, k) + p_z.get(j, l)) / 2;
         // The probability terms occur once for each profile/endpoint in the

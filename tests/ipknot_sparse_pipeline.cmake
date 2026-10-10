@@ -58,3 +58,28 @@ file(READ "${DAFS}.exact-ip.metrics.jsonl" exact_metric_text)
 if(NOT exact_metric_text MATCHES "\"structure_decoder\":\"exact-coupled-IP\"")
   message(FATAL_ERROR "Exact coupled IP path was not reported: ${exact_metric_text}")
 endif()
+
+# A nonlinear probability model exercises the reusable ILP decoder, including
+# coexistence with DAFS's separate coupled-IP implementation in one executable.
+execute_process(
+  COMMAND "${DAFS}" -a ProbCons -s CONTRAfold --no-alifold
+    --ipknot -g 99,99 -G 99,99 -w 20 --max-iter=3 "${INPUT}"
+  RESULT_VARIABLE nonlinear_status
+  OUTPUT_VARIABLE nonlinear_output
+  ERROR_VARIABLE nonlinear_error)
+if(NOT nonlinear_status EQUAL 0 OR
+   NOT nonlinear_output MATCHES ">SS_cons[\r\n]+[(]")
+  message(FATAL_ERROR
+    "Nonlinear upstream IPknot decoding failed: ${nonlinear_output}${nonlinear_error}")
+endif()
+execute_process(
+  COMMAND "${DAFS}" -a ProbCons -s CONTRAfold --no-alifold --dense-lagrangian
+    --ipknot -g 99,99 -G 99,99 -w 20 --max-iter=3 "${INPUT}"
+  RESULT_VARIABLE nonlinear_dense_status
+  OUTPUT_VARIABLE nonlinear_dense_output
+  ERROR_VARIABLE nonlinear_dense_error)
+if(NOT nonlinear_dense_status EQUAL 0 OR
+   NOT nonlinear_output STREQUAL nonlinear_dense_output)
+  message(FATAL_ERROR
+    "Nonlinear sparse/dense IPknot predictions differ: ${nonlinear_dense_error}")
+endif()

@@ -415,8 +415,8 @@ int main()
   // profitable.  Sparse support must therefore be the union of p and q.
   multiplier[2][7] = -0.80f;
 
-  Nussinov exact(threshold);
-  LinearNussinov linear(threshold, length);
+  Nussinov exact(threshold, true);
+  LinearNussinov linear(threshold, length, true);
   VU exact_structure, linear_structure;
   const float exact_score =
       exact.decode(1.0f, probability, multiplier, exact_structure);
@@ -468,7 +468,7 @@ int main()
   const float exact_bonus_score = exact.decode(
       final_probability, final_bonus,
       exact_bonus_structure, exact_bonus_brackets);
-  SparseNussinov sparse_exact(threshold);
+  SparseNussinov sparse_exact(threshold, true);
   const float sparse_bonus_score = sparse_exact.decode(
       final_probability, final_bonus,
       sparse_bonus_structure, sparse_bonus_brackets);
@@ -509,7 +509,7 @@ int main()
   VVU short_support(length);
   short_support[2].push_back(0);
   VU short_structure;
-  LinearNussinov short_linear(0.0f, length);
+  LinearNussinov short_linear(0.0f, length, true);
   const LinearNussinovResult short_result = short_linear.decode_certified(
       1.0f, short_probability, short_multiplier,
       short_support, short_structure);
@@ -551,8 +551,8 @@ int main()
       std::reverse(reverse_support[right].begin(),
                    reverse_support[right].end());
     }
-    LinearNussinov forward_decoder(0.0f, 3);
-    LinearNussinov reverse_decoder(0.0f, 3);
+    LinearNussinov forward_decoder(0.0f, 3, true);
+    LinearNussinov reverse_decoder(0.0f, 3, true);
     VU forward_structure, reverse_structure;
     const LinearNussinovResult forward_result =
         forward_decoder.decode_certified(
@@ -605,7 +605,7 @@ int main()
       }
     }
 
-    Nussinov random_exact(0.0f);
+    Nussinov random_exact(0.0f, true);
     VU random_exact_structure;
     const float random_exact_score = random_exact.decode(
         1.0f, dense_probability, dense_multiplier, random_exact_structure);
@@ -616,7 +616,7 @@ int main()
             dense_multiplier[i][j] != 0.0f)
           cached_support[j].push_back(i);
     for (const uint beam : {1u, 2u, 3u, 5u}) {
-      LinearNussinov random_linear(0.0f, beam);
+      LinearNussinov random_linear(0.0f, beam, true);
       VU random_structure;
       const LinearNussinovResult result = random_linear.decode_certified(
           1.0f, random_probability, random_multiplier, random_structure);
@@ -660,7 +660,7 @@ int main()
   // Reuse one decoder across changing lengths, then repeat the first input.
   // This catches stale beam, candidate, certificate, and traceback entries in
   // the retained workspace independently of the randomized same-length loop.
-  LinearNussinov reused_linear(0.0f, 3);
+  LinearNussinov reused_linear(0.0f, 3, true);
   const auto decode_reused = [&](uint reused_length) {
     SparseFloatMatrix reused_probability, reused_multiplier;
     reused_probability.assign(reused_length, reused_length);
@@ -736,7 +736,7 @@ int main()
     }
     const float exact_score = exact_cached_score(pair_score);
     for (const uint beam : {1u, 2u, 3u, 5u}) {
-      LinearNussinov random_linear(0.0f, beam);
+      LinearNussinov random_linear(0.0f, beam, true);
       VU random_structure;
       const LinearNussinovResult result = random_linear.decode_certified(
           1.0f, random_probability, random_multiplier,
@@ -779,7 +779,7 @@ int main()
     }
     const VVU& reference_support = certify ? support : decoder_support;
     VU optimized_structure, reference_structure;
-    LinearNussinov optimized(0.0f, beam_size);
+    LinearNussinov optimized(0.0f, beam_size, true);
     LinearNussinovResult optimized_result;
     if (certify) {
       SparseFloatMatrix zero_multiplier;
