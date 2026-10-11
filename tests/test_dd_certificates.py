@@ -9,7 +9,10 @@ with tempfile.TemporaryDirectory() as directory:
     root=Path(directory)
     fasta=root/'mixed.fa'
     fasta.write_text('>one\nGCGCGCGCG\n>two\nCGCGCGCGC\n')
-    common=['-a','LinearAlign-ProbConsRNA','-s','lpv','--alifold','--dynamic-cbp',
+    # These fixtures target historical rounding/pruning behavior. Preserve
+    # that search space explicitly; default no-isolated bounds are tested
+    # against exhaustive oracles in nussinov_isolated_test.
+    common=['-a','LinearAlign-ProbConsRNA','-s','lpv','--alifold','--dynamic-cbp','--allow-isolated',
             '--ribosum-weight=0.3','--final-ribosum-weight=0','--weight=2',
             '--max-iter=500','--seed=42','--refinement=0']
     def run(name,extra=()):
@@ -34,7 +37,7 @@ with tempfile.TemporaryDirectory() as directory:
         result=subprocess.run([str(binary),*common,*args,str(fasta)],capture_output=True,text=True)
         assert result.returncode!=0,args
     fasta.write_text('>one\nGCGAAACGC\n>two\nGGGAAACCC\n')
-    common=['-a','LinearAlign','-s','lpc','--alifold','--dynamic-cbp',
+    common=['-a','LinearAlign','-s','lpc','--alifold','--dynamic-cbp','--allow-isolated',
             '--ribosum-weight=0','--final-ribosum-weight=0','--align-th=0.005',
             '--max-iter=500','--seed=42','--refinement=0']
     control,c=run('rounding-normal')

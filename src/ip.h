@@ -20,6 +20,8 @@
 #ifndef __INC_IP_H__
 #define __INC_IP_H__
 
+// Keep DAFS's coupled-IP backend separate from IPknot's own IP implementation.
+namespace dafs {
 class IPimpl;
 
 class IP
@@ -42,6 +44,9 @@ public:
 private:
   IPimpl* impl_;
 };
+} // namespace dafs
+
+using dafs::IP;
 
 #endif  // __INC_IP_H__
 

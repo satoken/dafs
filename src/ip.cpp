@@ -46,6 +46,8 @@ extern "C" {
 
 #include <cfloat>
 
+namespace dafs {
+
 #ifdef WITH_GLPK
 class IPimpl
 {
@@ -734,6 +736,7 @@ make_variable(double coef)
 }
 
 int
+IP::
 make_variable(double coef, int lo, int hi)
 {
   throw "no IP solver is linked.";
@@ -778,3 +781,5 @@ get_value(int col) const
 }
 
 #endif
+
+} // namespace dafs

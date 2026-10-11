@@ -193,6 +193,7 @@ private:
   bool use_sparse_alignment_lagrangian_; // sparse q_z for LinearAlign
   bool use_linear_structure_decoder_;    // beam max decoder for folding
   bool use_linear_ipknot_decoder_;      // fixed-beam layered IPknot decoder
+  bool allow_isolated_ = false;          // allow isolated pairs in structure decoders
   bool use_linear_alignment_decoder_;    // beam max decoder for alignment
   bool use_dd_tight_alignment_;          // opt-in exact sparse monotone z bound
   bool use_dd_projected_norm_;            // opt-in active projected Z norm

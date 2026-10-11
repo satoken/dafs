@@ -26,18 +26,98 @@
 #include <array>
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <limits>
 #include <numeric>
 #include <stack>
+#include <tuple>
+#include <unordered_map>
 
 static
 std::string
 make_brackets(const VU& ss);
 
+namespace {
+// Missing posterior/multiplier entries are not pair candidates. Retained
+// candidates with non-positive scores still matter: they can support a
+// profitable neighboring pair in a helix.
+float nussinov_pair_score(float w, float probability, float multiplier,
+                         float threshold, bool allow_isolated)
+{
+  if (!allow_isolated && probability == 0.0f && multiplier == 0.0f)
+    return -std::numeric_limits<float>::infinity();
+  return w * (probability - threshold) - multiplier;
+}
+
+// F is a complete structure with no isolated pairs. P has paired endpoints
+// that may need an outer stacked pair. Thus P=s+max(F_inside,P_inside),
+// while a complete paired block is Q=s+P_inside. F concatenates Q blocks.
+template <typename PairScore>
+float decode_stacked_nussinov(uint length, PairScore pair_score, VU& ss)
+{
+  ss.assign(length, -1u);
+  if (length == 0)
+    return 0.0f;
+  const double missing = -std::numeric_limits<double>::infinity();
+  std::vector<std::vector<double>> complete(length, std::vector<double>(length));
+  std::vector<std::vector<double>> paired(length, std::vector<double>(length, missing));
+  VVU trace(length, VU(length, -1u));
+  std::vector<std::vector<bool>> extend(length, std::vector<bool>(length));
+  for (uint right = 0; right < length; ++right) {
+    std::vector<std::pair<uint, double>> blocks;
+    for (uint end = right + 1; end > 0; --end) {
+      const uint left = end - 1;
+      complete[left][right] = left < right ? complete[left][right-1] : 0.0;
+      if (left + 2 < right) {
+        const double local = pair_score(left, right);
+        if (std::isfinite(local)) {
+          const double inner_pair = paired[left+1][right-1];
+          extend[left][right] = inner_pair > complete[left+1][right-1];
+          paired[left][right] = local + std::max(
+              inner_pair, complete[left+1][right-1]);
+          const double block = local + inner_pair;
+          if (block > 0.0)
+            blocks.emplace_back(left, block);
+        }
+      }
+      for (const auto [start, block] : blocks) {
+        const double prefix = start > left ? complete[left][start-1] : 0.0;
+        if (prefix + block > complete[left][right]) {
+          complete[left][right] = prefix + block;
+          trace[left][right] = start;
+        }
+      }
+    }
+  }
+  std::vector<std::tuple<uint, uint, bool>> pending{{0, length-1, false}};
+  while (!pending.empty()) {
+    const auto [left, right, is_paired] = pending.back();
+    pending.pop_back();
+    if (is_paired) {
+      ss[left] = right;
+      pending.emplace_back(left+1, right-1, extend[left][right]);
+    } else if (trace[left][right] != -1u) {
+      const uint start = trace[left][right];
+      ss[start] = right;
+      if (left < start)
+        pending.emplace_back(left, start-1, false);
+      pending.emplace_back(start+1, right-1, true);
+    } else if (left < right) {
+      pending.emplace_back(left, right-1, false);
+    }
+  }
+  return static_cast<float>(complete[0][length-1]);
+}
+} // namespace
+
 float
 Nussinov::
 decode(float w, const VVF& p, const VVF& q, VU& ss)
 {
+  if (!allow_isolated_)
+    return decode_stacked_nussinov(p.size(), [&](uint i, uint j) {
+      return nussinov_pair_score(w, p[i][j], q[i][j], th_, false);
+    }, ss);
   uint L=p.size();
   assert(p[0].size()==L);
 
@@ -121,6 +201,13 @@ float
 Nussinov::
 decode(const VVF& p, VU& ss, std::string& str)
 {
+  if (!allow_isolated_) {
+    const float score = decode_stacked_nussinov(p.size(), [&](uint i, uint j) {
+      return nussinov_pair_score(1.0f, p[i][j], 0.0f, th_, false);
+    }, ss);
+    make_brackets(ss, str);
+    return score;
+  }
   uint L=p.size();
   assert(p[0].size()==L);
 
@@ -209,6 +296,13 @@ decode(const SparseFloatMatrix& p, const SparseFloatMatrix& pair_bonus,
 {
   assert(p.rows() == pair_bonus.rows() &&
          p.columns() == pair_bonus.columns());
+  if (!allow_isolated_) {
+    const float score = decode_stacked_nussinov(p.rows(), [&](uint i, uint j) {
+      return nussinov_pair_score(1.0f, p.get(i, j), -pair_bonus.get(i, j), th_, false);
+    }, ss);
+    make_brackets(ss, str);
+    return score;
+  }
   VVF adjusted = p.dense();
   for (uint i = 0; i < pair_bonus.rows(); ++i)
     for (const auto [j, value] : pair_bonus.ordered_row(i))
@@ -246,6 +340,10 @@ float
 SparseNussinov::
 decode(float w, const VVF& p, const VVF& q, VU& ss)
 {
+  if (!allow_isolated_)
+    return decode_stacked_nussinov(p.size(), [&](uint i, uint j) {
+      return nussinov_pair_score(w, p[i][j], q[i][j], th_, false);
+    }, ss);
   uint L=p.size();
   assert(p[0].size()==L);
 
@@ -339,6 +437,10 @@ float
 SparseNussinov::
 decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss)
 {
+  if (!allow_isolated_)
+    return decode_stacked_nussinov(p.size(), [&](uint i, uint j) {
+      return nussinov_pair_score(w, p[i][j], q.get(i, j), th_, false);
+    }, ss);
   uint L=p.size();
   assert(p[0].size()==L);
   assert(q.rows()==L && q.columns()==L);
@@ -443,6 +545,13 @@ float
 SparseNussinov::
 decode(const VVF& p, VU& ss, std::string& str)
 {
+  if (!allow_isolated_) {
+    const float score = decode_stacked_nussinov(p.size(), [&](uint i, uint j) {
+      return nussinov_pair_score(1.0f, p[i][j], 0.0f, th_, false);
+    }, ss);
+    make_brackets(ss, str);
+    return score;
+  }
   uint L=p.size();
   assert(p[0].size()==L);
 
@@ -540,6 +649,13 @@ decode(const SparseFloatMatrix& p, const SparseFloatMatrix& pair_bonus,
 {
   assert(p.rows() == pair_bonus.rows() &&
          p.columns() == pair_bonus.columns());
+  if (!allow_isolated_) {
+    const float score = decode_stacked_nussinov(p.rows(), [&](uint i, uint j) {
+      return nussinov_pair_score(1.0f, p.get(i, j), -pair_bonus.get(i, j), th_, false);
+    }, ss);
+    make_brackets(ss, str);
+    return score;
+  }
   VVF adjusted = p.dense();
   for (uint i = 0; i < pair_bonus.rows(); ++i)
     for (const auto [j, value] : pair_bonus.ordered_row(i))
@@ -562,6 +678,13 @@ struct LinearNussinovCell
   uint pair_left;
   uint inside_start;
   bool paired;
+};
+
+struct LinearNussinovPairedCell
+{
+  double score;
+  uint inside_start;
+  bool stacked;
 };
 
 using LinearNussinovBeam = std::vector<LinearNussinovCell>;
@@ -827,6 +950,7 @@ prepare_linear_nussinov_certificate(
 struct LinearNussinov::Workspace
 {
   std::vector<LinearNussinovBeam> beams;
+  std::vector<std::unordered_map<uint, LinearNussinovPairedCell>> paired;
   std::vector<const LinearNussinovCell*> beam_roots;
   std::vector<LinearNussinovCell> candidates;
   std::vector<uint> candidate_generation;
@@ -843,8 +967,9 @@ struct LinearNussinov::Workspace
   LinearNussinovCertificate certificate;
 };
 
-LinearNussinov::LinearNussinov(float th, uint beam_size)
-    : th_(th), beam_size_(beam_size), workspace_(std::make_unique<Workspace>())
+LinearNussinov::LinearNussinov(float th, uint beam_size, bool allow_isolated)
+    : th_(th), beam_size_(beam_size), allow_isolated_(allow_isolated),
+      workspace_(std::make_unique<Workspace>())
 {
 }
 
@@ -894,6 +1019,11 @@ decode_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
   workspace.beams.resize(L);
   for (auto& beam : workspace.beams)
     beam.clear();
+  if (!allow_isolated_) {
+    workspace.paired.resize(L);
+    for (auto& row : workspace.paired)
+      row.clear();
+  }
   workspace.beam_roots.resize(L);
   workspace.candidates.resize(L);
   workspace.candidate_generation.resize(L, 0);
@@ -966,7 +1096,7 @@ decode_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
           ? static_cast<double>(workspace.pair_scores[
                 workspace.pair_score_offsets[right] + support_index])
           : pair_score(left, right);
-      if (!(local_score > 0.0))
+      if (allow_isolated_ ? !(local_score > 0.0) : !std::isfinite(local_score))
         continue;
 
       // A structure whose first used base is later than left+1 is a valid
@@ -983,6 +1113,32 @@ decode_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
             });
         if (it != previous.end())
           inside = workspace.suffix_best[it - previous.begin()];
+      }
+      if (!allow_isolated_) {
+        // P may be negative and is kept on the sparse support independently
+        // of F's beam: an outer pair can make this helix profitable. A fully
+        // unpaired interior is always available, even with a narrow F beam.
+        LinearNussinovPairedCell paired{
+            local_score + (inside ? inside->score : 0.0),
+            inside ? inside->start : -1u, false};
+        const auto& previous_pairs = workspace.paired[right-1];
+        const auto inner = previous_pairs.find(left+1);
+        if (inner != previous_pairs.end()) {
+          const double block_score = local_score + inner->second.score;
+          if (block_score > paired.score)
+            paired = {block_score, left+1, true};
+          // Q has an inner paired endpoint, so both boundary pairs have
+          // stack support. Only complete Q blocks enter the F beam.
+          if (block_score > 0.0) {
+            offer(left, block_score, true, left, left+1);
+            if (left > 0)
+              for (const auto& prefix : beams[left-1])
+                offer(prefix.start, prefix.score + block_score,
+                      true, left, left+1);
+          }
+        }
+        workspace.paired[right][left] = paired;
+        continue;
       }
       if (!inside)
         continue;
@@ -1092,29 +1248,55 @@ decode_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
     workspace.beam_roots[right] = &*final_root;
   }
 
-  auto& pending = workspace.pending;
-  pending.clear();
-  pending.push_back({0, L-1});
-  while (!pending.empty()) {
-    const auto [start, right] = pending.back();
-    pending.pop_back();
-    if (start > right)
-      continue;
-    const LinearNussinovCell* cell =
-        find_linear_nussinov_cell(beams[right], start);
-    assert(cell);
-    if (!cell->paired) {
-      if (start < right)
-        pending.push_back({start, right-1});
-      continue;
+  if (!allow_isolated_) {
+    std::vector<std::tuple<uint, uint, bool>> pending{{0, L-1, false}};
+    while (!pending.empty()) {
+      const auto [start, right, is_paired] = pending.back();
+      pending.pop_back();
+      if (is_paired) {
+        const auto& pair = workspace.paired[right].at(start);
+        ss[start] = right;
+        if (pair.inside_start != -1u)
+          pending.emplace_back(pair.inside_start, right-1, pair.stacked);
+        continue;
+      }
+      const auto* cell = find_linear_nussinov_cell(beams[right], start);
+      assert(cell);
+      if (!cell->paired) {
+        if (start < right)
+          pending.emplace_back(start, right-1, false);
+      } else {
+        ss[cell->pair_left] = right;
+        if (start < cell->pair_left)
+          pending.emplace_back(start, cell->pair_left-1, false);
+        pending.emplace_back(cell->pair_left+1, right-1, true);
+      }
     }
+  } else {
+    auto& pending = workspace.pending;
+    pending.clear();
+    pending.push_back({0, L-1});
+    while (!pending.empty()) {
+      const auto [start, right] = pending.back();
+      pending.pop_back();
+      if (start > right)
+        continue;
+      const LinearNussinovCell* cell =
+          find_linear_nussinov_cell(beams[right], start);
+      assert(cell);
+      if (!cell->paired) {
+        if (start < right)
+          pending.push_back({start, right-1});
+        continue;
+      }
 
-    const uint left = cell->pair_left;
-    ss[left] = right;
-    if (start < left)
-      pending.push_back({start, left-1});
-    if (cell->inside_start != -1u)
-      pending.push_back({cell->inside_start, right-1});
+      const uint left = cell->pair_left;
+      ss[left] = right;
+      if (start < left)
+        pending.push_back({start, left-1});
+      if (cell->inside_start != -1u)
+        pending.push_back({cell->inside_start, right-1});
+    }
   }
 
   const LinearNussinovCell* root = workspace.beam_roots[L-1];
@@ -1151,7 +1333,7 @@ decode(float w, const VVF& p, const VVF& q, VU& ss)
   const uint length = p.size();
   return decode_impl(length, dense_pair_support(length),
                      [&](uint i, uint j) {
-                       return w * (p[i][j] - th_) - q[i][j];
+                       return nussinov_pair_score(w, p[i][j], q[i][j], th_, allow_isolated_);
                      }, ss, false).score;
 }
 
@@ -1162,7 +1344,7 @@ decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss)
   const uint length = p.size();
   return decode_impl(length, dense_pair_support(length),
                      [&](uint i, uint j) {
-                       return w * (p[i][j] - th_) - q.get(i, j);
+                       return nussinov_pair_score(w, p[i][j], q.get(i, j), th_, allow_isolated_);
                      }, ss, false).score;
 }
 
@@ -1173,7 +1355,7 @@ decode(float w, const SparseFloatMatrix& p, const VVF& q, VU& ss)
   const uint length = p.rows();
   return decode_impl(length, dense_pair_support(length),
                      [&](uint i, uint j) {
-                       return w * (p.get(i, j) - th_) - q[i][j];
+                       return nussinov_pair_score(w, p.get(i, j), q[i][j], th_, allow_isolated_);
                      }, ss, false).score;
 }
 
@@ -1188,7 +1370,7 @@ decode(float w, const SparseFloatMatrix& p, const SparseFloatMatrix& q, VU& ss)
   deduplicate_pair_support(support);
   return decode_impl(length, support,
                      [&](uint i, uint j) {
-                       return w * (p.get(i, j) - th_) - q.get(i, j);
+                       return nussinov_pair_score(w, p.get(i, j), q.get(i, j), th_, allow_isolated_);
                      }, ss, false).score;
 }
 
@@ -1200,7 +1382,7 @@ decode_certified(float w, const SparseFloatMatrix& p,
   const uint length = p.rows();
   return decode_impl(length, dense_pair_support(length),
                      [&](uint i, uint j) {
-                       return w * (p.get(i, j) - th_) - q[i][j];
+                       return nussinov_pair_score(w, p.get(i, j), q[i][j], th_, allow_isolated_);
                      }, ss, true);
 }
 
@@ -1216,7 +1398,7 @@ decode_certified(float w, const SparseFloatMatrix& p,
   deduplicate_pair_support(support);
   return decode_impl(length, support,
                      [&](uint i, uint j) {
-                       return w * (p.get(i, j) - th_) - q.get(i, j);
+                       return nussinov_pair_score(w, p.get(i, j), q.get(i, j), th_, allow_isolated_);
                      }, ss, true);
 }
 
@@ -1230,7 +1412,7 @@ decode_certified(
   assert(pairs_by_right.size() == length);
   return decode_impl(length, pairs_by_right,
                      [&](uint i, uint j) {
-                       return w * (p.get(i, j) - th_) - q[i][j];
+                       return nussinov_pair_score(w, p.get(i, j), q[i][j], th_, allow_isolated_);
                      }, ss, true);
 }
 
@@ -1244,7 +1426,7 @@ decode_certified(
   assert(pairs_by_right.size() == length);
   return decode_impl(length, pairs_by_right,
                      [&](uint i, uint j) {
-                       return w * (p.get(i, j) - th_) - q.get(i, j);
+                       return nussinov_pair_score(w, p.get(i, j), q.get(i, j), th_, allow_isolated_);
                      }, ss, true);
 }
 
@@ -1255,7 +1437,7 @@ decode(const VVF& p, VU& ss, std::string& str)
   const uint length = p.size();
   const float score = decode_impl(
       length, dense_pair_support(length),
-      [&](uint i, uint j) { return p[i][j] - th_; }, ss, false).score;
+      [&](uint i, uint j) { return nussinov_pair_score(1.0f, p[i][j], 0.0f, th_, allow_isolated_); }, ss, false).score;
   make_brackets(ss, str);
   return score;
 }
@@ -1269,7 +1451,7 @@ decode(const SparseFloatMatrix& p, VU& ss, std::string& str)
   add_sparse_pair_support(p, support);
   const float score = decode_impl(
       length, support,
-      [&](uint i, uint j) { return p.get(i, j) - th_; }, ss, false).score;
+      [&](uint i, uint j) { return nussinov_pair_score(1.0f, p.get(i, j), 0.0f, th_, allow_isolated_); }, ss, false).score;
   make_brackets(ss, str);
   return score;
 }
@@ -1289,7 +1471,7 @@ decode(const SparseFloatMatrix& p, const SparseFloatMatrix& pair_bonus,
   const float score = decode_impl(
       length, support,
       [&](uint i, uint j) {
-        return p.get(i, j) - th_ + pair_bonus.get(i, j);
+        return nussinov_pair_score(1.0f, p.get(i, j), -pair_bonus.get(i, j), th_, allow_isolated_);
       }, ss, false).score;
   make_brackets(ss, str);
   return score;

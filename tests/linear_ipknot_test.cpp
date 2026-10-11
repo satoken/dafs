@@ -37,75 +37,110 @@ void check_structure_brackets(const VU& structure,
 
 int main()
 {
-  constexpr uint length = 12;
+  constexpr uint length = 15; // Include trailing unpaired positions.
   SparseFloatMatrix posterior;
   posterior.assign(length, length);
-  // The first layer is non-crossing.  (1,8) crosses both selected arcs and
-  // is therefore available to the second IPknot layer.
-  posterior.set(0, 5, 0.95f);
-  posterior.set(6, 11, 0.90f);
-  posterior.set(1, 8, 0.92f);
+  const std::vector<ipknot::PairProbability> pairs{
+      {0, 7, 0.9f}, {1, 6, 0.9f}, {3, 10, 0.9f}, {4, 9, 0.9f}};
+  for (const auto& pair : pairs)
+    posterior.set(pair.left, pair.right, pair.probability);
 
-  LinearIPknot decoder(VF{0.2f, 0.1f}, 32);
+  // Compare against the upstream decoder, including its level assignments.
+  ipknot::DecoderOptions options;
+  options.thresholds = {0.2f, 0.1f};
+  options.weights = {1.0f, 1.0f};
+  options.dd.beam = 32;
+  const auto reference = ipknot::Decoder(options).decode(length, pairs);
+  LinearIPknot decoder(options.thresholds, 32);
   VU structure;
   std::string brackets;
   const float score = decoder.decode(posterior, structure, brackets);
-  assert(structure.size() == length);
-  assert(structure[0] == 5 && structure[5] == -1u);
-  assert(structure[6] == 11 && structure[11] == -1u);
-  assert(structure[1] == 8 && structure[8] == -1u);
+  assert(structure.size() == length && brackets.size() == length);
+  assert(structure[0] == 7 && structure[1] == 6);
+  assert(structure[3] == 10 && structure[4] == 9);
+  for (uint i = 0; i < length; ++i) {
+    assert(structure[i] == (reference.bpseq[i] > static_cast<int>(i)
+                               ? static_cast<uint>(reference.bpseq[i]) : -1u));
+    if (structure[i] != -1u)
+      assert(brackets[i] == Fold::Decoder::left_brackets[reference.levels[i]]);
+  }
   check_structure_brackets(structure, brackets);
-  assert(std::isfinite(score) && score > 0.0f);
+  assert(std::fabs(score - reference.objective) < 1e-5);
+  assert(std::fabs(score - 3.0f) < 1e-5);
 
-  // make_brackets() also receives projected structures during verbose
-  // decoding.  This structure has a crossing pair and therefore exercises
-  // the linear fallback coloring instead of the cached decoder levels.
+  // Projected structures have no cached levels and still need valid brackets.
   VU projected(length, -1u);
   projected[0] = 5;
   projected[2] = 8;
-  std::string projected_brackets;
-  decoder.make_brackets(projected, projected_brackets);
-  check_structure_brackets(projected, projected_brackets);
+  decoder.make_brackets(projected, brackets);
+  check_structure_brackets(projected, brackets);
 
-  // A larger right endpoint must not hide a smaller crossing witness.  The
-  // pair (6,10) crosses (1,8), even though the already selected (2,100)
-  // interval extends beyond its right endpoint.
-  constexpr uint long_length = 101;
-  SparseFloatMatrix long_posterior;
-  long_posterior.assign(long_length, long_length);
-  long_posterior.set(2, 100, 0.95f);
-  long_posterior.set(1, 8, 0.94f);
-  long_posterior.set(6, 10, 0.85f);
+  // Signed multipliers can introduce stacked pairs outside the BPP support,
+  // with effective scores above one. Test all dense/sparse combinations.
+  SparseFloatMatrix p, q;
+  p.assign(12, 12);
+  q.assign(12, 12);
+  p.set(0, 11, 0.9f);
+  p.set(1, 10, 0.85f);
+  q.set(0, 11, 0.15f);
+  q.set(2, 9, -1.5f);
+  q.set(3, 8, -1.25f);
+  LinearIPknot weighted_decoder(VF{0.2f}, 32);
+  VU sparse_result, dense_result, mixed_result;
+  const float sparse_score = weighted_decoder.decode(2.0f, p, q, sparse_result);
+  const float dense_score = weighted_decoder.decode(2.0f, p.dense(), q.dense(), dense_result);
+  assert(sparse_result == dense_result);
+  assert(sparse_result[2] == 9 && sparse_result[3] == 8);
+  assert(std::fabs(sparse_score - 4.5f) < 1e-5);
+  assert(std::fabs(sparse_score - dense_score) < 1e-5);
+  assert(std::fabs(weighted_decoder.decode(2.0f, p, q.dense(), mixed_result)
+                   - sparse_score) < 1e-5);
+  assert(mixed_result == sparse_result);
+  assert(std::fabs(weighted_decoder.decode(2.0f, p.dense(), q, mixed_result)
+                   - sparse_score) < 1e-5);
+  assert(mixed_result == sparse_result);
 
-  LinearIPknot long_decoder(VF{0.9f, 0.8f, 0.8f}, 64);
-  VU long_structure;
-  std::string long_brackets;
-  const float long_score =
-      long_decoder.decode(long_posterior, long_structure, long_brackets);
-  assert(long_structure[2] == 100 && long_structure[100] == -1u);
-  assert(long_structure[1] == 8 && long_structure[8] == -1u);
-  assert(long_structure[6] == 10 && long_structure[10] == -1u);
-  check_structure_brackets(long_structure, long_brackets);
-  const float expected_long_score = (0.95f - 0.9f) +
-                                    (0.94f - 0.8f) +
-                                    (0.85f - 0.8f);
-  assert(std::isfinite(long_score));
-  assert(std::fabs(long_score - expected_long_score) < 1e-4f);
+  // Zero structure weight still leaves the multiplier objective active.
+  assert(std::fabs(weighted_decoder.decode(0.0f, p, q, structure) - 2.75f) < 1e-5);
+  assert(structure[2] == 9 && structure[3] == 8);
 
-  // A raw sparse row can contain many alternatives for one right endpoint.
-  // The support union and deduplication must remain bounded and return a
-  // valid matching even when all alternatives share that endpoint.
-  constexpr uint crowded_length = 128;
-  SparseFloatMatrix crowded_posterior;
-  crowded_posterior.assign(crowded_length, crowded_length);
-  for (uint left = 0; left + 2 < crowded_length; ++left)
-    crowded_posterior.set(left, crowded_length - 1,
-                          0.2f + 0.005f * left);
-  LinearIPknot crowded_decoder(VF{0.1f}, 4);
-  VU crowded_structure;
-  const float crowded_score =
-      crowded_decoder.decode(crowded_posterior, crowded_structure,
-                             brackets);
-  assert(crowded_structure[124] == crowded_length - 1);
-  assert(std::isfinite(crowded_score));
+  // The new DD decoder enforces IPknot's no-lonely-pairs rule.
+  SparseFloatMatrix lonely;
+  lonely.assign(length, length);
+  lonely.set(0, 8, 0.95f);
+  assert(decoder.decode(lonely, structure, brackets) == 0.0f);
+  assert(brackets == std::string(length, '.'));
+  LinearIPknot allowing_decoder(options.thresholds, 32, true);
+  assert(std::fabs(allowing_decoder.decode(lonely, structure, brackets) - 0.75f) < 1e-5);
+  assert(structure[0] == 8);
+  check_structure_brackets(structure, brackets);
+  SparseFloatMatrix no_multiplier;
+  no_multiplier.assign(length, length);
+  assert(std::fabs(allowing_decoder.decode(2.0f, lonely, no_multiplier, structure)
+                   - 1.5f) < 1e-5);
+  assert(structure[0] == 8);
+
+  // Allow two isolated crossing pairs on separate levels.
+  lonely.set(3, 11, 0.9f);
+  assert(decoder.decode(lonely, structure, brackets) == 0.0f);
+  assert(std::fabs(allowing_decoder.decode(lonely, structure, brackets) - 1.55f) < 1e-5);
+  assert(structure[0] == 8 && structure[3] == 11);
+  assert(brackets[0] != brackets[3]);
+  check_structure_brackets(structure, brackets);
+
+  // Empty inputs and decoder reuse must not retain old structures or levels.
+  SparseFloatMatrix empty;
+  empty.assign(0, 0);
+  assert(decoder.decode(empty, structure, brackets) == 0.0f);
+  assert(structure.empty() && brackets.empty());
+  if (!ipknot::Decoder::ilp_available()) {
+    bool rejected = false;
+    try {
+      IPknot exact(VF{0.2f});
+      exact.decode(empty, structure, brackets);
+    } catch (const std::runtime_error&) {
+      rejected = true;
+    }
+    assert(rejected);
+  }
 }
