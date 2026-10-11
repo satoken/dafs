@@ -135,23 +135,109 @@ double global_score(const std::vector<size_t>& first,
   return best;
 }
 
+double band_global_score(const std::vector<size_t>& first,
+                         const std::vector<size_t>& second, const ScoreMatrix& scores,
+                         size_t width, BeamStats* stats)
+{
+  // The exact MAFFT recurrence restricted to |i-j| <= width. Its innermost
+  // loop is the same row-wise kernel as global_score; it has no beam merge,
+  // candidate entries, or top-B selection. All unvisited states stay invalid.
+  const size_t n = first.size(), m = second.size();
+  if (stats) stats->band_width = std::max(stats->band_width, width);
+  std::vector<double> current(m + 1, -infinity), previous(m + 1, -infinity),
+                      vertical(m + 1, -infinity);
+  const auto match = [&](size_t i, size_t j) -> double {
+    return i < n && j < m ? scores[first[i]][second[j]] : 0;
+  };
+  for (size_t j = 0; j <= std::min(m, width); ++j)
+    current[j] = match(0, j) + (j ? gap_open : 0);
+  for (size_t j = 1; j <= std::min(m, width + 1); ++j) vertical[j] = current[j - 1];
+  double best = -infinity;
+  for (size_t i = 1; i <= n; ++i) {
+    current.swap(previous);
+    previous[0] = i - 1 <= width ? match(i - 1, 0) + (i > 1 ? gap_open : 0) : -infinity;
+    current[0] = i <= width ? match(i, 0) + gap_open : -infinity;
+    const size_t start = i > width ? i - width : 1;
+    const size_t end = std::min(m, i + width);
+    if (end < m) current[end + 1] = -infinity;
+    double horizontal = start == 1 ? previous[0] : -infinity;
+    for (size_t j = start; j <= end; ++j) {
+      const double diagonal = previous[j - 1];
+      best = std::max({diagonal, horizontal + gap_open, vertical[j] + gap_open});
+      horizontal = std::max(horizontal, diagonal) + (i < n ? gap_extend : 0);
+      vertical[j] = std::max(vertical[j], diagonal) + (j < m ? gap_extend : 0);
+      current[j] = match(i, j) + best;
+    }
+    if (stats && start <= end) stats->band_cells += end - start + 1;
+  }
+  return best;
+}
+
+std::pair<bool, double> certified_band_score(const std::vector<size_t>& first,
+                                            const std::vector<size_t>& second,
+                                            const ScoreMatrix& scores, size_t beam,
+                                            BeamStats* stats)
+{
+  const size_t n = first.size(), m = second.size(), length = std::max(n, m);
+  // A band cell uses the inexpensive row kernel, whereas a beam entry needs
+  // merging/selection and three separate states. Bound the exact accelerator
+  // by a fixed multiple of the user's beam; its budget never grows with L.
+  constexpr size_t band_factor = 16;
+  const size_t limit = beam > length / band_factor ? length : band_factor * beam;
+  const size_t difference = n > m ? n - m : m - n;
+  if (difference > limit) return {false, 0};
+  size_t width = std::min(limit, std::max(beam, difference));
+  double best = band_global_score(first, second, scores, width, stats);
+  static const int maximum_score = [&] {
+    int result = 0;
+    for (const auto& row : scores)
+      result = std::max(result, *std::max_element(row.begin(), row.end()));
+    return result;
+  }();
+  // If a path leaves this band, at least width+1 bases in one sequence are
+  // gaps. It can have at most max(n,m)-width-1 matches, each worth at most
+  // maximum_score; all gap scores are nonpositive. This is an upper bound
+  // on EVERY excluded path, including terminal gaps and ambiguous bases.
+  if (width < length) {
+    const double required = double(length - 1) - std::floor(best / maximum_score);
+    if (required > double(limit)) return {false, 0};
+    if (required > double(width)) {
+      width = static_cast<size_t>(required);
+      best = band_global_score(first, second, scores, width, stats);
+    }
+    if (width < length && best < maximum_score * double(length - width - 1))
+      return {false, 0};
+  }
+  if (stats) stats->certified_exact = true;
+  return {true, best};
+}
+
 struct Entry {
   size_t i;
   double score;
 };
-using Frontier = std::array<std::vector<Entry>, 3>; // match, gap in second, gap in first
+struct Frontier {
+  // Coordinate-indexed scores make both recurrence evaluation and duplicate
+  // detection independent of the ordering of the retained entries.
+  std::array<std::vector<Entry>, 3> entries;
+  std::array<std::vector<double>, 3> scores;
+  size_t lower = std::numeric_limits<size_t>::max(), upper = 0;
+};
 
 double beam_global_score(const std::vector<size_t>& first,
                          const std::vector<size_t>& second, const ScoreMatrix& scores,
                          size_t beam, BeamStats* stats)
 {
-  // Consumed-prefix affine Viterbi DP. Matches advance two antidiagonals;
-  // gaps advance one. Keep only three antidiagonals and at most beam entries
-  // per state. No traceback, dense grid, or quadratic fallback is allocated.
+  // Consumed-prefix affine Viterbi DP. Keep three antidiagonals and at most
+  // beam entries per state. The lookup arrays are linear in the shorter
+  // sequence; only retained coordinates are cleared when a ring slot is reused.
   const size_t n = first.size(), m = second.size();
   std::array<Frontier, 3> ring;
-  ring[0][0].push_back({0, 0});
-  std::vector<Entry> ranking;
+  for (auto& frontier : ring)
+    for (auto& values : frontier.scores) values.assign(n + 1, -infinity);
+  ring[0].entries[0].push_back({0, 0});
+  ring[0].scores[0][0] = 0;
+  ring[0].lower = ring[0].upper = 0;
   const auto better = [](const Entry& a, const Entry& b) {
     return a.score != b.score ? a.score > b.score : a.i < b.i;
   };
@@ -160,54 +246,79 @@ double beam_global_score(const std::vector<size_t>& first,
     const auto& previous = ring[(step + 2) % 3];
     const auto& older = ring[(step + 1) % 3];
     for (size_t state = 0; state < 3; ++state) {
-      auto& output = current[state];
-      output.clear();
-      const auto& source = state == 0 ? older : previous;
-      const std::array<size_t, 3> states = state == 2
-          ? std::array<size_t, 3>{0, 2, 0} : std::array<size_t, 3>{0, 1, 2};
-      const size_t streams = state == 0 ? 3 : 2;
-      std::array<size_t, 3> cursor{};
-      const size_t shift = state == 2 ? 0 : 1;
-      // All source vectors are sorted by i. A fixed-size merge deduplicates
-      // candidates in linear time without hashing or sorting the frontier.
-      while (true) {
-        size_t i = std::numeric_limits<size_t>::max();
-        for (size_t s = 0; s < streams; ++s)
-          if (cursor[s] < source[states[s]].size())
-            i = std::min(i, source[states[s]][cursor[s]].i + shift);
-        if (i == std::numeric_limits<size_t>::max()) break;
-        double best = -infinity;
-        for (size_t s = 0; s < streams; ++s) {
-          const auto& entries = source[states[s]];
-          if (cursor[s] < entries.size() && entries[cursor[s]].i + shift == i) {
-            const double opening = state != 0 && s == 0 ? gap_open : 0;
-            best = std::max(best, entries[cursor[s]++].score + opening);
-          }
-        }
-        if (i > n || i > step || step - i > m) continue;
-        const size_t j = step - i;
-        if (state == 0) {
-          if (step < 2 || i == 0 || j == 0) continue;
-          best += scores[first[i - 1]][second[j - 1]];
-        } else if (state == 1) {
-          // A gap cannot switch directly into the opposite gap. Discard
-          // boundary states that can no longer reach a match or the end.
-          if (i == 0 || (i == n && j < m)) continue;
-          if (j > 0 && j < m) best += gap_extend;
-        } else {
-          if (j == 0 || (j == m && i < n)) continue;
-          if (i > 0 && i < n) best += gap_extend;
-        }
-        output.push_back({i, best});
+      for (const auto& entry : current.entries[state])
+        current.scores[state][entry.i] = -infinity;
+      current.entries[state].clear();
+    }
+    current.lower = std::numeric_limits<size_t>::max();
+    current.upper = 0;
+    const size_t minimum_i = step > m ? step - m : 0;
+    const size_t maximum_i = std::min(step, n);
+    // These transitions and boundary rules are identical to the sparse beam
+    // recurrence. In particular, a gap cannot switch into the opposite gap.
+    const auto evaluate = [&](size_t state, size_t i) {
+      if (i < minimum_i || i > maximum_i) return;
+      if (current.scores[state][i] != -infinity) return;
+      const size_t j = step - i;
+      double best;
+      if (state == 0) {
+        if (step < 2 || i == 0 || j == 0) return;
+        best = std::max({older.scores[0][i - 1], older.scores[1][i - 1],
+                         older.scores[2][i - 1]}) + scores[first[i - 1]][second[j - 1]];
+      } else if (state == 1) {
+        if (i == 0 || (i == n && j < m)) return;
+        best = std::max(previous.scores[0][i - 1] + gap_open,
+                        previous.scores[1][i - 1]);
+        if (j > 0 && j < m) best += gap_extend;
+      } else {
+        if (j == 0 || (j == m && i < n)) return;
+        best = std::max(previous.scores[0][i] + gap_open, previous.scores[2][i]);
+        if (i > 0 && i < n) best += gap_extend;
       }
+      if (best == -infinity) return;
+      current.scores[state][i] = best;
+      current.entries[state].push_back({i, best});
+    };
+    size_t lower = previous.lower, upper = previous.upper + 1;
+    if (older.lower != std::numeric_limits<size_t>::max()) {
+      lower = std::min(lower, older.lower + 1);
+      upper = std::max(upper, older.upper + 1);
+    }
+    lower = std::max(lower, minimum_i);
+    upper = std::min(upper, maximum_i);
+    // Typical beams occupy a short interval. Evaluate its three states in a
+    // single coordinate pass. A hard O(beam) span limit prevents quadratic
+    // scanning when retained coordinates are widely separated.
+    if (lower <= upper && (upper - lower) / beam < 3) {
+      for (size_t i = lower; i <= upper; ++i) {
+        evaluate(0, i);
+        evaluate(1, i);
+        evaluate(2, i);
+      }
+    } else {
+      for (size_t state = 0; state < 3; ++state) {
+        const auto& source = state == 0 ? older : previous;
+        const size_t shift = state == 2 ? 0 : 1;
+        for (size_t s = 0; s < 3; ++s) {
+          if ((state == 1 && s == 2) || (state == 2 && s == 1)) continue;
+          for (const auto& entry : source.entries[s]) evaluate(state, entry.i + shift);
+        }
+      }
+    }
+    for (size_t state = 0; state < 3; ++state) {
+      auto& output = current.entries[state];
       if (stats) stats->peak_candidates = std::max(stats->peak_candidates, output.size());
       if (output.size() > beam) {
-        ranking.assign(output.begin(), output.end());
-        std::nth_element(ranking.begin(), ranking.begin() + beam - 1, ranking.end(), better);
-        const Entry cutoff = ranking[beam - 1];
-        // Tie-break by coordinate to enforce a hard cap even on flat scores.
-        output.erase(std::remove_if(output.begin(), output.end(),
-                      [&](const Entry& entry) { return better(cutoff, entry); }), output.end());
+        // Total ordering by (score, coordinate) preserves exactly the old
+        // retained set without copying, sorting, or coordinate-order erasure.
+        std::nth_element(output.begin(), output.begin() + beam - 1, output.end(), better);
+        for (size_t index = beam; index < output.size(); ++index)
+          current.scores[state][output[index].i] = -infinity;
+        output.resize(beam);
+      }
+      for (const auto& entry : output) {
+        current.lower = std::min(current.lower, entry.i);
+        current.upper = std::max(current.upper, entry.i);
       }
       if (stats) {
         stats->retained_states += output.size();
@@ -216,7 +327,7 @@ double beam_global_score(const std::vector<size_t>& first,
     }
   }
   double best = -infinity;
-  for (const auto& entries : ring[(n + m) % 3])
+  for (const auto& entries : ring[(n + m) % 3].entries)
     for (const auto& entry : entries) best = std::max(best, entry.score);
   if (!std::isfinite(best)) throw std::runtime_error("MAFFT beam search has no complete path");
   return best;
@@ -244,8 +355,10 @@ double mafft_global_distance(const std::string& first, const std::string& second
   // Canonical orientation makes pruning ties independent of which sequence
   // happened to be passed first. Exact DP needs no such tie convention.
   if (beam && (a.size() > b.size() || (a.size() == b.size() && b < a))) a.swap(b);
-  const double score = beam ? beam_global_score(a, b, scores, beam, stats)
-                            : global_score(a, b, scores);
+  const auto certified = beam ? certified_band_score(a, b, scores, beam, stats)
+                              : std::pair<bool, double>{false, 0};
+  const double score = certified.first ? certified.second
+      : beam ? beam_global_score(a, b, scores, beam, stats) : global_score(a, b, scores);
   return denominator < score ? 0 : (1 - score / denominator) * 2;
 }
 

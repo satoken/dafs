@@ -72,8 +72,13 @@ time is included in DAFS wall time and the `guide_tree` metrics stage.
   entries per match/gap state on each antidiagonal, with the same substitution
   scores, opening/extension costs, terminal-gap rules, and mixed linkage as
   exact MAFFT. A fixed B gives expected O(B(L1+L2)) time per sequence pair,
-  using O(B+L1+L2) working memory. Only three antidiagonals are retained;
-  there is no quadratic fallback. `nth_element` selection gives an expected
+  using O(B+L1+L2) working memory. It first tries the row-wise MAFFT kernel
+  in a band with half-width at most 16B, using at most two passes. A bound
+  on every excluded path must certify the exact score before that result
+  is used. Otherwise it runs the beam search. The band budget is fixed in B;
+  it does not expand without limit on long inputs. Beam fallback retains
+  three antidiagonals, uses coordinate-indexed scores, and selects entries
+  in place. `nth_element` selection gives an expected
   rather than strict worst-case time bound. Ties obey the hard beam cap.
   Larger positive beams retain more candidates and usually approach exact
   scoring (not necessarily monotonically); B above the shorter sequence
@@ -95,9 +100,12 @@ weight PCT. `--metrics-jsonl` records the selected `guide_tree_method` and
 See `THIRD_PARTY_NOTICES` for MAFFT's BSD license.
 
 With beam 200, all 85 Murlet dataset1 ordered trees and all 3,825 pairwise
-distances matched exact scoring. Beam 100 matched 83/85 trees. These are
-guide-tree checks; see [validation details](docs/mafft-linear-guide-tree.md)
-for the inputs, limitations, and per-input results.
+distances matched exact scoring. The optimized implementation also matched
+the 16S/23S examples, including all 20 pairwise distances. On those two inputs
+it was 8.63x/3.66x faster than the initial beam implementation; these are
+guide-tree measurements, not complete DAFS runtimes. See
+[validation details](docs/mafft-linear-guide-tree.md) for the inputs,
+limitations, and per-input results.
 
 Usage
 -----

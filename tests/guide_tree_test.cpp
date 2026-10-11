@@ -57,6 +57,10 @@ int main()
         require(stats.peak_candidates <= 3 * beam, "Candidate bound exceeded");
         require(stats.retained_states <= 3 * beam * (a.size() + b.size()),
                 "Visited-state bound exceeded");
+        require(stats.band_cells <= 66 * beam * (a.size() + b.size()),
+                "Certified band exceeded linear work bound");
+        if (stats.certified_exact)
+          require(approximate == exact, "Incorrect exact-score certificate");
       }
     }
     BeamStats long_stats;
@@ -65,6 +69,36 @@ int main()
             "Long identical beam distance");
     require(long_stats.retained_states <= 6 * 3 * long_sequence.size(),
             "Long input did not respect linear state bound");
+    require(long_stats.certified_exact && long_stats.band_cells > 0 &&
+            long_stats.band_cells <= 66 * 3 * 2 * long_sequence.size(),
+            "Long identical input did not use bounded certified band");
+    BeamStats rejected_certificate;
+    mafft_global_distance(std::string(100, 'A'), std::string(100, 'G'), 1, &rejected_certificate);
+    require(!rejected_certificate.certified_exact && rejected_certificate.band_cells > 0 &&
+            rejected_certificate.retained_states > 0,
+            "Unproved band result did not fall back to beam search");
+    BeamStats unequal_stats;
+    mafft_global_distance("ACGU", std::string(100, 'A') + "ACGU", 3, &unequal_stats);
+    require(!unequal_stats.certified_exact && unequal_stats.band_cells == 0 &&
+            unequal_stats.retained_states > 0, "Large length difference did not skip band");
+    size_t certificates = 0;
+    for (size_t trial = 0; trial < 80; ++trial) {
+      std::string a(64 + random() % 193, 'A');
+      for (auto& base : a) base = "ACGU"[random() % 4];
+      std::string b = a;
+      for (auto& base : b) if (random() % 10 == 0) base = "ACGU"[random() % 4];
+      b.insert(random() % (b.size() + 1), random() % 21, 'G');
+      BeamStats stats;
+      const double approximate = mafft_global_distance(a, b, 16, &stats);
+      const double exact = mafft_global_distance(a, b);
+      if (stats.certified_exact) {
+        ++certificates;
+        require(approximate == exact, "Indel certificate differs from exact DP");
+      }
+      require(approximate >= exact - 1e-12, "Certified/beam score exceeds exact optimum");
+      require(stats.band_cells <= 66 * 16 * (a.size() + b.size()), "Indel band work bound");
+    }
+    require(certificates > 0, "Indel fixtures never exercised certification");
     for (const size_t length : {size_t{1}, size_t{2}, size_t{50}, size_t{500}})
       require(std::isfinite(mafft_global_distance(std::string(length, 'C'), "AGU", 1)),
               "Narrow beam failed on unequal lengths");
