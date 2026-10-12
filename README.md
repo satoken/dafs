@@ -60,22 +60,23 @@ level scores rather than IPknot's default level average. Returned symmetric
 partners and level assignments are converted to DAFS's one-sided structures
 and bracket strings.
 
-All structure decoders prohibit isolated base pairs by default. Add
-`--allow-isolated` to permit them during progressive, final, and constrained
-refinement decoding, including the exact coupled `--max-iter=0` path.
-Nussinov, SparseNussinov, and LinearNussinov require each selected pair to
-have an immediately adjacent stacked pair; `--allow-isolated` restores their
-previous behavior. The constrained recurrences retain below-threshold
-candidates when they support a profitable helix. Missing posterior and
-multiplier entries are not added as artificial stack partners. LinearNussinov
-keeps paired states on the sparse candidate support alongside its interval
-beam, preserving linear work and storage for fixed beams and sparse degrees.
-DD repair removes pairs that lose stack support on either aligned profile.
+All structure decoders allow isolated base pairs by default during progressive,
+final, and constrained refinement decoding, including the exact coupled
+`--max-iter=0` path. Use `--disallow-isolated` to require every selected pair to
+have an immediately adjacent stacked pair. The older `--allow-isolated` option
+remains accepted for compatibility, and `--allow-isolated=false` also disables
+isolated pairs. If both options are present, `--disallow-isolated` takes
+precedence. The constrained recurrences retain below-threshold candidates when
+they support a profitable helix. Missing posterior and multiplier entries are
+not added as artificial stack partners. LinearNussinov keeps paired states on
+the sparse candidate support alongside its interval beam, preserving linear
+work and storage for fixed beams and sparse degrees. DD repair removes pairs
+that lose stack support on either aligned profile.
 
-For IPknot, the setting applies to both DD and ILP. Without this flag,
-DD requires an immediately adjacent stacked pair on the same level; ILP
-requires neighboring paired left endpoints and neighboring paired right
-endpoints on that level. The DD
+For IPknot, the setting applies to both DD and ILP. With
+`--disallow-isolated`, DD requires an immediately adjacent stacked pair on the
+same level; ILP requires neighboring paired left endpoints and neighboring
+paired right endpoints on that level. The DD
 backend can produce different predictions from DAFS's previous greedy
 layer-by-layer approximation. It is approximate and does not guarantee the
 full ILP optimum. Its bounds refer to its retained crossing/witness graph.
@@ -98,11 +99,26 @@ The implementation uses hash maps and `nth_element`, so this is not a strict
 worst-case timing guarantee. Constrained refolding uses the same sparse
 passes; its posterior capacity correction also scans only retained pairs.
 
+`-a LinearAlign-CONTRAlign` retains CONTRAlign's complete five-state,
+double-affine RNA model and all 24 learned parameters. Its forward/backward
+passes use the same retained cell graph, with parameters loaded from the
+bundled `contralign/Defaults.ipp`. Positive `--align-beam` controls pruning;
+the `linearcontralign5_parity` test checks unpruned posteriors against the
+nonlinear CONTRAlign implementation, including both affine gap families.
+`--metrics-jsonl` records `alignment_probability_states` (5 for CONTRAlign).
+
 Guide tree
 ----------
 
-The default `--guide-tree=mafft` builds the guide tree inside DAFS for both
-linear and nonlinear models. It reimplements MAFFT 7.526's nucleotide
+The default `--guide-tree=mafft-dafs` keeps DAFS's posterior-derived sequence
+distances, `d(i,j) = 1 - sim(i,j)`, and applies MAFFT's mixed linkage: 90%
+minimum plus 10% unweighted average. It uses the same linkage routine, nearest
+neighbor tie handling, and left/right child order as the MAFFT-global mode.
+The similarity matrix used by PCT and scoring is unchanged. This works for
+both linear and nonlinear models without an additional global pairwise pass.
+`--guide-tree=dafs` selects the original DAFS linkage.
+
+The explicit `--guide-tree=mafft` mode reimplements MAFFT 7.526's nucleotide
 `--globalpair --retree 0 --mixedlinkage 0.1` method: Kimura-200 scoring,
 affine global pairwise scores normalized by the smaller self score, and
 90% minimum / 10% unweighted-average linkage. MAFFT's terminal-gap rules,
@@ -113,7 +129,8 @@ working memory. For linear-time guide-tree scoring, select `mafft-linear` below.
 Both methods store a quadratic distance matrix in sequence count. Guide-tree
 time is included in DAFS wall time and the `guide_tree` metrics stage.
 
-* `--guide-tree=mafft` (default): the internally implemented MAFFT-global tree.
+* `--guide-tree=mafft-dafs` (default): DAFS distances with MAFFT mixed linkage.
+* `--guide-tree=mafft`: the internally implemented MAFFT-global tree.
 * `--guide-tree=mafft-linear --guide-tree-beam=200`: an approximate version of
   the same distance, using affine Viterbi beam search. It keeps at most B
   entries per match/gap state on each antidiagonal, with the same substitution
@@ -144,6 +161,12 @@ All methods align the original input sequences and preserve their names and
 input order. The guide-tree choice does not replace the similarities used to
 weight PCT. `--metrics-jsonl` records the selected `guide_tree_method` and
 `guide_tree_beam` (0 for the exact/non-beam methods).
+`--guide-tree-diagnostics` prints the full-precision DAFS distance and
+similarity for every input pair to stderr, for matched-distance comparisons.
+`--raw-align-cutoff` optionally controls raw CONTRAlign/LinearAlign posterior
+pruning independently of the decoder's `--align-th`. Its default, -1, follows
+`--align-th`; profile matching probabilities retain their fixed 0.01 cutoff.
+The benchmark recommendations use `--raw-align-cutoff=0.01 --align-th=0.001`.
 See `THIRD_PARTY_NOTICES` for MAFFT's BSD license.
 
 With beam 200, all 85 Murlet dataset1 ordered trees and all 3,825 pairwise
@@ -201,7 +224,8 @@ Usage
                               final, or both. This is mutually exclusive with
                               --alifold/--no-alifold; default behavior is both
                               when --alifold is given.
-          --allow-isolated     Allow isolated base pairs in structure decoding
+          --allow-isolated     Allow isolated base pairs (default; compatibility option)
+          --disallow-isolated  Prohibit isolated base pairs in structure decoding
       	  --ipknot             Set optimized parameters for IPknot decoding 
                            	  (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)
 

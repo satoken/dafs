@@ -32,21 +32,21 @@ class GuideTreeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(">SS_cons\n", result.stdout)
 
-    def test_default_is_native_mafft(self):
+    def test_default_is_mafft_linkage_with_dafs_distances(self):
         metrics = self.root / "metrics.jsonl"
         implicit = self.run_dafs("--metrics-jsonl=" + str(metrics))
-        explicit = self.run_dafs("--guide-tree=mafft")
+        explicit = self.run_dafs("--guide-tree=mafft-dafs")
         self.assert_success(implicit)
         self.assert_success(explicit)
         self.assertEqual(implicit.stdout, explicit.stdout)
         records = [json.loads(line) for line in metrics.read_text().splitlines()]
-        self.assertEqual(records[0]["guide_tree_method"], "mafft")
+        self.assertEqual(records[0]["guide_tree_method"], "mafft-dafs")
         stage = next(item for item in records if item.get("name") == "guide_tree")
-        self.assertEqual(stage["method"], "mafft")
+        self.assertEqual(stage["method"], "mafft-dafs")
         self.assertGreater(stage["seconds"], 0)
 
     def test_all_trees_on_linear_and_nonlinear_paths(self):
-        for method in ["mafft", "mafft-linear", "dafs", "raf"]:
+        for method in ["mafft-dafs", "mafft", "mafft-linear", "dafs", "raf"]:
             for model in [(), ("--alifold",),
                           ("-a", "LinearAlign", "-s", "lpc", "--dynamic-cbp")]:
                 with self.subTest(method=method, model=model):
@@ -64,6 +64,41 @@ class GuideTreeTests(unittest.TestCase):
                     self.assertEqual(records["third"].replace("-", ""), "GGGACACCC")
                     self.assertEqual(list(records), ["SS_cons", "first name,:", "second", "third"])
                     self.assertEqual(self.input.read_text(), FASTA)
+
+    def test_dafs_distances_unchanged_by_linkage_and_isolated_option(self):
+        for model in [(), ("-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--dynamic-cbp")]:
+            matrices = []
+            for method in ["dafs", "mafft-dafs"]:
+                for isolated in [(), ("--disallow-isolated",)]:
+                    result = self.run_dafs("--guide-tree=" + method,
+                                           "--guide-tree-diagnostics", *model, *isolated)
+                    self.assert_success(result)
+                    pairs = [line for line in result.stderr.splitlines()
+                             if line.startswith("[guide-tree-pair] ")]
+                    self.assertEqual(len(pairs), 3)
+                    matrices.append(pairs)
+            self.assertTrue(all(matrix == matrices[0] for matrix in matrices))
+
+    def test_linear_contralign_keeps_five_probability_states(self):
+        metrics = self.root / "five-state.jsonl"
+        result = self.run_dafs("-a", "LinearAlign-CONTRAlign", "-s", "lpc",
+                               "--raw-align-cutoff=0.01", "--align-th=0.001",
+                               "--metrics-jsonl=" + str(metrics))
+        self.assert_success(result)
+        start = json.loads(metrics.read_text().splitlines()[0])
+        self.assertEqual(start["alignment_probability_states"], 5)
+        self.assertAlmostEqual(start["raw_alignment_cutoff"], 0.01)
+        self.assertAlmostEqual(start["alignment_threshold"], 0.001)
+
+    def test_raw_cutoff_default_and_explicit_value_match(self):
+        implicit = self.run_dafs()
+        explicit = self.run_dafs("--raw-align-cutoff=0.01")
+        self.assert_success(implicit)
+        self.assert_success(explicit)
+        self.assertEqual(implicit.stdout, explicit.stdout)
+        for cutoff in ["-2", "nan", "inf", "1.1"]:
+            with self.subTest(cutoff=cutoff):
+                self.assertNotEqual(self.run_dafs("--raw-align-cutoff=" + cutoff).returncode, 0)
 
     def test_raf_tree_uses_raw_posteriors_before_pct(self):
         default = self.run_dafs("--guide-tree=raf")
@@ -99,7 +134,7 @@ class GuideTreeTests(unittest.TestCase):
         self.assertEqual(result.stdout.count("> third\n"), 2)
 
     def test_single_sequence_on_all_trees(self):
-        for method in ["mafft", "mafft-linear", "dafs", "raf"]:
+        for method in ["mafft-dafs", "mafft", "mafft-linear", "dafs", "raf"]:
             with self.subTest(method=method):
                 self.assert_success(self.run_dafs("--guide-tree=" + method,
                                                  data=">single\nGGGAAACCC\n"))

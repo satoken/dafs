@@ -150,6 +150,7 @@ private:
   uint n_refinement_;               // the number of the iterative refinement
   uint t_max_;                      // the maximum number of the iteration of the subgradient update
   float th_a_;                      // the threshold for base-pairing probabilities
+  float raw_align_cutoff_ = -1.0f;  // raw posterior pruning, independent of decoder threshold
   VF th_s_;                         // the threshold for alignment matching probabilities
   float w_;                         // the weight for base pairs in the objective function
   float w_ribosum_;                 // the weight for RIBOSUM pair-pair matches
@@ -181,7 +182,8 @@ private:
   std::vector<Fasta> fa_;           // input sequences
   std::vector<std::vector<MP>> mp_; // alignment matching probability matrices
   std::vector<BP> bp_;              // base-pairing probability matrices
-  std::string guide_tree_method_ = "mafft";
+  std::string guide_tree_method_ = "mafft-dafs";
+  bool guide_tree_diagnostics_ = false;
   int guide_tree_beam_ = 200;
   VVF raf_tree_distances_; // raw posteriors, separate from PCT similarities
   VVF sim_;                         // simalarity matrix between input sequences
@@ -193,7 +195,7 @@ private:
   bool use_sparse_alignment_lagrangian_; // sparse q_z for LinearAlign
   bool use_linear_structure_decoder_;    // beam max decoder for folding
   bool use_linear_ipknot_decoder_;      // fixed-beam layered IPknot decoder
-  bool allow_isolated_ = false;          // allow isolated pairs in structure decoders
+  bool allow_isolated_ = true;           // allow isolated pairs unless explicitly disabled
   bool use_linear_alignment_decoder_;    // beam max decoder for alignment
   bool use_dd_tight_alignment_;          // opt-in exact sparse monotone z bound
   bool use_dd_projected_norm_;            // opt-in active projected Z norm

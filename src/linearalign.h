@@ -22,9 +22,8 @@ class BeamAlign;
 class LinearAlign : public Align::Model
 {
 public:
-    // The three parameter sets share BeamAlign's three states
-    // (INS1, INS2, ALIGN), but provide their own transition and emission
-    // scores.  LinearTurboFold remains the default for compatibility.
+    // CONTRAlign keeps its complete five-state, double-affine RNA model.
+    // The other parameter sets use BeamAlign's three states.
     enum class ScoreModel {
         LinearTurboFold,
         CONTRAlign,
@@ -39,6 +38,7 @@ public:
     static ScoreModel parseScoreModel(const std::string& name);
     static const char* scoreModelName(ScoreModel model);
     ScoreModel scoreModel() const { return score_model_; }
+    unsigned scoreStateCount() const { return score_model_ == ScoreModel::CONTRAlign ? 5 : 3; }
     
     // Main calculation method - implements Align::Model interface
     void calculate(const std::string& seq1, const std::string& seq2, MP& mp) override;
@@ -66,7 +66,7 @@ private:
                                const std::string& seq1, const std::string& seq2,
                                MP& mp);
     
-    // Initialize one of the bundled three-state scoring parameter sets.
+    // Initialize the selected scoring model without reducing its state space.
     void initializeParameters(ScoreModel model);
 };
 

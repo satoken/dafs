@@ -28,7 +28,7 @@
 class IPknot : public Fold::Decoder
 {
 public:
-  IPknot(const VF& th, int n_th = 1, bool allow_isolated = false);
+  IPknot(const VF& th, int n_th = 1, bool allow_isolated = true);
   float decode(float w, const VVF& p, const VVF& q, VU& ss) override;
   float decode(float w, const VVF& p, const SparseFloatMatrix& q,
                VU& ss) override;
@@ -59,7 +59,7 @@ private:
 class LinearIPknot : public IPknot
 {
 public:
-  LinearIPknot(const VF& th, uint beam_size, bool allow_isolated = false);
+  LinearIPknot(const VF& th, uint beam_size, bool allow_isolated = true);
 };
 
 #endif // __INC_IPKNOT_H__

@@ -24,7 +24,7 @@ def check_stacked_aux(binary, root, with_ilp):
                        "--weight=1", "--ribosum-weight=0", "--fourway-pct=0",
                        "--fold-pct=0", "--align-pct=0", f"--max-iter={iterations}",
                        "--metrics-jsonl", str(metrics),
-                       *(["--allow-isolated"] if allowed else []), str(fasta)]
+                       *(["--allow-isolated"] if allowed else ["--disallow-isolated"]), str(fasta)]
             result = subprocess.run(command, text=True, capture_output=True,
                                     timeout=20, check=True)
             lines = result.stdout.splitlines()
@@ -66,7 +66,9 @@ def main():
             scores = {}
             for mode, flags in (("default", []),
                                 ("allowed", ["--allow-isolated"]),
-                                ("false", ["--allow-isolated=false"])):
+                                ("disallowed", ["--disallow-isolated"]),
+                                ("legacy-false", ["--allow-isolated=false"])):
+                is_allowed = mode in ("default", "allowed")
                 metrics = root / f"{case_index}-{mode}.jsonl"
                 command = [binary, "-a", "LinearAlign", "-s", model,
                            *(["--ipknot"] if decoder == "IPknot" else []),
@@ -78,14 +80,14 @@ def main():
                                         timeout=20, check=True)
                 lines = result.stdout.splitlines()
                 structure = lines[lines.index(">SS_cons") + 1]
-                expected = "(....)" if mode == "allowed" else "......"
+                expected = "(....)" if is_allowed else "......"
                 if structure != expected:
                     raise AssertionError(f"{label}/{mode}: {structure!r} != {expected!r}")
                 events = [json.loads(line) for line in metrics.read_text().splitlines()]
                 start = next(event for event in events if event["event"] == "run_start")
                 summary = next(event for event in events if event["event"] == "run_summary")
                 scores[mode] = summary["progressive_score"]
-                if start["allow_isolated"] != (mode == "allowed"):
+                if start["allow_isolated"] != is_allowed:
                     raise AssertionError(f"{label}/{mode}: switch missing from metrics")
                 iterations = [event for event in events if event["event"] == "dd_iteration"]
                 if "--max-iter=0" in extra:
@@ -97,15 +99,17 @@ def main():
                     first_score = iterations[0]["x_beam"]
                     # The single-row profile can fall below the posterior
                     # cutoff even though the final two-row profile pairs.
-                    if ((mode != "allowed" and first_score > 0) or
-                        (mode == "allowed" and "--alifold" not in extra and first_score <= 0)):
+                    if ((not is_allowed and first_score > 0) or
+                        (is_allowed and "--alifold" not in extra and first_score <= 0)):
                         raise AssertionError(f"{label}/{mode}: progressive score {first_score}")
                 outputs[mode] = result.stdout
-            if outputs["default"] != outputs["false"]:
-                raise AssertionError(f"{label}: explicit false changes default prediction")
-            if "--max-iter=0" in extra and scores["allowed"] <= scores["default"]:
+            if outputs["default"] != outputs["allowed"]:
+                raise AssertionError(f"{label}: explicit allow changes default prediction")
+            if outputs["disallowed"] != outputs["legacy-false"]:
+                raise AssertionError(f"{label}: legacy false differs from --disallow-isolated")
+            if "--max-iter=0" in extra and scores["allowed"] <= scores["disallowed"]:
                 raise AssertionError(f"{label}: isolated-pair constraint missing from coupled IP")
-            print(f"{label}: default, allowed, explicit false passed")
+            print(f"{label}: default, allow, disallow, and legacy false passed")
         check_stacked_aux(binary, root, args.with_ilp)
 
 

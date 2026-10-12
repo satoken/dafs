@@ -37,7 +37,7 @@ struct LinearNussinovResult
 class Nussinov : public Fold::Decoder
 {
 public:
-  Nussinov(float th, bool allow_isolated = false)
+  Nussinov(float th, bool allow_isolated = true)
     : Fold::Decoder(), th_(th), allow_isolated_(allow_isolated) { }
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
   float score(float w, const VVF& p, const VVF& q, const VU& ss);
@@ -55,7 +55,7 @@ private:
 class SparseNussinov : public Fold::Decoder
 {
 public:
-  SparseNussinov(float th, bool allow_isolated = false)
+  SparseNussinov(float th, bool allow_isolated = true)
     : Fold::Decoder(), th_(th), allow_isolated_(allow_isolated) { }
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
   float decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss);
@@ -76,7 +76,7 @@ class LinearNussinov : public Fold::Decoder
 public:
   static constexpr uint cached_support_minimum_pair_span = 2;
 
-  LinearNussinov(float th, uint beam_size, bool allow_isolated = false);
+  LinearNussinov(float th, uint beam_size, bool allow_isolated = true);
   ~LinearNussinov() override;
   LinearNussinov(const LinearNussinov&) = delete;
   LinearNussinov& operator=(const LinearNussinov&) = delete;

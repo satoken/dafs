@@ -498,6 +498,25 @@ void DAFS::
 void DAFS::
     build_tree()
 {
+  if (guide_tree_diagnostics_) {
+    for (uint i = 0; i < fa_.size(); ++i)
+      for (uint j = i + 1; j < fa_.size(); ++j)
+        std::cerr << "[guide-tree-pair] " << i << " " << j << " "
+                  << json_number(1.0 - static_cast<double>(sim_[i][j])) << " "
+                  << json_number(sim_[i][j]) << "\n";
+  }
+  if (guide_tree_method_ == "mafft-dafs") {
+    // Reuse DAFS's posterior-derived distances. MAFFT changes only linkage,
+    // including its nearest-slot tie rules and left/right child order.
+    // Keep sim_ intact because PCT and profile scoring also use it.
+    const uint n = fa_.size();
+    std::vector<std::vector<double>> distances(n, std::vector<double>(n));
+    for (uint i = 0; i < n; ++i)
+      for (uint j = i + 1; j < n; ++j)
+        distances[i][j] = distances[j][i] = 1.0 - static_cast<double>(sim_[i][j]);
+    tree_ = guide_tree::mafft_linkage(std::move(distances));
+    return;
+  }
   if (guide_tree_method_ == "mafft" || guide_tree_method_ == "mafft-linear") {
     tree_ = guide_tree::mafft(fa_, guide_tree_method_ == "mafft-linear" ? guide_tree_beam_ : 0);
     return;
@@ -2785,8 +2804,9 @@ parse_options(int& argc, char**& argv)
     ("version", "Print version")
     ("input", "Input file", cxxopts::value<std::string>(), "FILE")
     ("r,refinement", "The number of iteration of the iterative refinment", cxxopts::value<int>()->default_value("0"), "N")
-    ("guide-tree", "Guide-tree construction: mafft, mafft-linear (beam globalpair), dafs, raf",
-      cxxopts::value<std::string>()->default_value("mafft"))
+    ("guide-tree", "Guide-tree construction: mafft-dafs (DAFS distances, MAFFT linkage), mafft, mafft-linear, dafs, raf",
+      cxxopts::value<std::string>()->default_value("mafft-dafs"))
+    ("guide-tree-diagnostics", "Print full-precision DAFS pair distances and similarities to stderr")
     ("guide-tree-beam", "States per antidiagonal and affine state for mafft-linear (positive)",
       cxxopts::value<int>()->default_value("200"), "B")
     ("seed", "Random seed for shuffling", cxxopts::value<int>()->default_value("42"), "N")
@@ -2819,6 +2839,8 @@ parse_options(int& argc, char**& argv)
     ("align-dd-beam", "Beam size for the LinearAlign DD decoder (default: --align-beam)", cxxopts::value<int>())
     ("p,align-pct", "Weight of PCT for matching probabilities", cxxopts::value<float>()->default_value("0.25"))
     ("u,align-th", "Threshold for matching probabilities", cxxopts::value<float>()->default_value("0.01"))
+    ("raw-align-cutoff", "Raw CONTRAlign/LinearAlign posterior cutoff (-1 follows align-th)",
+      cxxopts::value<float>()->default_value("-1"))
     ("align-aux", "Load matching probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME");
 
   options.add_options("Folding")
@@ -2836,7 +2858,9 @@ parse_options(int& argc, char**& argv)
     ("T,fold-th1", "Threshold for base-pairing probabilities of the conclusive common secondary structures", cxxopts::value<std::vector<float>>())
     ("G,gamma1", "Specify the threshold for base-pairing probabilities of the conclusive common secondary structuresby 1/(gamma+1))", cxxopts::value<std::vector<float>>())
     ("ipknot", "Set optimized parameters for IPknot decoding (--fold-decoder=IPknot -g4,8 -G2,4 --bp-update1)")
-    ("allow-isolated", "Allow isolated base-pairs in secondary structure decoding",
+    ("allow-isolated", "Allow isolated base-pairs in secondary structure decoding (default; compatibility option)",
+      cxxopts::value<bool>()->default_value("true"))
+    ("disallow-isolated", "Prohibit isolated base-pairs in secondary structure decoding",
       cxxopts::value<bool>()->default_value("false"))
     ("bp-update", "Use the iterative update of BPs")
     ("bp-update1", "Use the iterative update of BPs for the final prediction")
@@ -2865,9 +2889,11 @@ parse_options(int& argc, char**& argv)
     }
     // general options
     guide_tree_method_ = res["guide-tree"].as<std::string>();
-    if (guide_tree_method_ != "mafft" && guide_tree_method_ != "mafft-linear" && guide_tree_method_ != "dafs" &&
+    guide_tree_diagnostics_ = res.count("guide-tree-diagnostics") != 0;
+    if (guide_tree_method_ != "mafft-dafs" && guide_tree_method_ != "mafft" &&
+        guide_tree_method_ != "mafft-linear" && guide_tree_method_ != "dafs" &&
         guide_tree_method_ != "raf")
-      throw std::invalid_argument("--guide-tree must be mafft, mafft-linear, dafs, or raf");
+      throw std::invalid_argument("--guide-tree must be mafft-dafs, mafft, mafft-linear, dafs, or raf");
     guide_tree_beam_ = res["guide-tree-beam"].as<int>();
     if (guide_tree_beam_ <= 0)
       throw std::invalid_argument("--guide-tree-beam must be positive");
@@ -2944,6 +2970,10 @@ parse_options(int& argc, char**& argv)
     // options for alignments
     w_pct_a_ = res["align-pct"].as<float>();
     th_a_ = res["align-th"].as<float>();
+    raw_align_cutoff_ = res["raw-align-cutoff"].as<float>();
+    if (!std::isfinite(raw_align_cutoff_) ||
+        (raw_align_cutoff_ != -1.0f && (raw_align_cutoff_ < 0.0f || raw_align_cutoff_ > 1.0f)))
+      throw std::invalid_argument("--raw-align-cutoff must be -1 or a finite value in [0,1]");
     if (use_dd_tight_alignment_ &&
         (!std::isfinite(th_a_) || th_a_ < 0.0f))
       throw std::invalid_argument(
@@ -2974,12 +3004,13 @@ parse_options(int& argc, char**& argv)
     if (res["align-aux"].count())
       a_model_ = std::make_unique<AUXAlign>(res["align-aux"].as<std::string>(), CUTOFF);
     else if (align_model == "CONTRAlign")
-      a_model_ = std::make_unique<CONTRAlign>(th_a_);
+      a_model_ = std::make_unique<CONTRAlign>(raw_align_cutoff_ < 0.0f ? th_a_ : raw_align_cutoff_);
     else if (align_model == "ProbCons")
       a_model_ = std::make_unique<ProbCons>(th_a_);
     else if (alignment_selection.linear)
       a_model_ = std::make_unique<LinearAlign>(
-          th_a_, align_probability_beam, alignment_selection.score_model);
+          raw_align_cutoff_ < 0.0f ? th_a_ : raw_align_cutoff_,
+          align_probability_beam, alignment_selection.score_model);
     else
       throw std::logic_error("unreachable alignment model selection");
     assert(a_model_);
@@ -3122,7 +3153,8 @@ parse_options(int& argc, char**& argv)
     }
 
     const std::string fold_decoder = res["fold-decoder"].as<std::string>();
-    allow_isolated_ = res["allow-isolated"].as<bool>();
+    allow_isolated_ = res["allow-isolated"].as<bool>() &&
+                      !res["disallow-isolated"].as<bool>();
     const bool linear_folding = fold_model == "lpv" ||
                                 fold_model == "lpc" ||
                                 fold_model == "LinFold";
@@ -3262,8 +3294,13 @@ int DAFS::
        {"ribosum_weight", json_number(w_ribosum_)},
        {"final_ribosum_weight", json_number(w_final_ribosum_)},
        {"alignment_threshold", json_number(th_a_)},
+       {"raw_alignment_cutoff", json_number(raw_align_cutoff_ < 0.0f ? th_a_ : raw_align_cutoff_)},
        {"max_iterations", std::to_string(t_max_)},
        {"allow_isolated", allow_isolated_ ? "true" : "false"},
+       {"alignment_probability_states", std::to_string(
+           dynamic_cast<const LinearAlign*>(a_model_.get())
+             ? dynamic_cast<const LinearAlign*>(a_model_.get())->scoreStateCount()
+             : (align_model_name_ == "CONTRAlign" ? 5 : 0))},
        {"alignment_beam", std::to_string(align_probability_beam_)},
        {"alignment_dd_beam", std::to_string(align_dd_beam_)},
        {"folding_beam", std::to_string(fold_probability_beam_)},

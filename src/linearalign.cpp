@@ -16,6 +16,7 @@
 
 // Include the original BeamAlign implementation
 #include "linearalign/BeamAlign.h"
+#include "linearcontralign5.h"
 
 // ML HMM parameters from LinearTurboFold (trained on RNA families)
 // States: 0=INS1, 1=INS2, 2=ALIGN
@@ -138,6 +139,13 @@ const char* LinearAlign::scoreModelName(ScoreModel model)
 
 void LinearAlign::initializeParameters(ScoreModel model)
 {
+    if (model == ScoreModel::CONTRAlign) {
+        // Complete five-state RNA model, including both affine gap families.
+        // Its parameters are loaded directly from contralign/Defaults.ipp.
+        score_model_ = model;
+        parameters_initialized_ = true;
+        return;
+    }
     // BeamAlign's xlog_sum implementation does not treat (-inf, -inf) as a
     // special case.  Use the same negligible floor as the bundled
     // ProbConsRNA wrapper for forbidden transitions and emissions.
@@ -171,29 +179,7 @@ void LinearAlign::initializeParameters(ScoreModel model)
         emission_scores_[25][2] = 0.0;
         emission_scores_[26][2] = 0.0;
     } else {
-        // CONTRAlign is a log-linear model.  BeamAlign consumes additive
-        // log scores, so its single-affine subset maps directly onto the
-        // three BeamAlign states.  CONTRAlign's second affine gap pair is
-        // intentionally omitted because BeamAlign has exactly three states.
-        constexpr double match_state = 0.3959924457;
-        constexpr double insert_state = -0.4431756229;
-        constexpr double match_to_match = 2.5057567100;
-        constexpr double match_to_insert = -1.2423961130;
-        constexpr double insert_extend = 1.8676346730;
-        constexpr double insert_change = -6.9696754440;
-        transition_scores_ = {{
-            {{insert_extend, insert_change, match_to_insert}},
-            {{insert_change, insert_extend, match_to_insert}},
-            {{match_to_insert, match_to_insert, match_to_match}}
-        }};
-        for (size_t a = 0; a < 4; ++a) {
-            emission_scores_[a * 5 + 4][0] = CONTRALIGN_INSERT[a] + insert_state;
-            emission_scores_[4 * 5 + a][1] = CONTRALIGN_INSERT[a] + insert_state;
-            for (size_t b = 0; b < 4; ++b)
-                emission_scores_[a * 5 + b][2] = CONTRALIGN_MATCH[a][b] + match_state;
-        }
-        emission_scores_[25][2] = 0.0;
-        emission_scores_[26][2] = 0.0;
+        throw std::logic_error("Unexpected three-state alignment model");
     }
 
     score_model_ = model;
@@ -202,6 +188,8 @@ void LinearAlign::initializeParameters(ScoreModel model)
 
 void LinearAlign::setHMMParameters(double** trans_probs, double** emit_probs)
 {
+    if (score_model_ == ScoreModel::CONTRAlign)
+        throw std::invalid_argument("Three-state HMM parameters cannot replace the full CONTRAlign model");
     if (!trans_probs || !emit_probs) {
         parameters_initialized_ = false;
         return;
@@ -217,6 +205,12 @@ void LinearAlign::setHMMParameters(double** trans_probs, double** emit_probs)
 
 void LinearAlign::calculate(const std::string& seq1, const std::string& seq2, MP& mp)
 {
+    if (score_model_ == ScoreModel::CONTRAlign) {
+        if (use_prior_)
+            throw std::invalid_argument("External alignment priors are not defined for CONTRAlign");
+        LinearCONTRAlign5::Model().calculate(seq1,seq2,std::max(1,beam_size_),threshold(),mp);
+        return;
+    }
     // Initialize empty matrix first
     mp.clear();
     mp.resize(seq1.length());
