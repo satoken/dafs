@@ -22,6 +22,7 @@
 #endif
 #include <cstring>
 #include "dd_certificate.h"
+#include "dd_parallel.h"
 #include <cassert>
 #include <cmath>
 #include <unistd.h>
@@ -165,6 +166,8 @@ DAFS::DAFS()
       fold_probability_beam_(100),
       fold_dd_beam_(100),
       fold_final_beam_(100),
+      fold_dp_threads_(1),
+      dd_threads_(1),
       metrics_merge_id_(0),
       metrics_dd_iterations_(0),
       metrics_cbp_peak_(0),
@@ -985,8 +988,11 @@ void DAFS::
   project_secondary_structure(xx, yy, x, y, z);
 
   std::string x_str, y_str;
-  s_decoder_->make_brackets(xx, x_str);
-  s_decoder_->make_brackets(yy, y_str);
+  // Serial DD leaves the shared decoder's IPknot level cache at Y. Preserve
+  // the same bracket convention when X and Y have separate workspaces.
+  const auto* bracket_decoder = s_decoder_y_ ? s_decoder_y_.get() : s_decoder_.get();
+  bracket_decoder->make_brackets(xx, x_str);
+  bracket_decoder->make_brackets(yy, y_str);
 
   output(std::cout, aln.begin(), aln.begin() + aln1.size());
   std::cout << x_str << std::endl;
@@ -1228,7 +1234,7 @@ float DAFS::
     }
   }
 
-  LinearNussinov repair_decoder(0.0f, fold_dd_beam_, allow_isolated_);
+  LinearNussinov repair_decoder(0.0f, fold_dd_beam_, allow_isolated_, fold_dp_threads_);
   VU consensus_x;
   std::string brackets;
   const float consensus_structure_score =
@@ -1605,6 +1611,7 @@ float DAFS::
   uint certified_violated = 0;
   uint t;
   uint iterations_completed = 0;
+  int dd_workers = 1;
   std::string stop_reason = "max_iterations";
   for (t = 0; t != t_max_; ++t)
   {
@@ -1619,40 +1626,49 @@ float DAFS::
     const float x_weight = w_ * 2 * N1 / (N1 + N2);
     const float y_weight = w_ * 2 * N2 / (N1 + N2);
     LinearNussinovResult x_linear_result, y_linear_result;
-    if (use_linear_structure_decoder_) {
-      auto* linear_decoder = dynamic_cast<LinearNussinov*>(s_decoder_.get());
-      assert(linear_decoder);
-      if (gm.uses_sparse_structure_storage()) {
-        x_linear_result = linear_decoder->decode_certified(
-            x_weight, p_x, gm.sparse_q_x(), x_pairs_by_right, x);
-        y_linear_result = linear_decoder->decode_certified(
-            y_weight, p_y, gm.sparse_q_y(), y_pairs_by_right, y);
-      } else {
-        x_linear_result = linear_decoder->decode_certified(
-            x_weight, p_x, gm.dense_q_x(), x_pairs_by_right, x);
-        y_linear_result = linear_decoder->decode_certified(
-            y_weight, p_y, gm.dense_q_y(), y_pairs_by_right, y);
+    const int workers = DDParallel::decode_subproblems(
+        dd_threads_, fold_dp_threads_, [&](int job) {
+      if (job == 2) {
+        if (gm.uses_sparse_alignment_storage()) {
+          s_z = use_linear_alignment_decoder_
+              ? a_decoder_->decode(p_z, gm.sparse_q_z(), z)
+              : a_decoder_->decode(dense_p_z, gm.sparse_q_z(), z);
+        } else {
+          s_z = use_linear_alignment_decoder_
+              ? a_decoder_->decode(p_z, gm.dense_q_z(), z)
+              : a_decoder_->decode(dense_p_z, gm.dense_q_z(), z);
+        }
+        return;
       }
-      s_x = x_linear_result.score;
-      s_y = y_linear_result.score;
-    } else if (gm.uses_sparse_structure_storage()) {
-      s_x = s_decoder_->decode(x_weight, p_x,
-                               gm.sparse_q_x(), x);
-      s_y = s_decoder_->decode(y_weight, p_y,
-                               gm.sparse_q_y(), y);
-    } else {
-      s_x = s_decoder_->decode(x_weight, dense_p_x, gm.dense_q_x(), x);
-      s_y = s_decoder_->decode(y_weight, dense_p_y, gm.dense_q_y(), y);
-    }
-    if (gm.uses_sparse_alignment_storage()) {
-      s_z = use_linear_alignment_decoder_
-          ? a_decoder_->decode(p_z, gm.sparse_q_z(), z)
-          : a_decoder_->decode(dense_p_z, gm.sparse_q_z(), z);
-    } else {
-      s_z = use_linear_alignment_decoder_
-          ? a_decoder_->decode(p_z, gm.dense_q_z(), z)
-          : a_decoder_->decode(dense_p_z, gm.dense_q_z(), z);
-    }
+      const bool is_x = job == 0;
+      auto* decoder = is_x || !s_decoder_y_ ? s_decoder_.get() : s_decoder_y_.get();
+      const auto& p = is_x ? p_x : p_y;
+      auto& structure = is_x ? x : y;
+      const float weight = is_x ? x_weight : y_weight;
+      float& score = is_x ? s_x : s_y;
+      if (use_linear_structure_decoder_) {
+        auto* linear_decoder = dynamic_cast<LinearNussinov*>(decoder);
+        assert(linear_decoder);
+        auto& result = is_x ? x_linear_result : y_linear_result;
+        const auto& support = is_x ? x_pairs_by_right : y_pairs_by_right;
+        if (gm.uses_sparse_structure_storage()) {
+          result = linear_decoder->decode_certified(weight, p,
+              is_x ? gm.sparse_q_x() : gm.sparse_q_y(), support, structure);
+        } else {
+          result = linear_decoder->decode_certified(weight, p,
+              is_x ? gm.dense_q_x() : gm.dense_q_y(), support, structure);
+        }
+        score = result.score;
+      } else if (gm.uses_sparse_structure_storage()) {
+        score = decoder->decode(weight, p,
+            is_x ? gm.sparse_q_x() : gm.sparse_q_y(), structure);
+      } else {
+        score = decoder->decode(weight, is_x ? dense_p_x : dense_p_y,
+            is_x ? gm.dense_q_x() : gm.dense_q_y(), structure);
+      }
+    });
+    dd_workers = std::max(dd_workers, workers);
+    // Keep the serial floating-point addition order and all shared updates.
     float s = s_x + s_y + s_z;
     // Read before recovery or guide-tree code can reuse this decoder.
     const auto* alignment_decoder = dynamic_cast<LinearNeedlemanWunsch*>(a_decoder_.get());
@@ -2379,6 +2395,7 @@ float DAFS::
   std::vector<std::pair<std::string, std::string>> summary_metrics = {
        {"merge_id", std::to_string(merge_id)},
        {"iterations", std::to_string(iterations_completed)},
+       {"dd_workers", std::to_string(dd_workers)},
        {"seconds", json_number(dd_seconds)},
        {"initial_cbp", std::to_string(initial_cbp)},
        {"final_cbp", std::to_string(cbp.size())},
@@ -2814,6 +2831,7 @@ parse_options(int& argc, char**& argv)
     ("ribosum-weight", "Weight of RIBOSUM85-60 pair-pair match scores", cxxopts::value<float>()->default_value("0.075"))
     ("eta", "Initial step width for the subgradient optimization", cxxopts::value<float>()->default_value("0.5"))
     ("m,max-iter", "The maximum number of iteration of the subgradient optimization", cxxopts::value<int>()->default_value("600"), "T")
+    ("dd-threads", "DD subproblem threads, up to 3 (0: OpenMP runtime; fold-dp-threads takes precedence)", cxxopts::value<int>()->default_value("1"), "N")
     ("f,fourway-pct", "Weight of four-way PCT", cxxopts::value<float>()->default_value("0.0"))
     ("v,verbose", "The level of verbose outputs", cxxopts::value<int>()->default_value("0"))
     ("dynamic-cbp", "Use dynamic CBP generation instead of pre-enumeration")
@@ -2867,6 +2885,7 @@ parse_options(int& argc, char**& argv)
     ("fold-aux", "Load base-pairing probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME")
     ("linfold-beam", "Beam size for LinearPartition probability calculation", cxxopts::value<int>()->default_value("100"), "SIZE")
     ("fold-dd-beam", "Beam size for the folding DD decoder (default: --linfold-beam)", cxxopts::value<int>(), "SIZE")
+    ("fold-dp-threads", "Nussinov/beam IPknot DP threads (0: OpenMP runtime)", cxxopts::value<int>()->default_value("1"), "N")
     ("fold-final-beam", "Beam size for final consensus folding (default: --linfold-beam)", cxxopts::value<int>(), "SIZE")
     ("linear-profile-energy", "Profile thermodynamic score for lpv/lpc: legacy or rnaalifold",
       cxxopts::value<std::string>()->default_value("rnaalifold"));
@@ -3071,6 +3090,15 @@ parse_options(int& argc, char**& argv)
     const uint fold_probability_beam = std::max(1, requested_fold_beam);
     const uint fold_dd_beam = std::max(1, requested_fold_dd_beam);
     const uint fold_final_beam = std::max(1, requested_fold_final_beam);
+    fold_dp_threads_ = res["fold-dp-threads"].as<int>();
+    if (fold_dp_threads_ < 0)
+      throw std::invalid_argument("--fold-dp-threads must be nonnegative");
+#ifndef _OPENMP
+    if (fold_dp_threads_ > 1)
+      throw std::invalid_argument("--fold-dp-threads > 1 requires OpenMP support");
+#endif
+    dd_threads_ = res["dd-threads"].as<int>();
+    const int dd_worker_limit = DDParallel::worker_limit(dd_threads_, fold_dp_threads_);
     fold_probability_beam_ = fold_probability_beam;
     fold_dd_beam_ = fold_dd_beam;
     fold_final_beam_ = fold_final_beam;
@@ -3165,33 +3193,30 @@ parse_options(int& argc, char**& argv)
     const bool linear_ipknot = !res["fold-aux"].count() && linear_folding &&
                                 (fold_decoder == "IPknot" ||
                                  res["ipknot"].count());
-    if (fold_decoder == "IPknot" || res["ipknot"].count())
-    {
-      if (linear_ipknot) {
-        // Use IPknot's bounded beam DD decoder over LinearPartition support.
-        // Its inner iteration budget is independent of DAFS --max-iter.
-        s_decoder_ = std::make_unique<LinearIPknot>(th_s_, fold_dd_beam, allow_isolated_);
-        s_decoder1_ = std::make_unique<LinearIPknot>(th_s1, fold_final_beam, allow_isolated_);
-        use_linear_ipknot_decoder_ = true;
-      } else {
-        s_decoder_ = std::make_unique<IPknot>(th_s_, 1, allow_isolated_);
-        s_decoder1_ = std::make_unique<IPknot>(th_s1, 1, allow_isolated_);
-      }
-    }
-    else if (fold_decoder == "Nussinov")
-    {
-      use_linear_structure_decoder_ = !res["fold-aux"].count() && linear_folding;
-      if (use_linear_structure_decoder_) {
-        s_decoder_ = std::make_unique<LinearNussinov>(th_s_[0], fold_dd_beam, allow_isolated_);
-        s_decoder1_ = std::make_unique<LinearNussinov>(th_s1[0], fold_final_beam, allow_isolated_);
-      } else {
-        s_decoder_ = std::make_unique<SparseNussinov>(th_s_[0], allow_isolated_);
-        s_decoder1_ = std::make_unique<SparseNussinov>(th_s1[0], allow_isolated_);
-      }
-    }
-    else
+    const bool ipknot_decoder = fold_decoder == "IPknot" || res["ipknot"].count();
+    if (!ipknot_decoder && fold_decoder != "Nussinov")
       throw "Unknown folding decoder: " + res["fold-decoder"].as<std::string>();
+    use_linear_ipknot_decoder_ = linear_ipknot;
+    use_linear_structure_decoder_ = !ipknot_decoder &&
+                                    !res["fold-aux"].count() && linear_folding;
+    const auto make_folding_decoder = [&](const VF& thresholds, uint beam)
+        -> std::unique_ptr<Fold::Decoder> {
+      if (linear_ipknot)
+        return std::make_unique<LinearIPknot>(thresholds, beam, allow_isolated_, fold_dp_threads_);
+      if (ipknot_decoder)
+        return std::make_unique<IPknot>(thresholds, 1, allow_isolated_);
+      if (use_linear_structure_decoder_)
+        return std::make_unique<LinearNussinov>(thresholds[0], beam, allow_isolated_, fold_dp_threads_);
+      return std::make_unique<SparseNussinov>(thresholds[0], allow_isolated_, fold_dp_threads_);
+    };
+    s_decoder_ = make_folding_decoder(th_s_, fold_dd_beam);
+    s_decoder_y_.reset();
+    if (dd_worker_limit > 1)
+      s_decoder_y_ = make_folding_decoder(th_s_, fold_dd_beam);
+    s_decoder1_ = make_folding_decoder(th_s1, fold_final_beam);
     assert(s_decoder_);
+    spdlog::info("DD subproblem worker limit: {} (requested {}, folding DP threads {})",
+                 dd_worker_limit, dd_threads_, fold_dp_threads_);
     if ((dd_recovery_interval_ || use_dd_beam_projected_norm_ || dd_beam_eta_explicit_ || dd_diagnostics_) &&
         (!use_linear_structure_decoder_ || !use_linear_alignment_decoder_ || t_max_ == 0))
       throw std::invalid_argument("DD recovery/beam controls require linear folding and alignment DD decoders");
@@ -3305,6 +3330,8 @@ int DAFS::
        {"alignment_dd_beam", std::to_string(align_dd_beam_)},
        {"folding_beam", std::to_string(fold_probability_beam_)},
        {"folding_dd_beam", std::to_string(fold_dd_beam_)},
+       {"folding_dp_threads", std::to_string(fold_dp_threads_)},
+       {"dd_threads", std::to_string(dd_threads_)},
        {"folding_final_beam", std::to_string(fold_final_beam_)},
        {"alifold", (use_alifold_ || use_alifold1_) ? "true" : "false"},
        {"alifold_progressive", use_alifold_ ? "true" : "false"},

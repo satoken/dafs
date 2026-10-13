@@ -59,7 +59,8 @@ private:
 class LinearIPknot : public IPknot
 {
 public:
-  LinearIPknot(const VF& th, uint beam_size, bool allow_isolated = true);
+  LinearIPknot(const VF& th, uint beam_size, bool allow_isolated = true,
+               int dp_threads = 1);
 };
 
 #endif // __INC_IPKNOT_H__

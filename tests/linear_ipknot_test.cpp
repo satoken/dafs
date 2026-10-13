@@ -51,7 +51,7 @@ int main()
   options.weights = {1.0f, 1.0f};
   options.dd.beam = 32;
   const auto reference = ipknot::Decoder(options).decode(length, pairs);
-  LinearIPknot decoder(options.thresholds, 32);
+  LinearIPknot decoder(options.thresholds, 32, false);
   VU structure;
   std::string brackets;
   const float score = decoder.decode(posterior, structure, brackets);

@@ -167,6 +167,8 @@ private:
   uint fold_probability_beam_;
   uint fold_dd_beam_;
   uint fold_final_beam_;
+  int fold_dp_threads_;
+  int dd_threads_;
   mutable uint metrics_merge_id_;
   mutable size_t metrics_dd_iterations_;
   mutable size_t metrics_cbp_peak_;
@@ -178,6 +180,7 @@ private:
   std::unique_ptr<Align::Decoder> a_decoder_;       // alignment decoder
   std::unique_ptr<Fold::Model> s_model_;            // folding model
   std::unique_ptr<Fold::Decoder> s_decoder_;        // folding decoder
+  std::unique_ptr<Fold::Decoder> s_decoder_y_;      // independent Y workspace for DD workers
   std::unique_ptr<Fold::Decoder> s_decoder1_;       // folding decoder for the final folding
   std::vector<Fasta> fa_;           // input sequences
   std::vector<std::vector<MP>> mp_; // alignment matching probability matrices

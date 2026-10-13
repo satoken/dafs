@@ -895,6 +895,32 @@ int main()
         return 1;
     }
   }
+  // Cross the automatic DAFS/IPknot boundary against the independent
+  // reference, including ties, missing interiors, duplicates and bad entries.
+  for (uint n : {255u,256u}) {
+    SparseFloatMatrix probability;
+    probability.assign(n,n);
+    VVU support(n);
+    VVF pair_score(n,VF(n,0));
+    for (uint j=2;j<n;++j) {
+      for (uint i=0;i+2<=j;++i) {
+        const float value=.125f*int((7*i+11*j)%13)-.5f;
+        probability.set(i,j,value);
+        pair_score[i][j]=value;
+        support[j].push_back(i);
+      }
+      std::shuffle(support[j].begin(),support[j].end(),differential_generator);
+      support[j].push_back(0);
+      support[j].push_back(j);
+      support[j].push_back(n+1);
+    }
+    for (uint beam : {1u,2u,7u,31u})
+      if (!compare_reference(differential_case++,probability,support,
+                             pair_score,beam,true) ||
+          !compare_reference(differential_case++,probability,support,
+                             pair_score,beam,false))
+        return 1;
+  }
   if (differential_pruned_instances == 0) {
     std::cerr << "reference differential tests did not exercise pruning\n";
     return 1;

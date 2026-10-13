@@ -51,7 +51,7 @@ int main()
   assert(std::fabs(dense_score - mixed_score2) < 1e-5f);
 
   IPknot dense_final(VF{0.2f});
-  IPknot sparse_final(VF{0.2f});
+  IPknot sparse_final(VF{0.2f}, 1, false);
   std::string dense_brackets, sparse_brackets;
   dense_final.decode(dense_probability, dense_result, dense_brackets);
   sparse_final.decode(sparse_probability, sparse_result, sparse_brackets);

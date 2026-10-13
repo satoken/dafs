@@ -34,11 +34,12 @@ struct LinearNussinovResult
   size_t pruned_states = 0;
 };
 
+// Independent dense reference implementation; the CLI uses the faster
+// IPknot-backed SparseNussinov for exact decoding.
 class Nussinov : public Fold::Decoder
 {
 public:
-  Nussinov(float th, bool allow_isolated = true)
-    : Fold::Decoder(), th_(th), allow_isolated_(allow_isolated) { }
+  Nussinov(float th, bool allow_isolated = true, int dp_threads = 1);
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
   float score(float w, const VVF& p, const VVF& q, const VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
@@ -46,37 +47,60 @@ public:
                const SparseFloatMatrix& pair_bonus,
                VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
+  int used_workers() const { return used_workers_; }
+  size_t parallel_steps() const { return parallel_steps_; }
 
 private:
   float th_;
   bool allow_isolated_;
+  int dp_threads_, used_workers_ = 1;
+  size_t parallel_steps_ = 0;
 };
 
 class SparseNussinov : public Fold::Decoder
 {
 public:
-  SparseNussinov(float th, bool allow_isolated = true)
-    : Fold::Decoder(), th_(th), allow_isolated_(allow_isolated) { }
+  SparseNussinov(float th, bool allow_isolated = true, int dp_threads = 1);
+  ~SparseNussinov() override;
+  SparseNussinov(const SparseNussinov&) = delete;
+  SparseNussinov& operator=(const SparseNussinov&) = delete;
   float decode(float w, const VVF& p, const VVF& q, VU& ss);
   float decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss);
+  float decode(float w, const SparseFloatMatrix& p, const VVF& q, VU& ss) override;
+  float decode(float w, const SparseFloatMatrix& p,
+               const SparseFloatMatrix& q, VU& ss) override;
   float score(float w, const VVF& p, const VVF& q, const VU& ss);
   float decode(const VVF& p, VU& ss, std::string& str);
+  float decode(const SparseFloatMatrix& p, VU& ss, std::string& str) override;
   float decode(const SparseFloatMatrix& p,
                const SparseFloatMatrix& pair_bonus,
                VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
 
+  // Exact closed components omitted by IPknot's decomposition criterion.
+  size_t sparsified_candidates() const;
+  int used_workers() const;
+  size_t parallel_steps() const;
+
 private:
+  struct Workspace;
+  template <typename PairScore>
+  float decode_impl(uint length, const std::vector<std::vector<uint>>* support,
+                    PairScore pair_score, VU& ss);
   float th_;
   bool allow_isolated_;
+  int dp_threads_;
+  std::unique_ptr<Workspace> workspace_;
 };
 
+// Chooses the measured faster beam kernel, preserving DAFS certificates.
 class LinearNussinov : public Fold::Decoder
 {
 public:
   static constexpr uint cached_support_minimum_pair_span = 2;
 
-  LinearNussinov(float th, uint beam_size, bool allow_isolated = true);
+  LinearNussinov(float th, uint beam_size, bool allow_isolated = true,
+                 int dp_threads = 1);
   ~LinearNussinov() override;
   LinearNussinov(const LinearNussinov&) = delete;
   LinearNussinov& operator=(const LinearNussinov&) = delete;
@@ -102,9 +126,13 @@ public:
                const SparseFloatMatrix& pair_bonus,
                VU& ss, std::string& str);
   void make_brackets(const VU& ss, std::string& str) const;
+  int used_workers() const;
+  size_t parallel_steps() const;
+  bool used_ipknot_kernel() const;
 
 private:
   struct Workspace;
+  struct DafsWorkspace;
 
   template <typename PairScore>
   LinearNussinovResult decode_impl(
@@ -112,9 +140,15 @@ private:
       const std::vector<std::vector<uint>>& pairs_by_right,
       PairScore pair_score, VU& ss, bool certify);
 
+  template <typename PairScore>
+  LinearNussinovResult decode_dafs_impl(
+      uint length, const std::vector<std::vector<uint>>& pairs_by_right,
+      PairScore pair_score, VU& ss, bool certify);
+
   float th_;
   uint beam_size_;
   bool allow_isolated_;
+  int dp_threads_;
   std::unique_ptr<Workspace> workspace_;
 };
 

@@ -28,7 +28,8 @@
 namespace {
 ipknot::DecoderOptions decoder_options(const VF& thresholds,
                                        ipknot::Backend backend,
-                                       int threads, bool allow_isolated, uint beam = 100)
+                                       int threads, bool allow_isolated, uint beam = 100,
+                                       int dp_threads = 1)
 {
   ipknot::DecoderOptions options;
   options.thresholds = thresholds;
@@ -39,6 +40,7 @@ ipknot::DecoderOptions decoder_options(const VF& thresholds,
   options.no_lonely_pairs = !allow_isolated;
   if (beam > static_cast<uint>(std::numeric_limits<int>::max()))
     throw std::invalid_argument("IPknot beam is too large");
+  options.dd.dp_threads = dp_threads;
   options.dd.beam = std::max(1u, beam);
   return options;
 }
@@ -79,8 +81,8 @@ IPknot::IPknot(ipknot::DecoderOptions options)
     throw std::invalid_argument("Too many IPknot levels for bracket output");
 }
 
-LinearIPknot::LinearIPknot(const VF& th, uint beam_size, bool allow_isolated)
-  : IPknot(decoder_options(th, ipknot::Backend::DD, 1, allow_isolated, beam_size))
+LinearIPknot::LinearIPknot(const VF& th, uint beam_size, bool allow_isolated, int dp_threads)
+  : IPknot(decoder_options(th, ipknot::Backend::DD, 1, allow_isolated, beam_size, dp_threads))
 {
 }
 

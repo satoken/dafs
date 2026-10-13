@@ -159,6 +159,7 @@ if(BUILD_TESTING)
   target_include_directories(linear_nussinov_test PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR})
   target_compile_features(linear_nussinov_test PRIVATE cxx_std_17)
+  target_link_libraries(linear_nussinov_test PRIVATE IPknot::decoder)
   add_test(NAME linear_nussinov COMMAND linear_nussinov_test)
 
   add_executable(nussinov_isolated_test
@@ -166,7 +167,65 @@ if(BUILD_TESTING)
   target_include_directories(nussinov_isolated_test PRIVATE
       ${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR})
   target_compile_features(nussinov_isolated_test PRIVATE cxx_std_17)
+  target_link_libraries(nussinov_isolated_test PRIVATE IPknot::decoder)
   add_test(NAME nussinov_isolated COMMAND nussinov_isolated_test)
+
+  add_executable(sparse_nussinov_test
+      ../tests/sparse_nussinov_test.cpp nussinov.cpp)
+  target_include_directories(sparse_nussinov_test PRIVATE
+      ${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR})
+  target_compile_features(sparse_nussinov_test PRIVATE cxx_std_17)
+  target_link_libraries(sparse_nussinov_test PRIVATE IPknot::decoder)
+  add_test(NAME sparse_nussinov COMMAND sparse_nussinov_test)
+  set_tests_properties(sparse_nussinov PROPERTIES TIMEOUT 30)
+
+  add_executable(nussinov_parallel_test
+      ../tests/nussinov_parallel_test.cpp nussinov.cpp)
+  target_include_directories(nussinov_parallel_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(nussinov_parallel_test PRIVATE cxx_std_17)
+  target_link_libraries(nussinov_parallel_test PRIVATE IPknot::decoder)
+  # Instrumented builds exercise every DP path with fewer large repeats.
+  set(DAFS_NUSSINOV_PARALLEL_ARGS)
+  if(CMAKE_CXX_FLAGS MATCHES "-fsanitize")
+    list(APPEND DAFS_NUSSINOV_PARALLEL_ARGS --sanitizer-smoke)
+  endif()
+  add_test(NAME nussinov_parallel COMMAND nussinov_parallel_test
+      ${DAFS_NUSSINOV_PARALLEL_ARGS})
+  set_tests_properties(nussinov_parallel PROPERTIES TIMEOUT 180)
+  if(CMAKE_CXX_FLAGS MATCHES "-fsanitize")
+    set_tests_properties(nussinov_parallel PROPERTIES TIMEOUT 300
+        ENVIRONMENT "OMP_WAIT_POLICY=PASSIVE")
+  endif()
+  get_target_property(DAFS_DECODER_LINKS IPknot::decoder INTERFACE_LINK_LIBRARIES)
+  if(DAFS_DECODER_LINKS MATCHES "OpenMP::OpenMP_CXX")
+    set(DAFS_TEST_OPENMP 1)
+  else()
+    set(DAFS_TEST_OPENMP 0)
+  endif()
+  add_test(NAME folding_threads_pipeline COMMAND ${Python3_EXECUTABLE}
+      ${PROJECT_SOURCE_DIR}/tests/test_folding_threads.py $<TARGET_FILE:dafs>
+      ${PROJECT_SOURCE_DIR}/tests/data/tiny.fa ${DAFS_TEST_OPENMP})
+  set_tests_properties(folding_threads_pipeline PROPERTIES TIMEOUT 60)
+
+  add_executable(dd_parallel_test ../tests/dd_parallel_test.cpp)
+  target_include_directories(dd_parallel_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(dd_parallel_test PRIVATE cxx_std_17)
+  target_link_libraries(dd_parallel_test PRIVATE IPknot::decoder)
+  add_test(NAME dd_parallel COMMAND dd_parallel_test)
+  set_tests_properties(dd_parallel PROPERTIES TIMEOUT 30)
+  if(DAFS_HAS_IP_BACKEND)
+    set(DAFS_TEST_ILP 1)
+  else()
+    set(DAFS_TEST_ILP 0)
+  endif()
+  set(DAFS_DD_THREADS_ARGS)
+  if(CMAKE_CXX_FLAGS MATCHES "-fsanitize")
+    list(APPEND DAFS_DD_THREADS_ARGS --sanitizer-smoke)
+  endif()
+  add_test(NAME dd_threads_pipeline COMMAND ${Python3_EXECUTABLE}
+      ${PROJECT_SOURCE_DIR}/tests/test_dd_threads.py $<TARGET_FILE:dafs>
+      ${DAFS_TEST_OPENMP} ${DAFS_TEST_ILP} ${DAFS_DD_THREADS_ARGS})
+  set_tests_properties(dd_threads_pipeline PROPERTIES TIMEOUT 90)
 
   add_executable(ribosum_test ../tests/ribosum_test.cpp ribosum.cpp)
   target_include_directories(ribosum_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

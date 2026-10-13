@@ -73,7 +73,79 @@ the sparse candidate support alongside its interval beam, preserving linear
 work and storage for fixed beams and sparse degrees. DD repair removes pairs
 that lose stack support on either aligned profile.
 
-For IPknot, the setting applies to both DD and ILP. With
+For nonlinear folding models, `SparseNussinov` uses the public `DDNussinov`
+oracle from the current IPknot decoder, with beam pruning disabled. It reuses
+IPknot's closed-candidate sparsification, suffix dominance, and lazy traceback,
+adapting the decomposition criterion in
+[Gray, Will and Jabbari (2024)](https://doi.org/10.1186/s13015-024-00256-4)
+to DAFS's additive pair scores. The optimal subproblem score is preserved;
+tied structures and DD trajectories can differ. Negative paired states remain
+available to support profitable helices when isolated pairs are forbidden.
+DAFS's minimum pair span and posterior/multiplier support are preserved.
+Sparse inputs keep their endpoint support, including final profile bonuses.
+Sparse candidate graphs use its sparse exact chart. Dense inputs and graphs
+whose interval chart fits within 512 bytes per retained candidate use its
+compact interval (wavefront) chart.
+Both apply exact closed-candidate sparsification, and the decoder workspace
+is reused when the candidate graph and chart type are unchanged. Worst-case time
+remains cubic and chart/trace memory quadratic plus the pair support.
+Finite-beam `LinearNussinov` automatically selects a kernel using timings
+with the same support, beam, isolated-pair policy and worker count. Short or
+very sparse inputs use the optimized DAFS kernel; inputs with at least 256
+positions and 16 candidate entries per position on average use the public
+IPknot `DDNussinov` kernel. This measured heuristic avoids IPknot adapter
+costs on small PK inputs while using its faster kernel on populated charts.
+The independent dense DAFS `Nussinov` remains a test/reference API. No backend
+selection flag is needed; exact CLI decoding uses IPknot's oracle above.
+Both beam kernels preserve DAFS's minimum span, tie order, treatment of pruned
+inside states and completion bounds. IPknot's pruning observer reports discarded
+beam states to the existing bound calculation, preserving DD termination.
+Both reuse signed paired states, suffix dominance, lazy traceback and parallel
+candidate buffers; decomposable closed-component pruning is restricted to
+exact decoding. Weights and masks are refreshed on each solve. IPknot graphs
+reuse their indices while endpoints stay unchanged. When endpoints change at
+the same length, `reset_pairs()` rebuilds indices while retaining chart and
+traceback buffers. Adjacent stack indices use flat arrays, avoiding a hash-table
+rebuild for each DD support update.
+These choices apply to decoding independently of BPP calculation.
+
+`--fold-dp-threads N` selects within-DP workers for progressive, recovery and
+final Nussinov decoding, and for beam IPknot. The default is 1; 0 uses the
+OpenMP runtime limit (for example, `OMP_NUM_THREADS=4`). Negative values are
+rejected. Builds without OpenMP accept only 0 and 1. The option does not change
+ILP solver threads or probability calculation. Exact interval charts parallelize
+by interval length; very sparse exact charts remain serial to avoid allocating
+quadratic interval storage. LinearNussinov keeps one team across endpoints,
+uses private candidate buffers and merges ties in original support order.
+Like IPknot, it falls back to serial execution below 8,192 estimated prefix
+offers per endpoint and caps workers at one per 4,096 offers. Small/sparse
+inputs therefore need not use all requested workers or become faster.
+For fixed beams and workers, sparse beam storage remains O(L*b + M + N*L).
+Scores, structures and DAFS beam certificates are deterministic across worker
+counts; the independent dense Nussinov API also supports interval parallelism.
+No global OpenMP settings or nested worker teams are introduced.
+
+`--dd-threads N` instead distributes each DD iteration's X folding, Y folding
+and Z alignment subproblems across up to three workers. The default is 1; 0
+uses the OpenMP runtime limit. Each folding subproblem owns its decoder and
+workspace. Objectives are summed in X/Y/Z order after joining, before shared
+multiplier updates, certificates or primal recovery. Results remain
+deterministic across worker counts. If `--fold-dp-threads` is anything other
+than 1, within-DP parallelism takes precedence and DD subproblems run serially.
+Without OpenMP, only 0 and 1 are accepted. Metrics record the requested
+`dd_threads` at run start and the actual maximum `dd_workers` for each DD merge.
+For example, `dafs --dd-threads 3 input.fa` assigns one worker per subproblem;
+it does not parallelize probability calculation, final folding or profile merges.
+Pair-match variables are evaluated after dynamic CBP generation and pricing,
+which depend on the X/Y/Z solutions.
+
+The IPknot checkout/package must expose `DDNussinov::PruningObserver` and the
+constructor overload for retained-inside compatibility, and `reset_pairs()`.
+These extensions are
+included in the adjacent IPknot checkout used here. Rebuild installed decoder
+packages from that checkout before building DAFS with `-DIPKNOT_SOURCE_DIR=`.
+
+For IPknot, the isolated-pair setting applies to both DD and ILP. With
 `--disallow-isolated`, DD requires an immediately adjacent stacked pair on the
 same level; ILP requires neighboring paired left endpoints and neighboring
 paired right endpoints on that level. The DD

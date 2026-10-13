@@ -103,13 +103,13 @@ void fixtures()
   constexpr uint length = 10;
   VVF p(length, VF(length)), q = p;
   p[0][9] = 0.95f;
-  Nussinov exact(0.2f), allowed_exact(0.2f, true);
-  SparseNussinov sparse(0.2f), allowed_sparse(0.2f, true);
-  LinearNussinov linear(0.2f, length), allowed_linear(0.2f, length, true);
+  Nussinov exact(0.2f, false), allowed_exact(0.2f, true);
+  SparseNussinov sparse(0.2f, false), allowed_sparse(0.2f, true);
+  LinearNussinov linear(0.2f, length, false), allowed_linear(0.2f, length, true);
   VU ss;
   std::string brackets;
   for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&exact, &sparse, &linear}) {
-    require(decoder->decode(p, ss, brackets) == 0.0f, "default allows lone pair");
+    require(decoder->decode(p, ss, brackets) == 0.0f, "no-isolated decoder allows lone pair");
     require(brackets == "..........", "lone pair rendered by default");
   }
   for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&allowed_exact, &allowed_sparse, &allowed_linear}) {
@@ -173,14 +173,14 @@ void randomized()
     const double best = oracle(span_two ? cached : normal, w, p, q, threshold);
     VU ss;
     if (!span_two) {
-      Nussinov exact(threshold);
-      SparseNussinov sparse(threshold);
+      Nussinov exact(threshold, false);
+      SparseNussinov sparse(threshold, false);
       require(close(exact.decode(w, p, q, ss), best), "dense DP differs from enumeration");
       validate(best, ss, w, p, q, threshold);
       require(close(sparse.decode(w, p, q, ss), best), "sparse DP differs from enumeration");
       validate(best, ss, w, p, q, threshold);
       require(close(sparse.decode(w, p, qs, ss), best), "mixed DP differs from enumeration");
-      LinearNussinov wide(threshold, length);
+      LinearNussinov wide(threshold, length, false);
       require(close(wide.decode(w, p, q, ss), best), "wide dense beam differs from enumeration");
       require(close(wide.decode(w, p, qs, ss), best), "wide mixed beam differs from enumeration");
       require(close(wide.decode(w, ps, q, ss), best), "wide sparse/dense beam differs");
@@ -194,7 +194,7 @@ void randomized()
       if (right > 0) support[right].push_back(right-1);
     }
     for (uint beam : {1u, 2u, 5u, length}) {
-      LinearNussinov decoder(threshold, beam);
+      LinearNussinov decoder(threshold, beam, false);
       const auto result = decoder.decode_certified(w, ps, qs, support, ss);
       validate(result.score, ss, w, p, q, threshold);
       require(result.score <= best + 3e-5, "beam exceeds exact optimum");
@@ -233,7 +233,7 @@ void long_sparse()
     p.set(i, i+7, 0.9f);
     p.set(i+1, i+6, 0.9f);
   }
-  LinearNussinov decoder(0.2f, 4);
+  LinearNussinov decoder(0.2f, 4, false);
   VU ss;
   const auto result = decoder.decode_certified(1.0f, p, q, ss);
   require(close(result.score, 0.7 * (length/4)), "long sparse helices lost");
