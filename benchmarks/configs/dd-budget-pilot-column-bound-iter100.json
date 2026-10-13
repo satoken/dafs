@@ -1,0 +1,211 @@
+{
+  "binary": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/build-arm64/src/dafs",
+  "output_dir": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/results-murlet-dataset1-dd-budget-arm64-v272/pilot/column-bound/iter-100",
+  "timeout_seconds": 3600,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {
+    "OMP_NUM_THREADS": "1"
+  },
+  "sci": {
+    "bin_dir": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "version": "2.7.2"
+  },
+  "dataset_manifests": [
+    "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/data/murlet/manifest.json"
+  ],
+  "dataset_filter": {
+    "ids": [
+      "murlet-dataset1-RF00436-2",
+      "murlet-dataset1-RF00031-2",
+      "murlet-dataset1-RF00181-2",
+      "murlet-dataset1-RF00169-2",
+      "murlet-dataset1-RF00059-2",
+      "murlet-dataset1-RF00001-2",
+      "murlet-dataset1-RF00175-2",
+      "murlet-dataset1-RF00050-2",
+      "murlet-dataset1-RF00002-2",
+      "murlet-dataset1-RF00004-2",
+      "murlet-dataset1-RF00230-1",
+      "murlet-dataset1-RF00017-1"
+    ]
+  },
+  "conditions": [
+    {
+      "id": "cl_linear_ath02_iter100",
+      "label": "lpc x LinearAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.5,
+      "final_ribosum_weight": 0.01,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--align-th=0.02",
+        "--seed=42",
+        "--refinement=0",
+        "--dd-column-bound"
+      ],
+      "base_condition": "cl_linear_ath02",
+      "max_iter": 100,
+      "dd_budget_mode": "column-bound"
+    },
+    {
+      "id": "lpv_probcons_fpct05_iter100",
+      "label": "lpv x LinearProbCons",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign-ProbConsRNA",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--weight=4",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--fold-pct=0.5",
+        "--seed=42",
+        "--refinement=0",
+        "--dd-column-bound"
+      ],
+      "base_condition": "lpv_probcons_fpct05",
+      "max_iter": 100,
+      "dd_budget_mode": "column-bound"
+    },
+    {
+      "id": "lpc_contralign_ath02_iter100",
+      "label": "lpc x LinearCONTRAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.005,
+      "args": [
+        "-a",
+        "LinearAlign-CONTRAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005",
+        "--align-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--align-th=0.02",
+        "--seed=42",
+        "--refinement=0",
+        "--dd-column-bound"
+      ],
+      "base_condition": "lpc_contralign_ath02",
+      "max_iter": 100,
+      "dd_budget_mode": "column-bound"
+    },
+    {
+      "id": "lpv_linear_fpct05_iter100",
+      "label": "lpv x LinearAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--align-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--fold-pct=0.5",
+        "--seed=42",
+        "--refinement=0",
+        "--dd-column-bound"
+      ],
+      "base_condition": "lpv_linear_fpct05",
+      "max_iter": 100,
+      "dd_budget_mode": "column-bound"
+    }
+  ],
+  "comparison": {
+    "baseline_results": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/results-murlet-dataset1-luna-round2-arm64-v272",
+    "baseline_binary": "/tmp/dafs-luna-relaxed-X52WP9/dafs-baseline",
+    "baseline_binary_sha256": "75b6fa32805ec02cb3caf32186978cc6f6aed9bf0c51aec410a5347dda9a8531",
+    "purpose": "compare approximate Luna candidate with frozen current Round2",
+    "mode": "approximate-output",
+    "dd_tight_alignment": false,
+    "max_iter_values": [
+      100,
+      1000
+    ],
+    "beam_values": [
+      100
+    ],
+    "expected_dataset_count": 85,
+    "expected_condition_count": 8,
+    "expected_runs": 680,
+    "prediction_difference_is_nonfatal": true,
+    "validity_gate": "execution success, metrics invariants, and decoder bounds remain valid"
+  },
+  "luna_relaxed": {
+    "driver": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/benchmark_luna_relaxed.py",
+    "candidate_is_frozen_required_before_run": true,
+    "pilot_required_before_full_run": true,
+    "full_run_command": "python3 benchmarks/run.py --config benchmarks/configs/luna-relaxed.json --jobs 16",
+    "full_run_note": "jobs=16 is throughput-only; use direct serial AB for attribution on this heterogeneous host"
+  },
+  "dd_budget": {
+    "schema_version": 1,
+    "scope": "pilot",
+    "mode": "column-bound",
+    "mode_flag": "--dd-column-bound",
+    "complexity_note": "strict-linear candidate: O(L+M) column-capacity path",
+    "budget": 100,
+    "budget_is_per_progressive_merge": true,
+    "source_config": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-relaxed.json",
+    "source_config_sha256": "56b16dcabbbe55b03a27bab4d7e3910908268365916610dd96f8b6fe5bb28b53",
+    "binary_sha256": "753129a65753f63b33031c3284ce00be5a09559706c7c21955e6d8d0df2e1695",
+    "dataset_count": 12,
+    "condition_count": 4,
+    "expected_runs": 48,
+    "fixed_parameters": {
+      "beam": 100,
+      "seed": 42,
+      "omp_num_threads": 1,
+      "refinement": 0,
+      "viennarna": "2.7.2"
+    }
+  }
+}

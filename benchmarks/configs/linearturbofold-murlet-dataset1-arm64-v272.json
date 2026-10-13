@@ -1,0 +1,31 @@
+{
+  "binary": "../../../../LinearFold/LinearTurboFold/bin/linearturbofold",
+  "output_dir": "../results-linearturbofold-murlet-dataset1-arm64-v272",
+  "timeout_seconds": 1800,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {"OMP_NUM_THREADS": "1"},
+  "sci": {
+    "bin_dir": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "version": "2.7.2"
+  },
+  "dataset_manifests": ["../data/murlet/manifest.json"],
+  "dataset_filter": {"collections": ["dataset1"]},
+  "conditions": [
+    {
+      "id": "linearturbofold",
+      "ribosum": "not_applicable",
+      "options": {
+        "hmm_beam": 100,
+        "cky_beam": 100,
+        "iterations": 3,
+        "save_bpps": false,
+        "save_pfs": false,
+        "verbose": false,
+        "min_helix_length": 3,
+        "pk_iterations": 1,
+        "threshold": 0.3
+      }
+    }
+  ]
+}

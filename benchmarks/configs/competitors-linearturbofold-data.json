@@ -1,0 +1,27 @@
+{
+  "method_group": "linearturbofold-repository-nonviral-data-current-tools",
+  "output_dir": "../results-competitors-linearturbofold-data",
+  "timeout_seconds": 14400,
+  "repetitions": 1,
+  "random_seed": 42,
+  "cwd": "../..",
+  "environment": {
+    "OMP_NUM_THREADS": "1",
+    "MAFFT_BINARIES": "../tools/install/mafft-7.526/libexec/mafft",
+    "LARA2_BIN_DIR": "../tools/install/lara-2.0.1/bin",
+    "TCOFFEE_BIN_DIR": "../tools/install/tcoffee/bin",
+    "VIENNA_RNA_DIR": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "CONTRALIGN_DIR": "../tools/install/contralign-2.01/bin"
+  },
+  "dataset_manifests": ["../data/linearturbofold-nonviral/manifest.json"],
+  "sci": {"version": "2.7.2", "timeout_seconds": 3600},
+  "methods": [
+    {"id": "locarna-2.0.1", "name": "LocARNA 2.0.1", "binary": "../tools/install/locarna-2.0.1/bin/mlocarna", "argv": ["{binary}", "--quiet", "--keep-sequence-order", "--tgtdir", "{run_dir}/tool", "{input}"], "output_mode": "path", "output_path": "{run_dir}/tool/results/result.aln", "consensus_structure": "rnaalifold"},
+    {"id": "raf-1.0.0", "name": "RAF 1.00 (ViennaRNA 2.7.2 + CONTRAlign 2.01)", "binary": "../tools/install/raf-1.00/bin/raf", "argv": ["{binary}", "predict", "--tmp_dir", "{run_dir}/tool/raf-tmp", "--vienna", "{input}"], "output_mode": "stdout", "consensus_structure": "rnaalifold", "drop_sequence_names": ["consensus"]},
+    {"id": "mafft-qinsi-7.526", "name": "MAFFT Q-INS-i 7.526", "binary": "../tools/install/mafft-7.526/bin/mafft-qinsi", "argv": ["{binary}", "--thread", "1", "{input}"], "output_mode": "stdout", "consensus_structure": "rnaalifold"},
+    {"id": "mafft-xinsi-7.526", "name": "MAFFT X-INS-i 7.526", "binary": "../tools/install/mafft-7.526/bin/mafft-xinsi", "argv": ["{binary}", "--scarnapair", "--thread", "1", "{input}"], "output_mode": "stdout", "consensus_structure": "rnaalifold"},
+    {"id": "mafft-ginsi-7.526", "name": "MAFFT G-INS-i 7.526", "binary": "../tools/install/mafft-7.526/bin/ginsi", "argv": ["{binary}", "--thread", "1", "{input}"], "output_mode": "stdout", "consensus_structure": "rnaalifold"},
+    {"id": "rnamountalign-1.0", "name": "RNAmountAlign 1.0", "binary": "../tools/install/rnamountalign-1.0/bin/RNAmountAlign", "argv": ["{binary}", "-f", "{input}", "-format", "fasta", "-o", "{run_dir}/tool/rnamountalign.fa"], "output_mode": "path", "output_path": "{run_dir}/tool/rnamountalign.fa", "input_alphabet": "ACGTU", "consensus_structure": "rnaalifold"},
+    {"id": "lara2-tcoffee-13.46.2", "name": "LaRA2 2.0.1 + T-Coffee 13.46.2", "binary": "../tools/lara2_tcoffee_wrapper.py", "argv": ["{binary}", "--input", "{input}", "--output", "{run_dir}/tool/lara2-tcoffee.fa"], "output_mode": "path", "output_path": "{run_dir}/tool/lara2-tcoffee.fa", "consensus_structure": "rnaalifold"}
+  ]
+}

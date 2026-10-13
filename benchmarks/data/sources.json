@@ -1,4 +1,49 @@
 {
+  "dafs_paper": {
+    "article": "https://academic.oup.com/bioinformatics/article/28/24/3218/246194",
+    "availability_url": "http://www.ncrna.org/software/dafs/",
+    "doi": "10.1093/bioinformatics/bts612",
+    "established_datasets": [
+      {
+        "expected_alignment_count": 599,
+        "id": "bralibase2",
+        "manifest_collection_prefix": "BRAliBaseII-",
+        "paper": "Gardner et al. 2005",
+        "status": "prepared_in_murlet_archive"
+      },
+      {
+        "expected_alignment_count": 273,
+        "id": "murlet",
+        "manifest_collections": [
+          "dataset1",
+          "dataset2"
+        ],
+        "paper": "Kiryu et al. 2007",
+        "status": "prepared_in_murlet_archive"
+      },
+      {
+        "archive_url": "https://web.archive.org/web/20151107002200/http://servers.binf.ku.dk/mastr/",
+        "expected_alignment_count": 52,
+        "id": "mastr",
+        "paper": "Lindgreen et al. 2007",
+        "source_url": "http://mastr.binf.ku.dk/",
+        "status": "historical_archive_not_recovered"
+      },
+      {
+        "archive_url": "https://web.archive.org/web/20150526045159/http://mxscarna.ncrna.org/",
+        "expected_alignment_count": 1693,
+        "id": "mxscarna",
+        "paper": "Tabei et al. 2008",
+        "source_url": "http://mxscarna.ncrna.org/",
+        "status": "historical_archive_not_recovered"
+      }
+    ],
+    "original_pk_count": 82,
+    "original_pkfree_count": 691,
+    "rfam_release": "11.0",
+    "selection_rule": "manually curated Rfam seed alignments with consensus structures published in the literature",
+    "sequences_per_alignment": 10
+  },
   "linearturbofold": {
     "collections": [
       "16S-25",
@@ -10,17 +55,45 @@
     "commit": "445808976857df01c57e5d9302a0bbee10515bb5",
     "data_tree": "e6dd90779d2273240bfa621d7ea3739dbeac92cc",
     "paper": "10.1073/pnas.2116269118",
-    "repository": "https://github.com/LinearFold/LinearTurboFold"
+    "repository": "https://github.com/LinearFold/LinearTurboFold",
+    "published_accuracy_benchmark": {
+      "families": ["16S rRNA Alphaproteobacteria", "SRP RNA Protozoan", "RNase P bacterial type A", "telomerase RNA"],
+      "groups_per_resampling": 60,
+      "resamplings": 5,
+      "sequences_per_group": 5,
+      "status": "exact_group_list_and_reference_alignments_not_in_official_repository"
+    },
+    "rnastralign_archive": {
+      "local_path_from_repository_root": "benchmarks/tools/downloads/RNAStrAlign.tar.gz",
+      "sha256": "48ca0d41337bcaf02ede796c8f6c4c8d70d674b32a9dce3450c2fa89ba392a90",
+      "contents": "per-sequence BPSEQ files and a training list; no reference MSA files",
+      "status": "structure_only_for_this_alignment_benchmark"
+    }
   },
   "prepared": {
+    "dafs_paper_generated_alignment_counts": {
+      "pk": 31,
+      "pkfree": 247
+    },
+    "dafs_paper_manifest": "rfam11-paper-reconstructed/manifest.json",
+    "dafs_paper_selection_status": "reconstructed_one_sample_per_eligible_family",
     "dafs_pkfree_exact_selection_available": false,
     "linearturbofold_nonviral_dataset_count": 65,
     "linearturbofold_nonviral_manifest": "linearturbofold-nonviral/manifest.json",
+    "original_paper_runnable_case_count": 21508,
+    "original_paper_manifest": "original-paper/manifest.json",
+    "rfam15_1_current_case_count": 545,
+    "rfam15_1_current_manifest": "rfam15.1-current/manifest.json",
+    "rfam15_1_long_case_count": 19,
+    "rfam15_1_long_manifest": "rfam15.1-long/manifest.json",
+    "rfam15_1_long_minimum_longest_sequence_nt": 500,
     "murlet_dataset_count": 872,
     "murlet_manifest": "murlet/manifest.json",
+    "rfam11_long_dataset_count": 4,
+    "rfam11_long_manifest": "rfam11-long/manifest.json",
     "rfam_11_seed": "raw/Rfam.seed.11.0.gz"
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "sources": {
     "murlet": {
       "local_path": "raw/murlet_dataset.tgz",
@@ -34,6 +107,13 @@
       "paper": "10.1093/bioinformatics/bts612",
       "sha256": "900a2ec8dd9dcf7ceb49067ffb5f41e320baf43e2445a7056ecd79a673e92737",
       "url": "https://ftp.ebi.ac.uk/pub/databases/Rfam/11.0/Rfam.seed.gz",
+      "verified": true
+    },
+    "rfam_15_1_seed": {
+      "local_path": "raw/Rfam.seed.15.1.gz",
+      "release": "15.1",
+      "sha256": "41f014f4ab5628620935f089b1bb77987ebc162fda7c72bff368a32c9cccabac",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/Rfam/15.1/Rfam.seed.gz",
       "verified": true
     }
   }

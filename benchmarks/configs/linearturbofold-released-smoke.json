@@ -1,0 +1,13 @@
+{
+  "binary": "../../benchmarks/tools/install/linearturbofold/bin/linearturbofold",
+  "source_dir": "../../benchmarks/tools/sources/LinearTurboFold",
+  "output_dir": "../results-linearturbofold-released-smoke",
+  "timeout_seconds": 7200,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {"OMP_NUM_THREADS": "1"},
+  "dataset_manifests": ["../data/linearturbofold-nonviral/manifest.json"],
+  "dataset_filter": {"ids": ["linearturbofold-23S-5-k523sgroup2"]},
+  "sci": {"version": "2.7.2", "timeout_seconds": 3600},
+  "conditions": [{"id": "linearturbofold", "ribosum": "not_applicable", "options": {}}]
+}

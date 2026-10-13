@@ -1,0 +1,12 @@
+diff --git a/src/aux.cpp b/src/aux.cpp
+index 20a8447..3bfbd26 100644
+--- a/src/aux.cpp
++++ b/src/aux.cpp
+@@ -1,5 +1,7 @@
+ #include "aux.h"
+ 
++bool verbose = false;
++
+ double round_percision(double x,int percision){
+ 	return round(pow(10,percision)*x)/pow(10,percision);
+ }

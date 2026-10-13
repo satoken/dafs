@@ -1,0 +1,12 @@
+{
+  "binary": "../../benchmarks/tools/install/linearturbofold/bin/linearturbofold",
+  "source_dir": "../../benchmarks/tools/sources/LinearTurboFold",
+  "output_dir": "../results-linearturbofold-released-data",
+  "timeout_seconds": 14400,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {"OMP_NUM_THREADS": "1"},
+  "dataset_manifests": ["../data/linearturbofold-nonviral/manifest.json"],
+  "sci": {"version": "2.7.2", "timeout_seconds": 3600},
+  "conditions": [{"id": "linearturbofold", "ribosum": "not_applicable", "options": {}}]
+}

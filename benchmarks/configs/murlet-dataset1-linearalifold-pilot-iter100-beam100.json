@@ -1,0 +1,235 @@
+{
+  "binary": "../../build-arm64/src/dafs",
+  "output_dir": "../results-murlet-dataset1-linearalifold-pilot-iter100-beam100",
+  "timeout_seconds": 1800,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {
+    "OMP_NUM_THREADS": "1"
+  },
+  "sci": {
+    "bin_dir": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "version": "2.7.2"
+  },
+  "dataset_manifests": [
+    "../data/murlet/manifest.json"
+  ],
+  "dataset_filter": {
+    "collections": [
+      "dataset1"
+    ],
+    "ids": [
+      "murlet-dataset1-RF00031-0",
+      "murlet-dataset1-RF00003-0",
+      "murlet-dataset1-RF00017-0"
+    ]
+  },
+  "conditions": [
+    {
+      "id": "cl_linear_ath02",
+      "label": "lpc x LinearAlign",
+      "phase": "parameter",
+      "linear": true,
+      "ribosum_weight": 0.5,
+      "final_ribosum_weight": 0.01,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01",
+        "--align-th=0.02",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ]
+    },
+    {
+      "id": "cl_linear_ath02_alifold",
+      "label": "lpc x LinearAlign (LinearAlifold)",
+      "phase": "parameter",
+      "linear": true,
+      "ribosum_weight": 0.5,
+      "final_ribosum_weight": 0.01,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpc",
+        "--alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01",
+        "--align-th=0.02",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ]
+    },
+    {
+      "id": "lpv_probcons_fpct05",
+      "label": "lpv x LinearProbCons",
+      "phase": "parameter",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign-ProbConsRNA",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--weight=4",
+        "--fold-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ]
+    },
+    {
+      "id": "lpv_probcons_fpct05_alifold",
+      "label": "lpv x LinearProbCons (LinearAlifold)",
+      "phase": "parameter",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign-ProbConsRNA",
+        "-s",
+        "lpv",
+        "--alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--weight=4",
+        "--fold-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ]
+    },
+    {
+      "id": "lpc_contralign_ath02",
+      "label": "lpc x LinearCONTRAlign",
+      "phase": "parameter",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.005,
+      "args": [
+        "-a",
+        "LinearAlign-CONTRAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005",
+        "--align-pct=0.5",
+        "--align-th=0.02",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ]
+    },
+    {
+      "id": "lpc_contralign_ath02_alifold",
+      "label": "lpc x LinearCONTRAlign (LinearAlifold)",
+      "phase": "parameter",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.005,
+      "args": [
+        "-a",
+        "LinearAlign-CONTRAlign",
+        "-s",
+        "lpc",
+        "--alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005",
+        "--align-pct=0.5",
+        "--align-th=0.02",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ]
+    },
+    {
+      "id": "lpv_linear_fpct05",
+      "label": "lpv x LinearAlign",
+      "phase": "parameter",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--align-pct=0.5",
+        "--fold-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ]
+    },
+    {
+      "id": "lpv_linear_fpct05_alifold",
+      "label": "lpv x LinearAlign (LinearAlifold)",
+      "phase": "parameter",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpv",
+        "--alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--align-pct=0.5",
+        "--fold-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ]
+    }
+  ]
+}

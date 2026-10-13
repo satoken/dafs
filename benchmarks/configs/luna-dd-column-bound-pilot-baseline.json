@@ -1,0 +1,179 @@
+{
+  "binary": "/tmp/dafs-dd-accel-BpeZy7/dafs-baseline",
+  "comparison": {
+    "accuracy_filters_and_stop_criteria_changed": false,
+    "candidate_only_arg": "--dd-column-bound",
+    "flag_on": false,
+    "mode": "dd-column-bound",
+    "output_difference_is_nonfatal": false
+  },
+  "conditions": [
+    {
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01",
+        "--max-iter=1000",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--align-th=0.02"
+      ],
+      "base_condition": "cl_linear_ath02",
+      "final_ribosum_weight": 0.01,
+      "id": "cl_linear_ath02_iter1000",
+      "label": "lpc x LinearAlign",
+      "linear": true,
+      "max_iter": 1000,
+      "phase": "max_iter_sweep",
+      "ribosum_weight": 0.5
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign-ProbConsRNA",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--weight=4",
+        "--max-iter=1000",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--fold-pct=0.5"
+      ],
+      "base_condition": "lpv_probcons_fpct05",
+      "final_ribosum_weight": 0.0,
+      "id": "lpv_probcons_fpct05_iter1000",
+      "label": "lpv x LinearProbCons",
+      "linear": true,
+      "max_iter": 1000,
+      "phase": "max_iter_sweep",
+      "ribosum_weight": 0.3
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign-CONTRAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005",
+        "--align-pct=0.5",
+        "--max-iter=1000",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--align-th=0.02"
+      ],
+      "base_condition": "lpc_contralign_ath02",
+      "final_ribosum_weight": 0.005,
+      "id": "lpc_contralign_ath02_iter1000",
+      "label": "lpc x LinearCONTRAlign",
+      "linear": true,
+      "max_iter": 1000,
+      "phase": "max_iter_sweep",
+      "ribosum_weight": 0.3
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--align-pct=0.5",
+        "--max-iter=1000",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--fold-pct=0.5"
+      ],
+      "base_condition": "lpv_linear_fpct05",
+      "final_ribosum_weight": 0.0,
+      "id": "lpv_linear_fpct05_iter1000",
+      "label": "lpv x LinearAlign",
+      "linear": true,
+      "max_iter": 1000,
+      "phase": "max_iter_sweep",
+      "ribosum_weight": 0.3
+    }
+  ],
+  "dataset_filter": {
+    "ids": [
+      "murlet-dataset1-RF00436-2",
+      "murlet-dataset1-RF00031-2",
+      "murlet-dataset1-RF00181-2",
+      "murlet-dataset1-RF00169-2",
+      "murlet-dataset1-RF00059-2",
+      "murlet-dataset1-RF00001-2",
+      "murlet-dataset1-RF00175-2",
+      "murlet-dataset1-RF00050-2",
+      "murlet-dataset1-RF00002-2",
+      "murlet-dataset1-RF00004-2",
+      "murlet-dataset1-RF00230-1",
+      "murlet-dataset1-RF00017-1"
+    ]
+  },
+  "dataset_manifests": [
+    "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/data/murlet/manifest.json"
+  ],
+  "dd_acceleration": {
+    "baseline_binary_sha256": "47ae4d266b60a00291b71aab57abdc2175957d84fa324fc1e2e902170107da1e",
+    "beam": 100,
+    "binary_sha256": "47ae4d266b60a00291b71aab57abdc2175957d84fa324fc1e2e902170107da1e",
+    "candidate_flag": "--dd-column-bound",
+    "candidate_only_difference": "condition args contain the flag only when flag_on=true",
+    "candidate_output_change_is_allowed": false,
+    "condition_count": 4,
+    "dataset_count": 12,
+    "driver": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/benchmark_dd_acceleration.py",
+    "expected_runs": 48,
+    "flag_on": false,
+    "pilot_dataset_count": 12,
+    "schema_version": 1,
+    "scope": "pilot",
+    "source_config": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-relaxed.json",
+    "source_config_sha256": "56b16dcabbbe55b03a27bab4d7e3910908268365916610dd96f8b6fe5bb28b53",
+    "variant": "baseline"
+  },
+  "environment": {
+    "OMP_NUM_THREADS": "1"
+  },
+  "luna_relaxed": {
+    "candidate_is_frozen_required_before_run": true,
+    "driver": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/benchmark_luna_relaxed.py",
+    "full_run_command": "python3 benchmarks/run.py --config benchmarks/configs/luna-relaxed.json --jobs 16",
+    "full_run_note": "jobs=16 is throughput-only; use direct serial AB for attribution on this heterogeneous host",
+    "pilot_required_before_full_run": true
+  },
+  "output_dir": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/results-murlet-dataset1-dd-column-bound-arm64-v272/pilot/baseline",
+  "random_seed": 42,
+  "repetitions": 1,
+  "sci": {
+    "bin_dir": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "version": "2.7.2"
+  },
+  "timeout_seconds": 3600
+}

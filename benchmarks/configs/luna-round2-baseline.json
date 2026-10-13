@@ -1,0 +1,306 @@
+{
+  "binary": "/tmp/dafs-luna-round2-7MkkIm/build-arm64/src/dafs",
+  "output_dir": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/results-murlet-dataset1-luna-decoder-arm64-v272",
+  "timeout_seconds": 3600,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {
+    "OMP_NUM_THREADS": "1"
+  },
+  "sci": {
+    "bin_dir": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "version": "2.7.2"
+  },
+  "dataset_manifests": [
+    "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/data/murlet/manifest.json"
+  ],
+  "dataset_filter": {
+    "collections": [
+      "dataset1"
+    ]
+  },
+  "conditions": [
+    {
+      "id": "cl_linear_ath02_iter100",
+      "label": "lpc x LinearAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.5,
+      "final_ribosum_weight": 0.01,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--align-th=0.02"
+      ],
+      "base_condition": "cl_linear_ath02",
+      "max_iter": 100
+    },
+    {
+      "id": "cl_linear_ath02_iter1000",
+      "label": "lpc x LinearAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.5,
+      "final_ribosum_weight": 0.01,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01",
+        "--max-iter=1000",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--align-th=0.02"
+      ],
+      "base_condition": "cl_linear_ath02",
+      "max_iter": 1000
+    },
+    {
+      "id": "lpv_probcons_fpct05_iter100",
+      "label": "lpv x LinearProbCons",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign-ProbConsRNA",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--weight=4",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--fold-pct=0.5"
+      ],
+      "base_condition": "lpv_probcons_fpct05",
+      "max_iter": 100
+    },
+    {
+      "id": "lpv_probcons_fpct05_iter1000",
+      "label": "lpv x LinearProbCons",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign-ProbConsRNA",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--weight=4",
+        "--max-iter=1000",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--fold-pct=0.5"
+      ],
+      "base_condition": "lpv_probcons_fpct05",
+      "max_iter": 1000
+    },
+    {
+      "id": "lpc_contralign_ath02_iter100",
+      "label": "lpc x LinearCONTRAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.005,
+      "args": [
+        "-a",
+        "LinearAlign-CONTRAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005",
+        "--align-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--align-th=0.02"
+      ],
+      "base_condition": "lpc_contralign_ath02",
+      "max_iter": 100
+    },
+    {
+      "id": "lpc_contralign_ath02_iter1000",
+      "label": "lpc x LinearCONTRAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.005,
+      "args": [
+        "-a",
+        "LinearAlign-CONTRAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005",
+        "--align-pct=0.5",
+        "--max-iter=1000",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--align-th=0.02"
+      ],
+      "base_condition": "lpc_contralign_ath02",
+      "max_iter": 1000
+    },
+    {
+      "id": "lpv_linear_fpct05_iter100",
+      "label": "lpv x LinearAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--align-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--fold-pct=0.5"
+      ],
+      "base_condition": "lpv_linear_fpct05",
+      "max_iter": 100
+    },
+    {
+      "id": "lpv_linear_fpct05_iter1000",
+      "label": "lpv x LinearAlign",
+      "phase": "max_iter_sweep",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--align-pct=0.5",
+        "--max-iter=1000",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100",
+        "--fold-pct=0.5"
+      ],
+      "base_condition": "lpv_linear_fpct05",
+      "max_iter": 1000
+    }
+  ],
+  "sweep": {
+    "type": "max_iter",
+    "selected_conditions": [
+      "vp_alifold_w2",
+      "cc_alifold_fth03",
+      "cl_linear_ath02",
+      "lpv_probcons_fpct05",
+      "lpc_contralign_ath02",
+      "lpv_linear_fpct05"
+    ],
+    "values": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900,
+      1000
+    ],
+    "selection_order": [
+      "mcc",
+      "sci",
+      "sps"
+    ]
+  },
+  "comparison": {
+    "baseline_results": "../results-murlet-dataset1-luna-decoder-arm64-v272",
+    "purpose": "compare round2 decoder changes with the frozen prior-luna decoder baseline",
+    "selected_conditions": [
+      "cl_linear_ath02",
+      "lpc_contralign_ath02",
+      "lpv_linear_fpct05",
+      "lpv_probcons_fpct05"
+    ],
+    "max_iter_values": [
+      100,
+      1000
+    ]
+  },
+  "luna_optimization": {
+    "driver": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/benchmark_luna_optimization.py",
+    "source_config": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-decoder-optimized.json",
+    "source_config_sha256": "82d3ce20fb26da1900686cd2c92501cf2000669d886a1ea3dd3ed942349a56e4",
+    "variant": "baseline",
+    "mode": "decoder-only",
+    "dd_tight_alignment": false,
+    "max_iter_values": [
+      100,
+      1000
+    ],
+    "dataset_suffix": null,
+    "dataset_limit": null,
+    "condition_count": 8,
+    "dataset_count": 85,
+    "expected_runs": 680,
+    "binary_sha256": "49f9abb54daef26701ef0b396192b113c47ee851ddf6c86d23f5d687eee43432"
+  }
+}

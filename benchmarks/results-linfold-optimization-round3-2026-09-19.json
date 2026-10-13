@@ -1,0 +1,548 @@
+{
+  "schema_version": 1,
+  "round": 3,
+  "date": "2026-09-19",
+  "scope": "LinearPartition / LinearAlifold profile BPP fastpaths and dense pair-score cache",
+  "decision": "adopt_profile_fastpaths_plus_dense_pair_score_cache",
+  "constraints": {
+    "max_iter": 100,
+    "align_beam": 100,
+    "align_dd_beam": 100,
+    "linfold_beam": 100,
+    "fold_dd_beam": 100,
+    "fold_final_beam": 100,
+    "dataset_count": 85,
+    "conditions_per_dataset": 4,
+    "formal_run_count": 340,
+    "parallel_jobs": 8
+  },
+  "config_sha256": "23a935626952683d9c9bfc51fcd1241b7007a32a9af5189124251410833e581a",
+  "pilot_config_sha256": "9c8e87c0ebd38b628b5f110f1e843a5991128bc2580434e14e64e26ecf097305",
+  "build": {
+    "build_dir": "/tmp/dafs-linfold-fast-build",
+    "build_type": "Release",
+    "compiler": "/usr/bin/c++ (GNU 13.3.0)",
+    "cxx_flags": "-O3 -DNDEBUG -std=gnu++17",
+    "cmake_configure": "cmake -S . -B /tmp/dafs-linfold-fast-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DGLPK_INCLUDE_DIR=/home/linuxbrew/.linuxbrew/include -DGLPK_LIBRARY=/home/linuxbrew/.linuxbrew/lib/libglpk.so",
+    "viennarna": "2.7.2",
+    "viennarna_prefix": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64",
+    "glpk_enabled": true,
+    "glpk_include_dir": "/home/linuxbrew/.linuxbrew/include",
+    "glpk_library": "/home/linuxbrew/.linuxbrew/lib/libglpk.so",
+    "omp_num_threads": "1",
+    "architecture": "aarch64"
+  },
+  "baseline": {
+    "binary": "/tmp/dafs-luna-round3-baseline.LW7gSD/dafs",
+    "binary_sha256": "cd3e20c9d7267440bca9440e2d6b61748117dcdb0552e1398b180ff662654f19",
+    "pilot_results": "/tmp/dafs-luna-round3-baseline-pilot",
+    "formal_results": "/tmp/dafs-luna-round3-baseline-85",
+    "formal_manifest": "/tmp/dafs-luna-round3-baseline-85/manifest.json",
+    "binary_build_configuration": "GLPK enabled, Release, ViennaRNA 2.7.2"
+  },
+  "candidate": {
+    "binary": "/tmp/dafs-linfold-fast-build/src/dafs",
+    "binary_sha256": "ec882997b27178a51a28f778641d6263e29fc2d4ac463bb9e05b51c063dd4ac9",
+    "formal_results": "/tmp/dafs-luna-round3-profileD-glpk-85",
+    "formal_manifest": "/tmp/dafs-luna-round3-profileD-glpk-85/manifest.json",
+    "comparison_report": "/tmp/dafs-luna-round3-profileD-glpk-85-compare/luna_optimization_report.json",
+    "implementation": [
+      "profile.h internal-loop and pair-type fastpaths with exact normalization and signed-zero preservation",
+      "linfold_wrapper dense pair-score cache for profile lengths 64..1024; unordered-map fallback outside that range"
+    ],
+    "linfold_core_cpp_unchanged": true
+  },
+  "source": {
+    "live_and_final_key_files": {
+      "src/linearfold/fold/linfold.cpp": "eab97d1e4e2a417f16b88d52472e70adbc495ff1c23889d732fc3b42cd9a0a4a",
+      "src/linfold_wrapper.cpp": "54303c095eb84752797199dad0e35708f325384140fdc7b65d76f15c7138203b",
+      "src/linearfold/param/profile.h": "36e2c9407ad1db9e45382f9d084f60f5b2c8e0910152a12d9e13fa916dbd7403",
+      "cmake/FindGLPK.cmake": "5dae20d6c18df596030183c753a43ba8b0ad8935f0d2c1d9f70a9d09e4f4eec4"
+    },
+    "matches_live_repo": true,
+    "linfold_core_baseline_sha256": "eab97d1e4e2a417f16b88d52472e70adbc495ff1c23889d732fc3b42cd9a0a4a",
+    "profile_before_sha256": "726213393efcd8c4bd0acece2752ee9e8416d4af30206bbe9ed2845d927ce500",
+    "wrapper_before_sha256": "e23497644f3d6f43e3f146b6a34ff365b9fb2d9843bf148f0cf8b1c52df83c39"
+  },
+  "pilot": {
+    "exploratory_results": "/tmp/dafs-luna-round3-profileD-official-pilot",
+    "exploratory_comparison": "/tmp/dafs-luna-round3-profileD-official-pilot-compare/luna_optimization_report.json",
+    "backend_matched_to_formal": false,
+    "note": "This 24-run pilot used the same source candidate but an isolated build without GLPK. It was used for early equality/timing screening; formal speed numbers below use the GLPK-matched 85x4 run.",
+    "paired_runs": 24,
+    "prediction_equal": 24,
+    "quality_equal": 24,
+    "summary_non_time_equal": 24,
+    "trace_equal": 24
+  },
+  "formal_comparison": {
+    "driver_mode": "decoder-only",
+    "driver_mode_note": "Generic comparison-driver label; scope is LinearPartition/LinearAlifold PF evaluation.",
+    "baseline_kind": "fresh",
+    "expected_runs": 340,
+    "paired_runs": 340,
+    "errors": 0,
+    "missing_runs": 0,
+    "unexpected_runs": 0,
+    "prediction_bytes_equal": 340,
+    "quality_dict_equal": 340,
+    "summary_non_time_equal": 340,
+    "trace_events_equal": 340,
+    "max_abs_per_case_quality_delta": {
+      "mcc": 0.0,
+      "sci": 0.0,
+      "sps": 0.0
+    },
+    "quality_difference_cases": [],
+    "summary_non_time_difference_case_count": 0,
+    "summary_full_difference_case_count_including_time": 340,
+    "summary_full_difference_note": "The full summary object includes measured time fields; the non-time summary comparison used for correctness was equal for 340/340 runs.",
+    "conditions": {
+      "cl_linear_ath02": {
+        "count": 85,
+        "success_count": 85,
+        "prediction_equal_count": 85,
+        "quality_equal_count": 85,
+        "summary_non_time_equal_count": 85,
+        "trace_equal_count": 85,
+        "baseline_mean_wall_seconds_per_input": 1.6481176470588235,
+        "candidate_mean_wall_seconds_per_input": 1.6436470588235295,
+        "wall_speedup": 1.0027199198339416,
+        "wall_reduction_percent": 0.2712541937325936,
+        "baseline_mean_cpu_seconds_per_input": 1.6412941176470588,
+        "candidate_mean_cpu_seconds_per_input": 1.6372941176470586,
+        "cpu_speedup": 1.0024430552561616,
+        "cpu_reduction_percent": 0.24371012830622835,
+        "baseline_mean_dd_seconds_per_input": 0.5726642703764706,
+        "candidate_mean_dd_seconds_per_input": 0.5709442867058824,
+        "dd_wall_speedup": 1.0030125245328434,
+        "dd_wall_reduction_percent": 0.30034764862447444,
+        "baseline_mean_max_rss_kb": 17994.164705882355,
+        "candidate_mean_max_rss_kb": 17889.270588235293,
+        "rss_change_percent": -0.5829340753603939,
+        "quality_means": {
+          "mcc": {
+            "baseline_mean": 0.6880817391773209,
+            "candidate_mean": 0.6880817391773209,
+            "delta": 0.0
+          },
+          "sci": {
+            "baseline_mean": 0.6721022090132424,
+            "candidate_mean": 0.6721022090132424,
+            "delta": 0.0
+          },
+          "sps": {
+            "baseline_mean": 0.7568682593023911,
+            "candidate_mean": 0.7568682593023911,
+            "delta": 0.0
+          }
+        },
+        "stage_times": {
+          "alignment_probabilities": {
+            "baseline_mean_seconds_per_input": 0.36583085490588235,
+            "candidate_mean_seconds_per_input": 0.3672536763764706,
+            "speedup": 0.9961257801838048
+          },
+          "base_pair_probabilities": {
+            "baseline_mean_seconds_per_input": 0.6745200405411764,
+            "candidate_mean_seconds_per_input": 0.6704299229882353,
+            "speedup": 1.006100738366078
+          },
+          "final_consensus_folding": {
+            "baseline_mean_seconds_per_input": 0.0003710102117647059,
+            "candidate_mean_seconds_per_input": 0.00037579451764705883,
+            "speedup": 0.9872688246962498
+          },
+          "guide_tree": {
+            "baseline_mean_seconds_per_input": 2.7441129411764705e-05,
+            "candidate_mean_seconds_per_input": 2.615534117647059e-05,
+            "speedup": 1.0491596812528223
+          },
+          "probabilistic_consistency": {
+            "baseline_mean_seconds_per_input": 0.021158259894117647,
+            "candidate_mean_seconds_per_input": 0.021150081211764708,
+            "speedup": 1.0003866974443762
+          },
+          "progressive_alignment": {
+            "baseline_mean_seconds_per_input": 0.5756261284,
+            "candidate_mean_seconds_per_input": 0.5738165841647059,
+            "speedup": 1.0031535237656615
+          },
+          "similarity_and_fourway_pct": {
+            "baseline_mean_seconds_per_input": 0.008396677023529411,
+            "candidate_mean_seconds_per_input": 0.008504523988235294,
+            "speedup": 0.987318871126112
+          }
+        }
+      },
+      "cl_linear_ath02_alifold": {
+        "count": 85,
+        "success_count": 85,
+        "prediction_equal_count": 85,
+        "quality_equal_count": 85,
+        "summary_non_time_equal_count": 85,
+        "trace_equal_count": 85,
+        "baseline_mean_wall_seconds_per_input": 3.320588235294118,
+        "candidate_mean_wall_seconds_per_input": 3.112235294117647,
+        "wall_speedup": 1.0669463975202238,
+        "wall_reduction_percent": 6.274579273693535,
+        "baseline_mean_cpu_seconds_per_input": 3.313764705882353,
+        "candidate_mean_cpu_seconds_per_input": 3.106117647058823,
+        "cpu_speedup": 1.0668509961366563,
+        "cpu_reduction_percent": 6.266198033159381,
+        "baseline_mean_dd_seconds_per_input": 0.5395723301294117,
+        "candidate_mean_dd_seconds_per_input": 0.5266869524,
+        "dd_wall_speedup": 1.0244649647588493,
+        "dd_wall_reduction_percent": 2.3880723695229773,
+        "baseline_mean_max_rss_kb": 21759.058823529413,
+        "candidate_mean_max_rss_kb": 21753.176470588234,
+        "rss_change_percent": -0.027034041264769437,
+        "quality_means": {
+          "mcc": {
+            "baseline_mean": 0.6913065983165301,
+            "candidate_mean": 0.6913065983165301,
+            "delta": 0.0
+          },
+          "sci": {
+            "baseline_mean": 0.6966483733967561,
+            "candidate_mean": 0.6966483733967561,
+            "delta": 0.0
+          },
+          "sps": {
+            "baseline_mean": 0.74560851771455,
+            "candidate_mean": 0.74560851771455,
+            "delta": 0.0
+          }
+        },
+        "stage_times": {
+          "alignment_probabilities": {
+            "baseline_mean_seconds_per_input": 0.3648977318705882,
+            "candidate_mean_seconds_per_input": 0.36523212728235294,
+            "speedup": 0.999084430457274
+          },
+          "base_pair_probabilities": {
+            "baseline_mean_seconds_per_input": 0.6688635057058824,
+            "candidate_mean_seconds_per_input": 0.6667339322705882,
+            "speedup": 1.003194037879611
+          },
+          "final_consensus_folding": {
+            "baseline_mean_seconds_per_input": 0.1200689934,
+            "candidate_mean_seconds_per_input": 0.10586067812941176,
+            "speedup": 1.1342171193464203
+          },
+          "guide_tree": {
+            "baseline_mean_seconds_per_input": 2.5588858823529413e-05,
+            "candidate_mean_seconds_per_input": 2.5786376470588234e-05,
+            "speedup": 0.9923402325532589
+          },
+          "probabilistic_consistency": {
+            "baseline_mean_seconds_per_input": 0.02104745554117647,
+            "candidate_mean_seconds_per_input": 0.021116119705882352,
+            "speedup": 0.9967482584081605
+          },
+          "progressive_alignment": {
+            "baseline_mean_seconds_per_input": 2.1329903922470588,
+            "candidate_mean_seconds_per_input": 1.9412161420588234,
+            "speedup": 1.0987907765823761
+          },
+          "similarity_and_fourway_pct": {
+            "baseline_mean_seconds_per_input": 0.008427308270588236,
+            "candidate_mean_seconds_per_input": 0.008499142952941177,
+            "speedup": 0.9915480086932669
+          }
+        }
+      },
+      "lpv_linear_fpct05": {
+        "count": 85,
+        "success_count": 85,
+        "prediction_equal_count": 85,
+        "quality_equal_count": 85,
+        "summary_non_time_equal_count": 85,
+        "trace_equal_count": 85,
+        "baseline_mean_wall_seconds_per_input": 1.8231764705882352,
+        "candidate_mean_wall_seconds_per_input": 1.8255294117647058,
+        "wall_speedup": 0.9987110910614164,
+        "wall_reduction_percent": -0.12905723688456272,
+        "baseline_mean_cpu_seconds_per_input": 1.8164705882352943,
+        "candidate_mean_cpu_seconds_per_input": 1.8185882352941174,
+        "cpu_speedup": 0.9988355544054861,
+        "cpu_reduction_percent": -0.1165803108808061,
+        "baseline_mean_dd_seconds_per_input": 0.7265443618470587,
+        "candidate_mean_dd_seconds_per_input": 0.7233710859882353,
+        "dd_wall_speedup": 1.0043867883584099,
+        "dd_wall_reduction_percent": 0.43676284965671824,
+        "baseline_mean_max_rss_kb": 19500.988235294117,
+        "candidate_mean_max_rss_kb": 19374.870588235295,
+        "rss_change_percent": -0.6467243892315464,
+        "quality_means": {
+          "mcc": {
+            "baseline_mean": 0.6694438160705112,
+            "candidate_mean": 0.6694438160705112,
+            "delta": 0.0
+          },
+          "sci": {
+            "baseline_mean": 0.6809205532661841,
+            "candidate_mean": 0.6809205532661841,
+            "delta": 0.0
+          },
+          "sps": {
+            "baseline_mean": 0.7727891220049236,
+            "candidate_mean": 0.7727891220049236,
+            "delta": 0.0
+          }
+        },
+        "stage_times": {
+          "alignment_probabilities": {
+            "baseline_mean_seconds_per_input": 0.3658337889882353,
+            "candidate_mean_seconds_per_input": 0.3668401601882353,
+            "speedup": 0.9972566493279156
+          },
+          "base_pair_probabilities": {
+            "baseline_mean_seconds_per_input": 0.6849784137529412,
+            "candidate_mean_seconds_per_input": 0.688653909882353,
+            "speedup": 0.994662781875384
+          },
+          "final_consensus_folding": {
+            "baseline_mean_seconds_per_input": 0.0002929204117647059,
+            "candidate_mean_seconds_per_input": 0.0002970562470588235,
+            "speedup": 0.9860772653830147
+          },
+          "guide_tree": {
+            "baseline_mean_seconds_per_input": 2.471169411764706e-05,
+            "candidate_mean_seconds_per_input": 2.5623e-05,
+            "speedup": 0.964434067737855
+          },
+          "probabilistic_consistency": {
+            "baseline_mean_seconds_per_input": 0.02947419185882353,
+            "candidate_mean_seconds_per_input": 0.029471447152941175,
+            "speedup": 1.00009313101824
+          },
+          "progressive_alignment": {
+            "baseline_mean_seconds_per_input": 0.7317045610705882,
+            "candidate_mean_seconds_per_input": 0.7286441837764706,
+            "speedup": 1.0042000984324835
+          },
+          "similarity_and_fourway_pct": {
+            "baseline_mean_seconds_per_input": 0.008637111411764707,
+            "candidate_mean_seconds_per_input": 0.008724672847058823,
+            "speedup": 0.9899639290975094
+          }
+        }
+      },
+      "lpv_linear_fpct05_alifold": {
+        "count": 85,
+        "success_count": 85,
+        "prediction_equal_count": 85,
+        "quality_equal_count": 85,
+        "summary_non_time_equal_count": 85,
+        "trace_equal_count": 85,
+        "baseline_mean_wall_seconds_per_input": 3.4532941176470593,
+        "candidate_mean_wall_seconds_per_input": 3.247411764705882,
+        "wall_speedup": 1.0633989059160238,
+        "wall_reduction_percent": 5.96191189997617,
+        "baseline_mean_cpu_seconds_per_input": 3.4467058823529406,
+        "candidate_mean_cpu_seconds_per_input": 3.2403529411764707,
+        "cpu_speedup": 1.063682242312021,
+        "cpu_reduction_percent": 5.986961122299195,
+        "baseline_mean_dd_seconds_per_input": 0.642976917164706,
+        "candidate_mean_dd_seconds_per_input": 0.6246625379411764,
+        "dd_wall_speedup": 1.0293188371498823,
+        "dd_wall_reduction_percent": 2.848372738525243,
+        "baseline_mean_max_rss_kb": 22743.011764705883,
+        "candidate_mean_max_rss_kb": 22753.647058823528,
+        "rss_change_percent": 0.04676290997724944,
+        "quality_means": {
+          "mcc": {
+            "baseline_mean": 0.6687548851677158,
+            "candidate_mean": 0.6687548851677158,
+            "delta": 0.0
+          },
+          "sci": {
+            "baseline_mean": 0.6889644805322459,
+            "candidate_mean": 0.6889644805322459,
+            "delta": 0.0
+          },
+          "sps": {
+            "baseline_mean": 0.7558510183682937,
+            "candidate_mean": 0.7558510183682937,
+            "delta": 0.0
+          }
+        },
+        "stage_times": {
+          "alignment_probabilities": {
+            "baseline_mean_seconds_per_input": 0.36377666488235294,
+            "candidate_mean_seconds_per_input": 0.36688309289411764,
+            "speedup": 0.9915329213258098
+          },
+          "base_pair_probabilities": {
+            "baseline_mean_seconds_per_input": 0.686367773717647,
+            "candidate_mean_seconds_per_input": 0.6901801866117647,
+            "speedup": 0.9944762064051221
+          },
+          "final_consensus_folding": {
+            "baseline_mean_seconds_per_input": 0.1186409674,
+            "candidate_mean_seconds_per_input": 0.10513373072941176,
+            "speedup": 1.1284767179560338
+          },
+          "guide_tree": {
+            "baseline_mean_seconds_per_input": 2.3529035294117646e-05,
+            "candidate_mean_seconds_per_input": 2.467936470588235e-05,
+            "speedup": 0.9533890184989031
+          },
+          "probabilistic_consistency": {
+            "baseline_mean_seconds_per_input": 0.029361762788235293,
+            "candidate_mean_seconds_per_input": 0.02952383988235294,
+            "speedup": 0.9945102976183486
+          },
+          "progressive_alignment": {
+            "baseline_mean_seconds_per_input": 2.2423130336352943,
+            "candidate_mean_seconds_per_input": 2.0435675726588234,
+            "speedup": 1.097254166505436
+          },
+          "similarity_and_fourway_pct": {
+            "baseline_mean_seconds_per_input": 0.008618419835294117,
+            "candidate_mean_seconds_per_input": 0.008747992847058824,
+            "speedup": 0.985188258149037
+          }
+        }
+      }
+    }
+  },
+  "direct_bpp_probe": {
+    "model": "ProfileNearestNeighbor",
+    "input": "/tmp/dafs-luna-round3-RF00017-aligned.fa",
+    "baseline_output": "/tmp/dafs-luna-round3-baseline-profile.txt",
+    "candidate_output": "/tmp/dafs-luna-round3-profileD-glpk-profile.txt",
+    "pair_count_baseline": 7537,
+    "pair_count_candidate": 7537,
+    "pair_key_sets_equal": true,
+    "baseline_logz": 132.4238946217366,
+    "candidate_logz": 132.4238946217366,
+    "logz_bitwise_equal": true,
+    "max_abs_bpp_difference": 0.0,
+    "max_relative_bpp_difference": 0.0,
+    "cutoff_crossings": {
+      "0.001": 0,
+      "0.01": 0,
+      "0.05": 0,
+      "0.1": 0
+    },
+    "baseline_output_sha256": "0326d87e70ac3fc6a6b3d94f4397319f53ba50b9868827c040e015849e4d123d",
+    "candidate_output_sha256": "0326d87e70ac3fc6a6b3d94f4397319f53ba50b9868827c040e015849e4d123d"
+  },
+  "tests": {
+    "build_dir": "/tmp/dafs-linfold-fast-build",
+    "ctest_total": 13,
+    "ctest_passed": 13,
+    "ctest_failed": 0,
+    "names": [
+      "linear_models_fail_fast",
+      "linear_profile_oracle",
+      "linear_partition_exhaustive",
+      "relaxed_bounds",
+      "gradient_manager",
+      "linear_nussinov",
+      "ribosum_pair_match",
+      "benchmark_scorer",
+      "benchmark_runner_regression",
+      "benchmark_runner_smoke",
+      "reject_negative_max_iter",
+      "linear_pipeline_smoke",
+      "zero_max_iter_uses_ip"
+    ]
+  },
+  "rejected_candidates": {
+    "A_all_models": {
+      "binary_sha256": "e8239c5017ea7c4d5edbe4a3d953c3d5361ddba8797ed542368bbd9f6b084c88",
+      "source_lfold_sha256": "085be5992c0664fb346735ef4f3fd01bf44ebf3637ab11292c68341985b4b04e",
+      "formal_runs": 340,
+      "prediction_equal": 325,
+      "quality_equal": 325,
+      "worst_mcc_case": "lpv_linear_fpct05_alifold/murlet-dataset1-RF00230-2/rep-01",
+      "worst_mcc_baseline": 0.3332227733137743,
+      "worst_mcc_candidate": 0.2139047960088078,
+      "worst_mcc_delta": -0.11931797730496652,
+      "lpv_alifold_mean_mcc_baseline": 0.668755,
+      "lpv_alifold_mean_mcc_candidate": 0.665658,
+      "decision": "reject"
+    },
+    "A_profile_only": {
+      "binary_sha256": "5d15ab1204408c5b58527f4c6bc0ac5bc5c3e3790a51e1ed8498e138f76cf455",
+      "pilot_runs": 24,
+      "prediction_equal": 23,
+      "quality_equal": 23,
+      "case": "cl_linear_ath02_alifold/murlet-dataset1-RF00017-0/rep-01",
+      "mcc_baseline": 0.5075759900153514,
+      "mcc_candidate": 0.47811387912031633,
+      "mcc_delta": -0.029462110895035032,
+      "decision": "reject"
+    },
+    "C_only": {
+      "description": "Skip energy calculations for unreachable beta=-inf destinations in outside/BPP updates",
+      "binary_sha256": "6faaeb136d0856e564b55fe0e24cc5e646339a5c3eb5289dbd4ef16e1dc809fb",
+      "pilot_runs": 24,
+      "prediction_equal": 24,
+      "quality_equal": 24,
+      "summary_non_time_equal": 24,
+      "trace_equal": 24,
+      "decision": "defer_due_to_no_clear_speed_gain"
+    },
+    "E_allowed_pairs_array": {
+      "description": "Store the allowed_pairs bitset contiguously",
+      "decision": "reject_for_this_round",
+      "reason": "microbenchmark benefit was below pipeline noise while Options grew from 208 to 8376 bytes"
+    },
+    "B_shared_preparation": {
+      "description": "Share constraint/table preparation across inside, outside, and BPP passes",
+      "decision": "hold",
+      "reason": "gprof self-sample evidence did not justify implementation in this round"
+    }
+  },
+  "profiling": {
+    "perf_available": false,
+    "perf_note": "perf_event_paranoid=4 / perf unavailable in this environment",
+        "gprof_binary_sha256_prefix": "0abc240b",
+        "gprof_is_formal_timing": false,
+        "gprof_note": "Hotspot shape only from an A-like exploratory candidate; this was not the baseline or formal candidate timing.",
+    "hotspot_shape_percent_samples": {
+      "profile_callback": 13.65,
+      "profile_compute_outside": 9.75,
+      "profile_add_alpha": 9.01,
+      "decode": 8.36,
+      "profile_compute_inside": 5.48,
+      "logsumexp": 3.71
+    }
+  },
+  "cleanup": {
+    "status": "completed_after_results_saved",
+    "repo_intermediate_removed": [
+      "benchmarks/round3_bpp_probe.cpp"
+    ],
+    "removed_intermediate_categories": [
+      "isolated candidate source/build trees",
+      "rejected A/C candidate raw run directories",
+      "interrupted old-normalization and A-profile runs",
+      "temporary BPP probe binaries and exploratory output not used by the formal result"
+    ],
+    "preserved_result_paths": [
+      "/tmp/dafs-luna-round3-baseline-85",
+      "/tmp/dafs-luna-round3-profileD-glpk-85",
+      "/tmp/dafs-luna-round3-profileD-glpk-85-compare",
+      "/tmp/dafs-luna-round3-baseline-pilot",
+      "/tmp/dafs-luna-round3-profileD-official-pilot",
+      "/tmp/dafs-luna-round3-profileD-official-pilot-compare",
+      "/tmp/dafs-luna-round3-baseline-profile.txt",
+      "/tmp/dafs-luna-round3-profileD-glpk-profile.txt",
+      "/tmp/dafs-luna-round3-RF00017-aligned.fa",
+      "/tmp/dafs-linfold-fast-build",
+      "/tmp/dafs-luna-round3-baseline.LW7gSD/dafs"
+    ]
+  },
+  "artifacts": {
+    "formal_compare_json": "/tmp/dafs-luna-round3-profileD-glpk-85-compare/luna_optimization_report.json",
+    "formal_compare_csv": "/tmp/dafs-luna-round3-profileD-glpk-85-compare/luna_optimization_per_condition.csv",
+    "baseline_manifest": "/tmp/dafs-luna-round3-baseline-85/manifest.json",
+    "candidate_manifest": "/tmp/dafs-luna-round3-profileD-glpk-85/manifest.json",
+    "checkpoint": "/tmp/dafs-luna-round3-checkpoint.txt"
+  }
+}

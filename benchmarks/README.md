@@ -203,6 +203,112 @@ recalculates reference metrics and SCI without executing LinearTurboFold.
 The Slurm wrapper exposes the same mode with `SCORE_ONLY=1`; it is useful for
 repairing or extending evaluation after a scoring-only issue.
 
+## External structural-alignment competitors
+
+`run_competitor.py` runs methods whose command lines and output locations are
+declared in JSON. It normalizes FASTA, Stockholm, and CLUSTAL outputs, derives
+an RNAalifold consensus structure when requested, and records each executable
+checksum. The supplied pins and legacy-tool notes are in
+`benchmarks/tools/versions.json` and `benchmarks/tools/README.md`.
+
+### User-supplied DAFS archives and current Rfam
+
+The user's original archives in ~/dafs-data are imported without
+reconstruction, and the current Rfam seed can be prepared with:
+
+    python3 benchmarks/data/import_original.py
+    python3 benchmarks/data/prepare_latest_rfam.py
+
+The original-archive manifest has 21,508 runnable cases across BRAliBase 2.1,
+PKfree, PK, MASTR, and MXSCARNA. The competitors-original-paper.json
+configuration runs the locally built current-tool set on all five collections;
+MASTR has no reference MSA in the supplied archive, so it yields runtime/SCI
+but not accuracy metrics. The BRAliBase 2.0 archive is annotation-only and is
+not counted as runnable. This current-tool track is distinct from a strict
+historical reproduction, which also depends on the original program releases
+and exact Rfam 11.0 family selection.
+
+The Rfam 15.1 prepared set contains 545 usable structure-bearing families
+(one deterministic 10-sequence sample per family); 19 long reference-backed
+cases (at least one sequence >=500 nt, including the family's longest sequence)
+are separated into the rfam15.1-long panel. Eight of those cases include a
+sequence >=1,000 nt; the longest is 4,065 nt. Run either panel with:
+
+    python3 benchmarks/run_competitor.py --config benchmarks/configs/competitors-rfam15.1.json --sci-bin-dir /path/to/ViennaRNA-2.7.2/bin --sci-version 2.7.2 --jobs 2
+    python3 benchmarks/run_competitor.py --config benchmarks/configs/competitors-rfam15.1-long.json --sci-bin-dir /path/to/ViennaRNA-2.7.2/bin --sci-version 2.7.2 --jobs 1
+
+LinearTurboFold's official 65 nonviral sequence groups are also prepared. All
+65 have now completed successfully, including output validation and SCI. Their
+runtime median is 11.86 s, mean 22.53 s, and maximum 155.82 s; the maximum
+observed RSS is about 0.80 GiB. The 23S group mean is 90.89 s. The run results
+are in `results-linearturbofold-released-data/summary.csv`; reproduce or resume
+the benchmark with:
+
+    python3 benchmarks/run_linearturbofold.py --config benchmarks/configs/linearturbofold-released-data.json --sci-bin-dir /path/to/ViennaRNA-2.7.2/bin --sci-version 2.7.2 --jobs 2
+
+The same 65 groups can be run through external aligners with
+competitors-linearturbofold-data.json. Since the official distribution
+contains no reference MSAs, those results are scaling/output-validation data,
+not accuracy evidence. For long-RNA accuracy, use the reference-backed Rfam
+long panel and supplement it with additional curated long-family alignments
+before making broad claims; the 19-family Rfam panel is still a pilot.
+
+Do not confuse those 65 repository groups with LinearTurboFold's paper accuracy
+set (60 groups of five sequences, sampled five times from four RNAStrAlign
+families). The exact selection list and reference MSAs are not in the official
+repository; the separately retained RNAStrAlign archive has per-sequence
+BPSEQ files only. Thus the completed 65-case run is a reproducible scaling
+benchmark, not a reproduction of the paper's reference-based accuracy result.
+
+LocARNA 2.0.1, RNAmountAlign 1.0, LaRA2 2.0.1 + T-Coffee 13.46.2, RAF 1.00,
+and MAFFT 7.526 Q-INS-i, X-INS-i, and G-INS-i are wired into the common benchmark
+runner. RNAmountAlign accepts only A/C/G/U/T, so inputs containing ambiguity
+symbols are marked skipped rather than altered. LocARNA needs `-fsigned-char`
+on this AArch64 host to avoid an upstream CLI-parser EOF bug. CentroidAlign
+1.00 remains unavailable because its official source archive could not be
+recovered; it is not replaced by CentroidAlifold. Exact pins and status are in
+benchmarks/tools/versions.json.
+
+Run the one-family smoke case after putting the selected tools and ViennaRNA
+on `PATH`:
+
+```sh
+python3 benchmarks/run_competitor.py \
+  --config benchmarks/configs/competitors-smoke.json \
+  --sci-version 2.7.2
+```
+
+The full reconstructed Rfam comparison is:
+
+```sh
+python3 benchmarks/run_competitor.py \
+  --config benchmarks/configs/competitors-rfam.json \
+  --jobs 1
+```
+
+The available established-data comparison (BRAliBase II plus Murlet
+dataset1/2, 872 alignments) is:
+
+```sh
+python3 benchmarks/run_competitor.py \
+  --config benchmarks/configs/competitors-established.json \
+  --jobs 1
+```
+
+DAFS itself can be run on the identical manifests with the matching configs:
+
+```sh
+python3 benchmarks/run.py --config benchmarks/configs/dafs-rfam11-reconstructed.json --jobs 1
+python3 benchmarks/run.py --config benchmarks/configs/dafs-established.json --jobs 1
+python3 benchmarks/run.py --config benchmarks/configs/dafs-long.json --jobs 1
+```
+
+The original-paper DAFS and LinearTurboFold runs remain in `run.py` and
+`run_linearturbofold.py`; this separation is intentional because
+LinearTurboFold's per-sequence `.db` output needs a different parser. The
+long reference-backed comparison is configured separately in
+`competitors-long.json`. MAFFT Q-INS-i is `mafft-qinsi`; G-INS-i is `ginsi`.
+
 ## Murlet RIBOSUM weight sweep
 
 `ribosum-sweep-murlet.json` evaluates the 13 Murlet dataset1 cases used by the

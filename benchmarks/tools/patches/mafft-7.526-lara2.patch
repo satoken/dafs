@@ -1,0 +1,34 @@
+diff --git a/core/mafft.tmpl b/core/mafft.tmpl
+index 495955b..5ab6013 100644
+--- a/core/mafft.tmpl
++++ b/core/mafft.tmpl
+@@ -1693,12 +1693,2 @@ $ownlist"
+ 		fi
+-		if [ ! -s "$laraparams" ]; then
+-			echo ""       1>&2
+-			echo "== Configure LaRA =======================================================" 1>&2
+-			echo "A configuration file of LaRA have to be given"                             1>&2
+-			echo "mafft-xinsi --larapair --laraparams parameter_file"                        1>&2
+-			echo "mafft-xinsi --slarapair --laraparams parameter_file"                       1>&2
+-			echo "=========================================================================" 1>&2
+-			echo "" 1>&2
+-			exit 1
+-		fi
+ 	fi
+diff --git a/core/pairlocalalign.c b/core/pairlocalalign.c
+index 597d909..052f46a 100644
+--- a/core/pairlocalalign.c
++++ b/core/pairlocalalign.c
+@@ -1205,3 +1205,3 @@ static void calllara( int nseq, char **mseq, char *laraarg )
+ //	fprintf( stderr, "calling LaRA\n" );
+-	sprintf( com, "env PATH=%s:/bin:/usr/bin mafft_lara -i _larain -w _laraout -o _lara.params %s", whereispairalign, laraarg );
++	sprintf( com, "env PATH=%s:/bin:/usr/bin mafft_lara -i _larain -w _laraout -o pairs %s", whereispairalign, laraarg );
+ 	res = system( com );
+@@ -2270,2 +2270,7 @@ static void *athread( void *arg ) // alg='R', alg='r' -> tsukawarenai.
+ 					break;
++				case( 'B' ):
++				case( 'T' ):
++					pscore = recalllara( mseq1, mseq2, alloclen );
++					off1 = off2 = 0;
++					break;
+ #if 0 

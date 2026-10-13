@@ -28,7 +28,7 @@
     .dark .eyebrow { color: #52d1d6; }
     .subtitle { margin-top: 9px; color: var(--muted); font-size: 17px; line-height: 1.4; }
     .dark .subtitle { color: #b7cbd3; }
-    .slide-no { position: absolute; top: 30px; right: 52px; color: #8ba1ae; font: 12px monospace; letter-spacing: .08em; }
+    .slide-no { position: absolute; top: 30px; right: 52px; color: #8ba1ae; font: 12px monospace; letter-spacing: .08em; white-space: nowrap; }
     .dark .slide-no { color: #648094; }
     .source { position: absolute; left: 52px; right: 52px; bottom: 11px; color: #7b91a0; font-size: 9px; line-height: 1.2; }
     .dark .source { color: #6f8798; }
@@ -218,6 +218,45 @@
     .graph-note { margin-top: 10px; color: var(--muted); font-size: 11px; line-height: 1.3; }
     .source + * { position: relative; }
 
+    .update-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 23px; }
+    .update-card { min-height: 222px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--white); }
+    .update-card.soft { background: #eaf6f5; border-color: #cbe9e7; }
+    .update-card.warm { background: #fff7e3; border-color: #efdbae; }
+    .update-card h3 { margin-top: 10px; font-size: 20px; }
+    .update-card p { margin-top: 9px; color: #506879; font-size: 14px; line-height: 1.45; }
+    .update-card .update-stat { display: block; margin-top: 12px; color: var(--cyan-dark); font-size: 31px; font-weight: 900; letter-spacing: -.04em; line-height: 1; }
+    .update-card .update-stat.pink { color: #bd4568; }
+    .update-lower { display: grid; grid-template-columns: 1.1fr .9fr; gap: 14px; margin-top: 16px; }
+    .update-lower > div { padding: 14px 16px; border: 1px solid #cfe4e5; border-radius: 12px; background: #edf8f7; color: #294c5b; font-size: 14px; line-height: 1.4; }
+    .update-lower strong { display: block; margin-top: 5px; color: var(--cyan-dark); font-size: 19px; }
+    .update-split { display: grid; grid-template-columns: .82fr 1.18fr; gap: 15px; margin-top: 20px; align-items: stretch; }
+    .update-detail { padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--white); }
+    .update-detail.soft { background: #eaf6f5; border-color: #cbe9e7; }
+    .update-detail .update-stat { display: block; margin-top: 12px; color: var(--cyan-dark); font-size: 38px; font-weight: 900; letter-spacing: -.04em; line-height: 1; }
+    .update-detail h3 { margin-top: 8px; font-size: 19px; }
+    .update-detail p { margin-top: 8px; color: #506879; font-size: 13px; line-height: 1.4; }
+    .stage-flow { display: grid; grid-template-columns: 1fr 24px 1fr; gap: 7px; align-items: center; margin-top: 13px; }
+    .stage-chip { padding: 11px 9px; border-radius: 10px; background: #fff; border: 1px solid var(--line); text-align: center; color: #37566a; font-size: 12px; font-weight: 800; }
+    .stage-chip.active { color: var(--cyan-dark); background: #def4f3; border-color: #b9e5e2; }
+    .stage-arrow { text-align: center; color: #9ab1ba; font-size: 20px; }
+    .update-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); }
+    .update-table th, .update-table td { padding: 11px 10px; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.25; white-space: nowrap; }
+    .update-table th { color: #456275; background: #e5f0f1; font-size: 12px; }
+    .update-table tr:last-child td { border-bottom: 0; }
+    .update-table td:first-child { font-weight: 900; color: #173348; }
+    .update-table .highlight td { background: #e8f7f5; }
+    .update-note { margin-top: 9px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .update-callout { margin-top: 15px; padding: 12px 15px; border-left: 4px solid var(--cyan); border-radius: 0 10px 10px 0; background: #e4f4f3; color: #294c5b; font-size: 13px; line-height: 1.4; }
+    .update-metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+    .update-metric { padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--white); min-height: 224px; }
+    .update-metric:nth-child(1) { background: #eaf6f5; border-color: #cbe9e7; }
+    .update-metric:nth-child(2) { background: #fff7e3; border-color: #efdbae; }
+    .update-metric:nth-child(3) { background: #f0eefb; border-color: #d8d0f1; }
+    .update-metric h3 { margin-top: 9px; font-size: 19px; }
+    .update-metric .big { display: block; margin-top: 12px; font-size: 29px; font-weight: 900; line-height: 1; letter-spacing: -.04em; }
+    .update-metric p { margin-top: 10px; color: #506879; font-size: 13px; line-height: 1.42; }
+    .update-metric .detail { margin-top: 10px; padding-top: 9px; border-top: 1px solid rgba(90,120,135,.2); color: #526b7b; font-size: 12px; line-height: 1.4; }
+
     .ltf-table { margin-top: 21px; }
     .ltf-table td:nth-child(2), .ltf-table td:nth-child(3) { text-align: right; }
     .ltf-table .dafs td { background: #e8f7f5; }
@@ -237,6 +276,47 @@
     .conclusion h3 { color: var(--yellow); font-size: 19px; }
     .conclusion p { margin-top: 10px; color: #b9ccd3; font-size: 12px; line-height: 1.45; }
     .conclusion .next { margin-top: 16px; padding-top: 12px; border-top: 1px solid #2a4758; color: #72d9db; font-size: 11px; line-height: 1.35; }
+    .sweep-table { margin-top: 18px; }
+    .sweep-table th { font-size: 11px; padding: 9px 8px; }
+    .sweep-table td { font-size: 13px; padding: 9px 8px; white-space: nowrap; }
+    .sweep-table td:first-child { white-space: normal; }
+    .sweep-table .consensus-on td { background: #e8f7f5; }
+    .sweep-table .consensus-off td { background: #fff; }
+    .sweep-table .condition { color: #087f91; font: 12px/1.2 "Noto Sans Mono CJK JP", Consolas, monospace; font-weight: 800; }
+    .sweep-note { margin-top: 10px; color: var(--muted); font-size: 11px; line-height: 1.38; }
+    .sweep-takeaway { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+    .sweep-takeaway > div { padding: 12px 14px; border: 1px solid #cfe4e5; border-radius: 12px; background: #edf8f7; color: #294c5b; font-size: 13px; line-height: 1.4; }
+    .sweep-takeaway strong { color: var(--cyan-dark); }
+    .iter-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .iter-card { grid-column: span 2; min-width: 0; height: 213px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .iter-card:nth-child(n+4) { grid-column: span 3; }
+    .iter-card h3 { position: relative; padding-right: 128px; color: #37566a; font-size: 14px; }
+    .iter-card .iter-endpoint { position: absolute; top: 0; right: 0; color: #087f91; font: 11px monospace; white-space: nowrap; }
+    .iter-plot { position: relative; height: 165px; margin-top: 2px; }
+    .iter-canvas { position: absolute; left: 42px; right: 9px; top: 13px; bottom: 29px; border-left: 1px solid #9fb6bd; border-bottom: 1px solid #9fb6bd; }
+    .iter-gridline { position: absolute; left: 0; right: 0; height: 1px; background: #dbe6e8; }
+    .iter-y-label { position: absolute; left: -40px; width: 34px; transform: translateY(50%); text-align: right; color: #6a8190; font: 9px monospace; }
+    .iter-x-label { position: absolute; bottom: -19px; width: 32px; text-align: center; white-space: nowrap; transform: translateX(-50%); color: #6a8190; font: 9px monospace; }
+    .iter-axis-label { position: absolute; right: 0; bottom: -30px; color: #6a8190; font-size: 9px; }
+    .iter-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+    .iter-point { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border: 1px solid #fff; border-radius: 50%; background: #10adbb; box-shadow: 0 0 0 1px #087f91; }
+    .ip-flow { display: grid; grid-template-columns: 1fr 25px 1fr 25px 1fr 25px 1fr; gap: 8px; align-items: stretch; margin-top: 22px; }
+    .ip-node { min-height: 152px; padding: 14px 13px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+    .ip-node:nth-of-type(1) { background: #e8f7f6; border-color: #b9e5e2; }
+    .ip-node:nth-of-type(3) { background: #fff7e2; border-color: #efdbab; }
+    .ip-node:nth-of-type(5) { background: #f0eefb; border-color: #d8d0f1; }
+    .ip-node:nth-of-type(7) { background: #e7f6ec; border-color: #b9dfc7; }
+    .ip-node .step { color: #78919b; font: 900 22px monospace; }
+    .ip-node h3 { margin-top: 7px; font-size: 16px; }
+    .ip-node p { margin-top: 7px; color: #506879; font-size: 12px; line-height: 1.38; }
+    .ip-arrow { display: grid; place-items: center; color: #91aab3; font-size: 27px; }
+    .ip-lower { display: grid; grid-template-columns: 1.05fr .95fr; gap: 14px; margin-top: 16px; }
+    .ip-lower > div { padding: 14px 16px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+    .ip-lower h3 { font-size: 16px; }
+    .ip-lower p, .ip-lower li { color: #506879; font-size: 12px; line-height: 1.42; }
+    .ip-lower p { margin-top: 7px; }
+    .ip-lower ul { margin: 7px 0 0; padding-left: 18px; }
+    .ip-caveat { background: #fff7e3 !important; border-color: #efdbae !important; }
     @media print { html, body { background: #fff; } .slide { display: block !important; margin: 0; box-shadow: none; } @page { size: 13.333in 7.5in; margin: 0; } }
   </style>
 </head>
@@ -244,7 +324,7 @@
 <main id="deck">
 
   <section class="slide dark" id="s1">
-    <div class="slide-no">01 / 11</div>
+    <div class="slide-no">01 / 19</div>
     <div class="hero">
       <div>
         <div class="eyebrow">DAFS / PROJECT DIFFERENCE</div>
@@ -265,7 +345,7 @@
   </section>
 
   <section class="slide" id="s2">
-    <div class="slide-no">02 / 11</div>
+    <div class="slide-no">02 / 19</div>
     <div class="eyebrow">THE MAIN MESSAGE</div>
     <h2>ポイントは「4つの置換」が一本のパイプラインになったこと</h2>
     <p class="subtitle">速度だけを上げたのではなく、確率・候補・復号・証明を同じ疎なsupport上でつないだ。</p>
@@ -285,7 +365,7 @@
   </section>
 
   <section class="slide" id="s3">
-    <div class="slide-no">03 / 11</div>
+    <div class="slide-no">03 / 19</div>
     <div class="eyebrow">01 / LINEARIZATION</div>
     <h2>Linear化：密な計算を、閾値疎行列と固定beamへ置き換えた</h2>
     <p class="subtitle">元論文のx / y / z / wの分解は維持し、長さに対して高次になる部分を各段で疎・固定幅にした。</p>
@@ -306,7 +386,7 @@
   </section>
 
   <section class="slide" id="s4">
-    <div class="slide-no">04 / 11</div>
+    <div class="slide-no">04 / 19</div>
     <div class="eyebrow">02 / RIBOSUM</div>
     <h2>RIBOSUM：wを「制約補助変数」から「生物学的scoreを持つ変数」へ</h2>
     <p class="subtitle">単独base-pair probabilityでは区別しにくい、pair–pairの保存・compensatory substitutionを目的関数へ入れた。</p>
@@ -322,7 +402,7 @@
   </section>
 
   <section class="slide" id="s5">
-    <div class="slide-no">05 / 11</div>
+    <div class="slide-no">05 / 19</div>
     <div class="eyebrow">03 / CERTIFIED UB + LB</div>
     <h2>UB / LB：最適値を「下から」と「上から」挟む</h2>
     <p class="subtitle">DAFSは最大化問題。実行可能解のscoreはLB、制約を緩めた問題の厳密解はUBになる。</p>
@@ -355,7 +435,7 @@
   </section>
 
   <section class="slide" id="s6">
-    <div class="slide-no">06 / 11</div>
+    <div class="slide-no">06 / 19</div>
     <div class="eyebrow">04 / DYNAMIC CBP</div>
     <h2>dynamic CBP：必要な列だけを生成し、pricingで漏れを探す</h2>
     <p class="subtitle">CBP候補を最初から全列挙せず、現在の解とreduced costを見ながらworking setを更新する。</p>
@@ -372,7 +452,7 @@
   </section>
 
   <section class="slide" id="s7">
-    <div class="slide-no">07 / 11</div>
+    <div class="slide-no">07 / 19</div>
     <div class="eyebrow">HOW THE FOUR CHANGES CONNECT</div>
     <h2>元論文との差分を一枚で見ると、こうなる</h2>
     <p class="subtitle">posteriorの近似を入り口に、候補生成・最適化・証明を一本のlinearizable loopとして実装した。</p>
@@ -389,7 +469,7 @@
   </section>
 
   <section class="slide" id="s8">
-    <div class="slide-no">08 / 11</div>
+    <div class="slide-no">08 / 19</div>
     <div class="eyebrow">EXPERIMENTS / MURLET</div>
     <h2>Murlet：RIBOSUMの重みは nonlinear / linear で分ける</h2>
     <p class="subtitle">RIBOSUMなし／ありを同じ評価軸で並べ、linearではρ=.3、nonlinearではρ=.075が最も良い条件として比較する。</p>
@@ -410,7 +490,7 @@
   </section>
 
   <section class="slide" id="s9">
-    <div class="slide-no">09 / 11</div>
+    <div class="slide-no">09 / 19</div>
     <div class="eyebrow">EXPERIMENTS / 16S</div>
     <h2>16S：linear化で長鎖の時間・メモリを抑える</h2>
     <p class="subtitle">RIBOSUMありは nonlinear ρ=.075、linear ρ=.3。LinearTurboFoldを同じ長鎖入力群で比較する。</p>
@@ -431,7 +511,7 @@
   </section>
 
   <section class="slide" id="s10">
-    <div class="slide-no">10 / 11</div>
+    <div class="slide-no">10 / 19</div>
     <div class="eyebrow">EXPERIMENTS / 23S</div>
     <h2>23S：さらに長い入力でlinear化の差が広がる</h2>
     <p class="subtitle">23SでもRIBOSUMありの方式別条件を固定し、nonlinear・linear・LinearTurboFoldを同じ表で比較する。</p>
@@ -452,7 +532,7 @@
   </section>
 
   <section class="slide" id="s11">
-    <div class="slide-no">11 / 11</div>
+    <div class="slide-no">11 / 19</div>
     <div class="eyebrow">EXPERIMENTS / LENGTH SCALING</div>
     <h2>RIBOSUMあり：nonlinear・linear・LinearTurboFoldの長さ依存</h2>
     <p class="subtitle">横軸は入力FASTAの最大配列長。点は個別入力、線は方式ごとのフィットで、色は方式だけに対応する。</p>
@@ -464,6 +544,221 @@
     <div class="two-col" style="margin-top:9px;"><div class="card soft"><div class="kicker">TIME FIT</div><span class="fit-row" id="fit-time-nonlinear">nonlinear: calculating…</span><span class="fit-row" id="fit-time-linear">linear: calculating…</span><span class="fit-row" id="fit-time-ltf">LTF: calculating…</span></div><div class="card soft"><div class="kicker">MEMORY FIT</div><span class="fit-row" id="fit-memory-nonlinear">nonlinear: calculating…</span><span class="fit-row" id="fit-memory-linear">linear: calculating…</span><span class="fit-row" id="fit-memory-ltf">LTF: calculating…</span></div></div>
     <div class="graph-note">点数は各方式43点（Murlet 13、16S 25、23S 5）。nonlinearは3次、linearとLinearTurboFoldは1次の最小二乗フィット。長さ方向の傾きを方式間で比較するため、ファミリー別の色分けはしていない。</div>
     <div class="source">Data: nonlinear = CONTRAlign + CONTRAfold, ρ=.075 · linear = LinearAlign（LinearTurboFold score）+ lpc, ρ=.3 · LTF baseline</div>
+  </section>
+
+  <section class="slide" id="s12">
+    <div class="slide-no">12 / 19</div>
+    <div class="eyebrow">PROJECT UPDATE / 2026-09</div>
+    <h2>前回資料からの差分：線形化の先を評価できる段階へ</h2>
+    <p class="subtitle">前回デッキ（9月初旬・基準commit 9360ad8）以降、プロフィールモデル、DD収束、条件探索を追加で検証した。</p>
+    <div class="update-grid">
+      <div class="update-card soft">
+        <div class="kicker">PROFILE MODEL</div>
+        <span class="update-stat">LinearAlifold</span>
+        <h3>線形プロフィールPFを統合</h3>
+        <p>Inside / outsideからプロフィールの分配関数とBPPを計算。RNAalifoldに近い熱力学モードと、progressive / final段階の切替を追加。</p>
+      </div>
+      <div class="update-card warm">
+        <div class="kicker">DD / CERTIFICATES</div>
+        <span class="update-stat pink">85 cases</span>
+        <h3>収束と停止を切り分け</h3>
+        <p>上界、Polyak更新、実行可能解の回収を個別に評価。厳密な小規模診断と、反復予算・実行時間の比較を追加。</p>
+      </div>
+      <div class="update-card">
+        <div class="kicker">BENCHMARK SCALE</div>
+        <span class="update-stat">27,200 runs</span>
+        <h3>13例の比較から全85例へ</h3>
+        <p>Murlet dataset1の320条件を85ケースで再評価。さらにLinearAlifoldの反復数スイープ3,400 runで、品質と時間の変化を測定。</p>
+      </div>
+    </div>
+    <div class="update-lower">
+      <div><div class="kicker">OPERATING POINT UPDATE</div><strong>LinearAlign + LPC：RIBOSUM ρ = .3 → .5</strong>85ケースのMCC重視スイープで選び直した値。前回の.3とは評価対象と条件探索範囲が異なる。</div>
+      <div><div class="kicker">UPDATED TAKEAWAY</div><strong>精度・収束・速度を別々に評価</strong>新機能を足すだけでなく、改善した箇所と効果が出なかった箇所を実験で分けた。</div>
+    </div>
+    <div class="source">Update window: 2026-09-03 → 2026-09-21 · docs/handoff_2026-09-18_ja.md · docs/murlet_dataset1_condition_sweep_2026-09-18_ja.md</div>
+  </section>
+
+  <section class="slide" id="s13">
+    <div class="slide-no">13 / 19</div>
+    <div class="eyebrow">UPDATE / LINEAR PROFILE FOLDING</div>
+    <h2>LinearAlifoldを統合し、効く段階を分けて測った</h2>
+    <p class="subtitle">線形プロフィールfoldingの確率計算を整え、progressive alignmentとfinal structure predictionの影響を分離した。</p>
+    <div class="update-split">
+      <div class="update-detail soft">
+        <div class="kicker">IMPLEMENTATION</div>
+        <h3>プロフィールの確率を<br>inside / outsideで計算</h3>
+        <p>ViennaRNA 2.7.2の熱力学関数を使う。PFとBPPはLinearFold beamで計算し、DAFSのRIBOSUMはprofile PFから分離する。</p>
+        <div class="stage-flow"><div class="stage-chip active">progressive<br>merge</div><div class="stage-arrow">→</div><div class="stage-chip active">final<br>structure</div></div>
+        <p><b>検証：</b>130個の単一配列profileでlogZ/BPPをViennaRNAと照合。CTest 17/17成功。multi-sequence profile全体がRNAalifoldと同一になる主張ではない。</p>
+        <p><b>切替：</b><span class="mono">--alifold-stages</span>で段階を選び、<span class="mono">--linear-profile-energy</span>で熱力学モードを比較可能。</p>
+      </div>
+      <div class="update-detail">
+        <div class="kicker">STAGE ABLATION / LPC × LINEARALIGN / 85 CASES</div>
+        <table class="update-table" style="margin-top:10px;">
+          <thead><tr><th>有効段階</th><th>MCC</th><th>SCI</th><th>SPS</th><th>秒/例</th></tr></thead>
+          <tbody>
+            <tr><td>なし</td><td>.6881</td><td>.6721</td><td>.7569</td><td>2.18</td></tr>
+            <tr class="highlight"><td>progressive</td><td>.6909</td><td>.6966</td><td>.7456</td><td>4.42</td></tr>
+            <tr><td>final</td><td>.6867</td><td>.6721</td><td>.7569</td><td>2.38</td></tr>
+            <tr class="highlight"><td>両方</td><td>.6913</td><td>.6966</td><td>.7456</td><td>4.57</td></tr>
+          </tbody>
+        </table>
+        <div class="update-note">max-iter=100。progressiveはSCIを上げる一方、SPSを下げ、約2.2秒/例を追加。final単独ではアラインメント指標は変わらず、MCCへの効果も小さく、組合せ依存。</div>
+      </div>
+    </div>
+    <div class="update-callout"><b>今回の結論：</b>LinearAlifoldの追加を一律の精度改善とは扱わない。適用段階で構造精度・alignment保全・計算時間のトレードオフが変わる。</div>
+    <div class="source">docs/dafs_linearalifold_2026-09-19_ja.md · docs/dafs_alifold_stage_ablation_2026-09-20_ja.md · docs/dafs_profile_energy_rnaalifold_comparison_2026-09-21_ja.md</div>
+  </section>
+
+  <section class="slide" id="s14">
+    <div class="slide-no">14 / 19</div>
+    <div class="eyebrow">UPDATE / MURLET FULL DATASET</div>
+    <h2>85ケースで条件を再探索し、反復数の効果も測った</h2>
+    <p class="subtitle">小規模なMurlet比較から全dataset1へ広げ、RIBOSUM重みとDD予算を同じ参照指標で評価した。</p>
+    <div class="update-split" style="grid-template-columns:.78fr 1.22fr;">
+      <div class="update-detail soft">
+        <div class="kicker">WEIGHT RE-SELECTION</div>
+        <span class="update-stat">ρ = .5</span>
+        <h3>LinearAlign + LPC</h3>
+        <p>85ケース、320条件、27,200 runの探索で、MCC最良はRIBOSUM .5、final weight .01、align-th .02。</p>
+        <div class="stage-chip active" style="margin-top:12px;">MCC .6851　·　SCI .6638　·　SPS .7572</div>
+        <p>前回のρ=.3は13例の比較で使った条件。今回の値は拡張データ上で選び直した値で、独立held-out testの結果ではない。</p>
+      </div>
+      <div class="update-detail">
+        <div class="kicker">LINEARALIFOLD MODE / LPC × LINEARALIGN / 85 CASES</div>
+        <table class="update-table" style="margin-top:10px;">
+          <thead><tr><th>max-iter</th><th>MCC</th><th>SCI</th><th>SPS</th><th>秒/例</th></tr></thead>
+          <tbody>
+            <tr><td>100</td><td>.6884</td><td>.6990</td><td>.7449</td><td>5.79</td></tr>
+            <tr><td>500</td><td>.6907</td><td>.7578</td><td>.7431</td><td>8.26</td></tr>
+            <tr class="highlight"><td>1000</td><td>.6942</td><td>.7764</td><td>.7440</td><td>11.36</td></tr>
+          </tbody>
+        </table>
+        <div class="update-note">beam幅100、LinearAlifold + RNAalifold互換profile energyを固定。100→1000反復でSCI/MCCは上昇したが、wall timeも5.79→11.36秒/例へ増加。</div>
+      </div>
+    </div>
+    <div class="update-callout"><b>読み方：</b>最良条件はデータ範囲、指標の優先順位、folding/alignmentの組合せ、DD反復数に依存する。ここではMurlet dataset1上の探索結果として示す。</div>
+    <div class="source">docs/murlet_dataset1_condition_sweep_2026-09-18_ja.md · docs/dafs_linearalifold_profile_max_iter_sweep_2026-09-21_ja.md · all 27,200 + 3,400 runs valid</div>
+  </section>
+
+  <section class="slide" id="s15">
+    <div class="slide-no">15 / 19</div>
+    <div class="eyebrow">UPDATE / DD & RUNTIME</div>
+    <h2>DDの改善は小幅、デコーダー最適化は出力を保って短縮</h2>
+    <p class="subtitle">収束を速める案を複数比較した結果、certificate tighteningの停止効果と、kernel-levelの実行時間短縮を区別できた。</p>
+    <div class="update-metric-row">
+      <div class="update-metric">
+        <div class="kicker">CERTIFIED STOP</div>
+        <h3>上界を締めると反復を節約</h3>
+        <span class="big accent-cyan">1.7–6.0%</span>
+        <p>max-iter=500で平均DD反復を削減。gapは約0.66–1.30%へ縮小。</p>
+        <div class="detail">85例×4条件、1,020予測が対照とバイト一致。大幅な全体高速化ではなく、証明できて停止するmergeが増えた。</div>
+      </div>
+      <div class="update-metric">
+        <div class="kicker">DD SEARCH</div>
+        <h3>反復短縮の一般解は未達</h3>
+        <span class="big accent-yellow">100 ≠ 500</span>
+        <p>全85例で100反復は500反復と同等でない（ΔMCC −.0052、ΔSCI −.0562）。</p>
+        <div class="detail">projected-normとcolumn-boundは全体加速を示さず、実験用・既定OFF。回収頻度の変更も一律の改善には至らなかった。</div>
+      </div>
+      <div class="update-metric">
+        <div class="kicker">DECODER KERNEL</div>
+        <h3>LinearFoldの計算を再利用</h3>
+        <span class="big" style="color:#6956a8;">−6.52%</span>
+        <p>平均wall 2.434 → 2.276秒/例（Murlet 85例×4条件）。</p>
+        <div class="detail">340 runで予測・品質指標・非時間traceが完全一致。BPP/logZの直接probeもbitwise一致。</div>
+      </div>
+    </div>
+    <div class="update-callout"><b>現在のまとめ：</b>証明を保った一部のDD停止短縮と、予測を変えない約6.5%のデコーダー高速化を確認。一方、DD反復数を大きく減らす一般策は今後の課題。</div>
+    <div class="source">docs/dafs_dd_certificates_2026-09-20_ja.md · docs/dafs_dd_budget_2026-09-19_ja.md · docs/dafs_dd_acceleration_2026-09-19_ja.md · docs/dafs_linfold_optimization_round4_2026-09-19_ja.md</div>
+  </section>
+
+  <section class="slide" id="s16">
+    <div class="slide-no">16 / 19</div>
+    <div class="eyebrow">FULL CONDITION SWEEP · NONLINEAR</div>
+    <h2>非線形fold × align：Alifold有無ごとの最良条件</h2>
+    <p class="subtitle">85ケースで条件を探索。スコアはMCC → SCI → SPSの辞書式順で選択。</p>
+    <table class="sweep-table">
+      <thead><tr><th>fold × align</th><th>consensus folding</th><th>best condition</th><th>DD / final ρ</th><th>MCC</th><th>SCI</th><th>SPS</th><th>秒/例</th></tr></thead>
+      <tbody>
+        <tr class="consensus-on"><td>CONTRAfold × CONTRAlign</td><td>RNAalifold on</td><td class="condition">cc_alifold_fth03</td><td>.10 / 0</td><td><b>.6997</b></td><td>.6916</td><td>.7707</td><td>1.73</td></tr>
+        <tr class="consensus-off"><td>CONTRAfold × CONTRAlign</td><td>off</td><td class="condition">cc_noalifold_w2</td><td>.10 / 0</td><td><b>.6877</b></td><td>.6897</td><td>.7726</td><td>.97</td></tr>
+        <tr class="consensus-on"><td>ViennaRNA × ProbCons</td><td>RNAalifold on</td><td class="condition">vp_alifold_w2</td><td>.02 / 0</td><td><b>.6820</b></td><td>.6762</td><td>.7654</td><td>1.61</td></tr>
+        <tr class="consensus-off"><td>ViennaRNA × ProbCons</td><td>off</td><td class="condition">vp_noalifold_dd_0p15</td><td>.15 / 0</td><td><b>.6431</b></td><td>.6835</td><td>.7633</td><td>.84</td></tr>
+      </tbody>
+    </table>
+    <div class="sweep-takeaway">
+      <div><strong>CONTRAfold × CONTRAlign:</strong> Alifoldありのbest MCCは.6997。off条件より+0.0120。</div>
+      <div><strong>ViennaRNA × ProbCons:</strong> AlifoldありでMCC +0.0389。SCIはoffの方が高く、目的指標の選択が重要。</div>
+    </div>
+    <p class="sweep-note">ρはDD反復／final段階のRIBOSUM weight。選択条件内にはfold-thやweightなども含む。Alifold on/offは各々の探索最良条件どうしの比較で、単一要因だけの因果効果ではない。</p>
+    <div class="source">Murlet dataset1・85 sequences／40,800 runsの全条件スイープのうち非線形4条件 · docs/murlet_dataset1_linearalifold_repair_v3_iter100_beam100_b5e35428_ja.md</div>
+  </section>
+
+  <section class="slide" id="s17">
+    <div class="slide-no">17 / 19</div>
+    <div class="eyebrow">FULL CONDITION SWEEP · LINEAR</div>
+    <h2>線形fold × align：LinearAlifold有無ごとの最良条件</h2>
+    <p class="subtitle">folding 2系統 × alignment 2系統を個別に探索。Alifoldを入れれば常にMCCが上がる、とは限らない。</p>
+    <table class="sweep-table">
+      <thead><tr><th>fold × align</th><th>LinearAlifold</th><th>best condition</th><th>DD ρ / key setting</th><th>MCC</th><th>SCI</th><th>SPS</th><th>秒/例</th></tr></thead>
+      <tbody>
+        <tr class="consensus-on"><td>lpc × LinearAlign</td><td>on</td><td class="condition">cl_linear_dd_0_alifold</td><td>0 / align-th .005</td><td><b>.6926</b></td><td>.7000</td><td>.7787</td><td>5.71</td></tr>
+        <tr class="consensus-off"><td>lpc × LinearAlign</td><td>off</td><td class="condition">cl_linear_ath02</td><td>.50 / align-th .02</td><td><b>.6881</b></td><td>.6721</td><td>.7569</td><td>2.47</td></tr>
+        <tr class="consensus-on"><td>lpc × LinearCONTRAlign</td><td>on</td><td class="condition">lpc_contralign_w2_alifold</td><td>.30 / weight 2</td><td><b>.6927</b></td><td>.6749</td><td>.7550</td><td>5.90</td></tr>
+        <tr class="consensus-off"><td>lpc × LinearCONTRAlign</td><td>off</td><td class="condition">lpc_contralign_w8</td><td>.30 / weight 8</td><td><b>.6864</b></td><td>.6788</td><td>.7497</td><td>2.37</td></tr>
+        <tr class="consensus-on"><td>lpv × LinearAlign</td><td>on</td><td class="condition">lpv_linear_dd_0p01_alifold</td><td>.01 / DD phase</td><td><b>.6809</b></td><td>.6982</td><td>.7769</td><td>5.78</td></tr>
+        <tr class="consensus-off"><td>lpv × LinearAlign</td><td>off</td><td class="condition">lpv_linear_fpct05</td><td>.30 / align-pct .5</td><td><b>.6694</b></td><td>.6809</td><td>.7728</td><td>2.65</td></tr>
+        <tr class="consensus-on"><td>lpv × LinearProbConsRNA</td><td>on</td><td class="condition">lpv_probcons_w2_alifold</td><td>.30 / weight 2</td><td><b>.6860</b></td><td>.6789</td><td>.7536</td><td>5.85</td></tr>
+        <tr class="consensus-off"><td>lpv × LinearProbConsRNA</td><td>off</td><td class="condition">lpv_probcons_dd_0p075</td><td>.075 / weight 4</td><td><b>.6648</b></td><td>.6760</td><td>.7671</td><td>2.32</td></tr>
+      </tbody>
+    </table>
+    <p class="sweep-note">ρはDD段階のRIBOSUM weight。各条件の探索範囲でfinal weightやalign/fold閾値も調整。LinearAlifold onではSCIが上がる条件が多い一方、SPSと計算時間にトレードオフがある。</p>
+    <div class="update-callout"><b>読み分け：</b>この表はMurlet dataset1全85例・40,800 runの組合せ別探索。以前の13例比較で選んだLinearAlign ρ=.3は別の探索スコープであり、LinearCONTRAlignの条件と取り違えない。</div>
+    <div class="source">docs/murlet_dataset1_linearalifold_repair_v3_iter100_beam100_b5e35428_ja.md · max-iter=100、beam=100、各条件85例</div>
+  </section>
+
+  <section class="slide" id="s18">
+    <div class="slide-no">18 / 19</div>
+    <div class="eyebrow">MAX-ITER SWEEP · SELECTED PROMISING SETTING</div>
+    <h2>反復数を増やすと品質・制約違反・時間はどう動くか</h2>
+    <p class="subtitle">lpc × LinearAlign、LinearAlifold + RNAalifold互換profile energy（ρ=.5）を固定し、max-iterだけ変更。</p>
+    <div id="maxiter-grid" class="iter-grid"></div>
+    <div class="update-callout"><b>100 → 1000:</b> MCC .6884 → .6942、SCI .6990 → .7764、SPSはほぼ横ばい（.7449 → .7440）。違反/mergeは28.56 → 10.49、実行時間は5.79 → 11.36秒/例。</div>
+    <p class="sweep-note">85ケースのmacro average。違反/merge＝各merge最終反復のdd_summary.violated平均。グラフはこの固定条件内の推移で、前スライドの全条件探索値とは異なる実験世代・目的のため直接差分比較しない。</p>
+    <div class="source">docs/dafs_linearalifold_profile_max_iter_sweep_2026-09-21_ja.md · 3,400 runsすべて成功・metrics_valid</div>
+  </section>
+
+  <section class="slide" id="s19">
+    <div class="slide-no">19 / 19</div>
+    <div class="eyebrow">DECODING · IPKNOT</div>
+    <h2>線形folding用の LinearIPknot decoder も実装</h2>
+    <p class="subtitle">疎な塩基対事後確率から、交差塩基対を複数レイヤーへ分けた構造を固定beamで構成する。</p>
+    <div class="ip-flow">
+      <div class="ip-node"><div class="step">01</div><h3>疎なpair posterior</h3><p>LinearPartitionの候補支持とラグランジュ補助スコアを入力。</p></div>
+      <div class="ip-arrow">›</div>
+      <div class="ip-node"><div class="step">02</div><h3>しきい値ごとにlayer化</h3><p>各levelで正の候補だけを走査し、すでに使った塩基を除く。</p></div>
+      <div class="ip-arrow">›</div>
+      <div class="ip-node"><div class="step">03</div><h3>LinearNussinov</h3><p>各levelを固定beamの線形DPで非交差matchingとしてdecode。</p></div>
+      <div class="ip-arrow">›</div>
+      <div class="ip-node"><div class="step">04</div><h3>交差を別levelへ</h3><p>次levelには既選択pairと交差するpairを許し、括弧layerを出力。</p></div>
+    </div>
+    <div class="ip-lower">
+      <div>
+        <h3>DAFSへの接続と検証範囲</h3>
+        <ul>
+          <li>linear folding + <span class="mono">--ipknot</span> では <span class="mono">LinearIPknot</span> を選択。非線形側は従来IPknot。</li>
+          <li>dense/sparse decoder interface、sparse structure storage、構造boundsを接続。</li>
+          <li>unit / pipeline testsで交差layer、括弧整合性、sparse/dense一致、decoder選択を確認。</li>
+        </ul>
+      </div>
+      <div class="ip-caveat">
+        <h3>位置づけ</h3>
+        <p>これはIPknotの厳密な整数計画を線形時間で解くものではなく、固定beamのlayer-wise近似decoder。ビーム幅・しきい値・候補支持に依存する。</p>
+        <p>このスライドで示すのは実装原理とテスト範囲。既存の厳密IPknotに対する精度・速度の定量比較は、まだ提示できるベンチマーク結果がない。</p>
+      </div>
+    </div>
+    <div class="source">src/ipknot.h · src/ipknot.cpp · src/dafs.cpp · tests/linear_ipknot_test.cpp · tests/linear_ipknot_pipeline.cmake · tests/ipknot_sparse_support_test.cpp</div>
   </section>
 
 </main>
@@ -516,7 +811,45 @@
     const degrees={nonlinear:3,linear:1,ltf:1};
     ['nonlinear','linear','ltf'].forEach(method=>{ scalingData[method].forEach(row=>{const point=document.createElement('span');point.className='point '+method;point.style.left=(row[1]/3000*100)+'%';point.style.bottom=(scaleValue(row[spec.index],spec.min,spec.max,spec.log)*100)+'%';point.title=method+' · '+datasetName[row[0]]+' · '+row[1]+' nt';canvas.appendChild(point);}); const stats=fit(scalingData[method],spec.index,degrees[method]); addFitCurve(canvas,stats,spec,method); document.getElementById('fit-'+spec.statPrefix+'-'+method).textContent=(method==='ltf'?'LTF':method)+': '+formatFit(stats); });
   }
+  const iterationValues = {
+    'MCC': {values:[.6884,.6893,.6905,.6891,.6907,.6908,.6922,.6935,.6937,.6942], min:.686, max:.696, ticks:[[.688,'.688'],[.690,'.690'],[.692,'.692'],[.694,'.694']], fmt:v=>v.toFixed(4)},
+    'SCI': {values:[.6990,.7317,.7482,.7534,.7578,.7607,.7632,.7701,.7716,.7764], min:.68, max:.79, ticks:[[.70,'.70'],[.72,'.72'],[.74,'.74'],[.76,'.76'],[.78,'.78']], fmt:v=>v.toFixed(3)},
+    'SPS': {values:[.7449,.7456,.7433,.7429,.7431,.7435,.7448,.7443,.7444,.7440], min:.740, max:.760, ticks:[[.742,'.742'],[.746,'.746'],[.750,'.750'],[.754,'.754'],[.758,'.758']], fmt:v=>v.toFixed(4)},
+    '違反 / merge': {values:[28.56,21.31,18.61,16.13,15.24,14.33,13.36,12.12,11.65,10.49], min:8, max:31, ticks:[[10,'10'],[15,'15'],[20,'20'],[25,'25'],[30,'30']], fmt:v=>v.toFixed(2)},
+    '時間 (秒/例)': {values:[5.79,6.49,6.85,8.06,8.26,8.58,9.44,10.07,10.61,11.36], min:5, max:12, ticks:[[6,'6'],[8,'8'],[10,'10']], fmt:v=>v.toFixed(2)}
+  };
+  function renderIterationCharts() {
+    const root=document.getElementById('maxiter-grid');
+    const iterations=[100,200,300,400,500,600,700,800,900,1000];
+    Object.entries(iterationValues).forEach(([label,spec])=>{
+      const card=document.createElement('div'); card.className='iter-card';
+      const title=document.createElement('h3'); title.textContent=label;
+      const endpoint=document.createElement('span'); endpoint.className='iter-endpoint'; endpoint.textContent=spec.fmt(spec.values[0])+' → '+spec.fmt(spec.values.at(-1)); title.appendChild(endpoint); card.appendChild(title);
+      const plot=document.createElement('div'); plot.className='iter-plot';
+      const canvas=document.createElement('div'); canvas.className='iter-canvas'; plot.appendChild(canvas);
+      spec.ticks.forEach(([value,text])=>{
+        const bottom=(value-spec.min)/(spec.max-spec.min)*100;
+        const grid=document.createElement('div'); grid.className='iter-gridline'; grid.style.bottom=bottom+'%'; canvas.appendChild(grid);
+        const y=document.createElement('span'); y.className='iter-y-label'; y.style.bottom=bottom+'%'; y.textContent=text; canvas.appendChild(y);
+      });
+      [0,2,4,6,9].forEach(i=>{
+        const x=document.createElement('span'); x.className='iter-x-label'; x.style.left=(i/(iterations.length-1)*100)+'%';
+        x.style.transform=i===0?'translateX(0)':(i===9?'translateX(-100%)':'translateX(-50%)'); x.textContent=iterations[i]; canvas.appendChild(x);
+      });
+      const xTitle=document.createElement('span'); xTitle.className='iter-axis-label'; xTitle.textContent='max-iter'; canvas.appendChild(xTitle);
+      const coords=spec.values.map((value,i)=>({x:i/(iterations.length-1)*100,y:(value-spec.min)/(spec.max-spec.min)*100,value}));
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','iter-svg'); svg.setAttribute('viewBox','0 0 1000 1000'); svg.setAttribute('preserveAspectRatio','none');
+      const polyline=document.createElementNS('http://www.w3.org/2000/svg','polyline'); polyline.setAttribute('fill','none'); polyline.setAttribute('stroke','#087f91'); polyline.setAttribute('stroke-width','7'); polyline.setAttribute('stroke-linecap','round'); polyline.setAttribute('stroke-linejoin','round');
+      polyline.setAttribute('points',coords.map(point=>(point.x*10)+','+((100-point.y)*10)).join(' ')); svg.appendChild(polyline); canvas.appendChild(svg);
+      coords.forEach((point,i)=>{
+        const dot=document.createElement('span'); dot.className='iter-point'; dot.style.left=point.x+'%'; dot.style.bottom=point.y+'%';
+        dot.title='max-iter '+iterations[i]+' · '+label+' '+spec.fmt(point.value); canvas.appendChild(dot);
+      });
+      card.appendChild(plot); root.appendChild(card);
+    });
+  }
   Object.entries(plotSpec).forEach(([id,spec])=>renderPlot(id,spec));
+  renderIterationCharts();
   positionFitLines();
   (function () {
     const slides=Array.from(document.querySelectorAll('.slide')); let index=0;

@@ -1,0 +1,34 @@
+{
+  "baseline_binary": "/tmp/dafs-dd-accel-BpeZy7/dafs-baseline",
+  "baseline_binary_sha256": "47ae4d266b60a00291b71aab57abdc2175957d84fa324fc1e2e902170107da1e",
+  "candidate_binary": "/tmp/dafs-dd-column-bound-arm64/dafs-candidate",
+  "candidate_binary_sha256": "753129a65753f63b33031c3284ce00be5a09559706c7c21955e6d8d0df2e1695",
+  "candidate_flag": "--dd-column-bound",
+  "configs": {
+    "full-baseline": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-dd-column-bound-full-baseline.json",
+    "full-candidate": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-dd-column-bound-full-candidate.json",
+    "pilot-baseline": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-dd-column-bound-pilot-baseline.json",
+    "pilot-candidate": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-dd-column-bound-pilot-candidate.json",
+    "pilot-off-control": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-dd-column-bound-pilot-off-control.json"
+  },
+  "execution": "generation only; wait for frozen candidate binary before run.py",
+  "full_expected_runs_per_tree": 680,
+  "pilot_dataset_ids": [
+    "murlet-dataset1-RF00436-2",
+    "murlet-dataset1-RF00031-2",
+    "murlet-dataset1-RF00181-2",
+    "murlet-dataset1-RF00169-2",
+    "murlet-dataset1-RF00059-2",
+    "murlet-dataset1-RF00001-2",
+    "murlet-dataset1-RF00175-2",
+    "murlet-dataset1-RF00050-2",
+    "murlet-dataset1-RF00002-2",
+    "murlet-dataset1-RF00004-2",
+    "murlet-dataset1-RF00230-1",
+    "murlet-dataset1-RF00017-1"
+  ],
+  "pilot_expected_runs_per_tree": 48,
+  "schema_version": 1,
+  "source_config": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-relaxed.json",
+  "source_config_sha256": "56b16dcabbbe55b03a27bab4d7e3910908268365916610dd96f8b6fe5bb28b53"
+}

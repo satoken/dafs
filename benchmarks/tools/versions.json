@@ -1,0 +1,114 @@
+{
+  "schema_version": 2,
+  "as_of": "2026-09-25",
+  "build_platform": "aarch64-linux-gnu",
+  "tools": {
+    "locarna": {
+      "version": "2.0.1",
+      "ref": "v2.0.1",
+      "commit": "a6736722216bbb9541caf397f87742d5ff099d0b",
+      "repository": "https://github.com/s-will/LocARNA",
+      "binary": "benchmarks/tools/install/locarna-2.0.1/bin/mlocarna",
+      "status": "built_smoke_passed",
+      "compiler_compatibility_flags": ["-fsigned-char"],
+      "note": "AArch64 defaults plain char to unsigned; the source option parser compares getopt's EOF via char, so a signed-char build is required on this host."
+    },
+    "linearturbofold": {
+      "version": "git-445808976857df01c57e5d9302a0bbee10515bb5",
+      "ref": "445808976857df01c57e5d9302a0bbee10515bb5",
+      "repository": "https://github.com/LinearFold/LinearTurboFold",
+      "binary": "benchmarks/tools/install/linearturbofold/bin/linearturbofold",
+      "dataset_manifest": "benchmarks/data/linearturbofold-nonviral/manifest.json",
+      "status": "built_smoke_passed"
+    },
+    "viennarna": {
+      "version": "2.7.2",
+      "source_url": "https://github.com/ViennaRNA/ViennaRNA/releases/tag/v2.7.2",
+      "source_archive": "benchmarks/tools/downloads/ViennaRNA-2.7.2.tar.gz",
+      "source_sha256": "1ab5f4a4f76fc85a2243546088e45f5d85f2d7a56cc656e969b005cce9bfab5f",
+      "binary": "benchmarks/tools/install/viennarna-2.7.2/bin/RNAfold",
+      "static_library": "benchmarks/tools/install/viennarna-2.7.2/lib/libRNA.a",
+      "status": "built_smoke_passed"
+    },
+    "rnamountalign": {
+      "version": "1.0",
+      "repository": "https://github.com/clotelab/RNAmountAlign",
+      "commit": "2a9579ecac6cb612dfb12231eb99be502d736ee8",
+      "binary": "benchmarks/tools/install/rnamountalign-1.0/bin/RNAmountAlign",
+      "source_patch": "benchmarks/tools/patches/rnamountalign-v1.0-linker.patch",
+      "dependencies": ["ViennaRNA 2.7.2"],
+      "status": "built_smoke_passed",
+      "note": "The upstream bundled libRNA.a is x86-only; this host build links the locally compiled AArch64 ViennaRNA. RNAmountAlign accepts only A/C/G/U/T; incompatible symbols are recorded as skipped, without altering the input."
+    },
+    "lara2": {
+      "version": "2.0.1",
+      "repository": "https://github.com/seqan/lara",
+      "commit": "f94301fdcb61db59025b451299f8be9aff4fd94f",
+      "binary": "benchmarks/tools/install/lara-2.0.1/bin/lara",
+      "tcoffee_pipeline_wrapper": "benchmarks/tools/lara2_tcoffee_wrapper.py",
+      "mafft": "7.526",
+      "integration_patch": "benchmarks/tools/patches/mafft-7.526-lara2.patch",
+      "wrapper": "benchmarks/tools/mafft_lara2_wrapper.py",
+      "dependencies": ["ViennaRNA 2.7.2", "SeqAn 2.4.1"],
+      "status": "built_smoke_passed"
+    },
+    "tcoffee": {
+      "version": "13.46.2.7c9e712d",
+      "repository": "https://github.com/cbcrg/tcoffee",
+      "commit": "04ec7406b2e13cd18c3f2077541079c8e059ff01",
+      "binary": "benchmarks/tools/install/tcoffee/bin/t_coffee",
+      "dependencies": ["LaRA2 2.0.1 library output"],
+      "status": "built_smoke_passed",
+      "note": "T-Coffee combines the LaRA2 pairwise library into the final MSA; LaRA2 itself does not emit an MSA."
+    },
+    "raf": {
+      "version": "1.00",
+      "source_archive": "benchmarks/tools/downloads/raf_v1_00.tar.gz",
+      "source_sha256": "f702f3c827f316eeb02a1b97989f27dcc175dbc6c67844f950c2325292af0378",
+      "source_url": "https://web.archive.org/web/20100813092228id_/http://contra.stanford.edu/contrafold/raf_v1_00.tar.gz",
+      "binary": "benchmarks/tools/install/raf-1.00/bin/raf",
+      "dependencies": ["CONTRAlign 2.01", "ViennaRNA 2.7.2 (--vienna mode)"],
+      "status": "built_smoke_passed"
+    },
+    "contralign": {
+      "version": "2.01",
+      "source_archive": "benchmarks/tools/downloads/contralign_v2_01.tar.gz",
+      "source_sha256": "7ddaf41601ebf1e3867b30c05406d3e0ae9ea30cd3055f7118a2440251137211",
+      "binary": "benchmarks/tools/install/contralign-2.01/bin/contralign",
+      "status": "built_smoke_passed"
+    },
+    "centroidalign": {
+      "version": "1.00",
+      "repository": "https://www.ncrna.org/software/centroidalign/",
+      "binary": null,
+      "status": "official_source_archive_unavailable",
+      "note": "The archived official page retains a link to centroid_align-1.0-src.tar.gz, but the archive itself is absent from Wayback captures and the live URL is no longer served. CentroidAlifold is not a substitute."
+    },
+    "mafft_qinsi": {
+      "version": "7.526",
+      "ref": "v7.526",
+      "commit": "ee9799916df6a5d5103d46d54933f8eb6d28e244",
+      "repository": "https://gitlab.com/sysimm/mafft",
+      "binary": "benchmarks/tools/install/mafft-7.526/bin/mafft-qinsi",
+      "structural_extensions": true,
+      "status": "built_smoke_passed"
+    },
+    "mafft_xinsi": {
+      "version": "7.526",
+      "ref": "v7.526",
+      "commit": "ee9799916df6a5d5103d46d54933f8eb6d28e244",
+      "repository": "https://gitlab.com/sysimm/mafft",
+      "binary": "benchmarks/tools/install/mafft-7.526/bin/mafft-xinsi",
+      "structural_extensions": true,
+      "status": "built_smoke_passed"
+    },
+    "mafft_ginsi": {
+      "version": "7.526",
+      "ref": "v7.526",
+      "commit": "ee9799916df6a5d5103d46d54933f8eb6d28e244",
+      "repository": "https://gitlab.com/sysimm/mafft",
+      "binary": "benchmarks/tools/install/mafft-7.526/bin/ginsi",
+      "status": "built_smoke_passed"
+    }
+  }
+}

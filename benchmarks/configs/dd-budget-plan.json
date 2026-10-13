@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "experiment": "murlet-dataset1-dd-budget",
+  "source_config": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/luna-relaxed.json",
+  "source_config_sha256": "56b16dcabbbe55b03a27bab4d7e3910908268365916610dd96f8b6fe5bb28b53",
+  "binary": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/build-arm64/src/dafs",
+  "binary_sha256": "753129a65753f63b33031c3284ce00be5a09559706c7c21955e6d8d0df2e1695",
+  "expected_binary_sha256": "753129a65753f63b33031c3284ce00be5a09559706c7c21955e6d8d0df2e1695",
+  "dataset_collection": "dataset1",
+  "dataset_count": 85,
+  "pilot_dataset_count": 12,
+  "base_conditions": [
+    "cl_linear_ath02",
+    "lpv_probcons_fpct05",
+    "lpc_contralign_ath02",
+    "lpv_linear_fpct05"
+  ],
+  "budgets": [
+    100,
+    200,
+    300,
+    500
+  ],
+  "modes": {
+    "baseline": {
+      "flag": null,
+      "complexity_note": "existing default path"
+    },
+    "projected-norm": {
+      "flag": "--dd-projected-norm",
+      "complexity_note": "strict-linear candidate: O(L+M) accounting path"
+    },
+    "column-bound": {
+      "flag": "--dd-column-bound",
+      "complexity_note": "strict-linear candidate: O(L+M) column-capacity path"
+    },
+    "tight-alignment": {
+      "flag": "--dd-tight-alignment",
+      "complexity_note": "reference only: O(M log L) exact sparse monotone alignment bound"
+    }
+  },
+  "pilot_runs": 768,
+  "full_baseline_runs": 680,
+  "full_candidate_runs_per_mode_budget": 340,
+  "full_followup_runs": 340,
+  "full_followup_arms": [
+    {
+      "mode": "projected-norm",
+      "budget": 200,
+      "base_condition": "lpc_contralign_ath02"
+    },
+    {
+      "mode": "projected-norm",
+      "budget": 300,
+      "base_condition": "lpv_probcons_fpct05"
+    },
+    {
+      "mode": "baseline",
+      "budget": 200,
+      "base_condition": "lpc_contralign_ath02"
+    },
+    {
+      "mode": "baseline",
+      "budget": 300,
+      "base_condition": "lpv_probcons_fpct05"
+    }
+  ],
+  "fixed_parameters": {
+    "beam": 100,
+    "seed": 42,
+    "omp_num_threads": 1,
+    "refinement": 0,
+    "viennarna": "2.7.2"
+  },
+  "quality_priority": [
+    "mcc",
+    "sci",
+    "sps"
+  ],
+  "descriptive_quality_thresholds": {
+    "loose": 0.005,
+    "strict": 0.001
+  },
+  "comparison_contract": {
+    "candidate_budgets_vs_baseline500": [
+      100,
+      200,
+      300
+    ],
+    "baseline_budgets_vs_baseline500": [
+      100,
+      200,
+      300
+    ],
+    "same_budget_speed_gate": false,
+    "tight_alignment_followup_eligible": false,
+    "historical_max_iter_results_are_supplemental_only": true
+  },
+  "interpretation": {
+    "dd_iterations": "total iterations summed over progressive merges; max-iter is per merge",
+    "dd_gap": "final dd_summary gap = best_ub - LB",
+    "dd_violations": "dd_summary.violated at the last internal iterate of each merge",
+    "validity": "metrics_validation and quality_complete are reported independently of DD disagreements"
+  }
+}

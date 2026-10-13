@@ -1,0 +1,52 @@
+{
+  "binary": "../../build-arm64/src/dafs",
+  "output_dir": "../results-murlet-dataset1-best-arm64-v272",
+  "timeout_seconds": 1800,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {"OMP_NUM_THREADS": "1"},
+  "sci": {
+    "bin_dir": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "version": "2.7.2"
+  },
+  "dataset_manifests": ["../data/murlet/manifest.json"],
+  "dataset_filter": {"collections": ["dataset1"]},
+  "conditions": [
+    {
+      "id": "vp_alifold_mcc",
+      "linear": false,
+      "ribosum_weight": 0.02,
+      "args": ["-a", "ProbCons", "-s", "Vienna", "--alifold", "--dynamic-cbp", "--ribosum-weight=0.02", "--final-ribosum-weight=0", "--fold-th=0.3", "--max-iter=80"]
+    },
+    {
+      "id": "cc_noalifold_mcc",
+      "linear": false,
+      "ribosum_weight": 0.1,
+      "args": ["-a", "CONTRAlign", "-s", "CONTRAfold", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.1", "--final-ribosum-weight=0", "--fold-pct=0", "--max-iter=80"]
+    },
+    {
+      "id": "cl_linear_mcc",
+      "linear": true,
+      "ribosum_weight": 0.5,
+      "args": ["-a", "LinearAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.5", "--final-ribosum-weight=0.01", "--align-th=0.005", "--max-iter=80", "--align-beam=100", "--align-dd-beam=100", "--linfold-beam=100", "--fold-dd-beam=100", "--fold-final-beam=100"]
+    },
+    {
+      "id": "lpv_probcons_base",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "args": ["-a", "LinearAlign-ProbConsRNA", "-s", "lpv", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.3", "--final-ribosum-weight=0", "--weight=4", "--max-iter=80", "--align-beam=100", "--align-dd-beam=100", "--linfold-beam=100", "--fold-dd-beam=100", "--fold-final-beam=100"]
+    },
+    {
+      "id": "lpc_contralign_alignpct05",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "args": ["-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.3", "--final-ribosum-weight=0.005", "--align-pct=0.5", "--max-iter=80", "--align-beam=100", "--align-dd-beam=100", "--linfold-beam=100", "--fold-dd-beam=100", "--fold-final-beam=100"]
+    },
+    {
+      "id": "lpv_linear_mcc_apct05",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "args": ["-a", "LinearAlign", "-s", "lpv", "--no-alifold", "--dynamic-cbp", "--ribosum-weight=0.3", "--final-ribosum-weight=0", "--align-pct=0.5", "--max-iter=80", "--align-beam=100", "--align-dd-beam=100", "--linfold-beam=100", "--fold-dd-beam=100", "--fold-final-beam=100"]
+    }
+  ]
+}

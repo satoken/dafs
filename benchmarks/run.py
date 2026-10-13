@@ -26,6 +26,7 @@ from score import SCIConfig, calculate_sci, parse_alignment, score
 
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
+DIGEST_SCHEMA_VERSION = 2
 
 
 def atomic_json(path: Path, value: Any) -> None:
@@ -228,6 +229,44 @@ def command_digest(command: list[str], input_sha256: str,
     return hashlib.sha256(payload).hexdigest()
 
 
+def manifest_is_compatible(existing: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    """Return whether an existing output directory can safely be resumed.
+
+    The old runner rewrote ``manifest.json`` on every invocation while its
+    per-result digest omitted the binary hash.  That combination could make a
+    result produced by a different executable look resumable.  Keep a
+    manifest only when all provenance that participates in the run digest is
+    identical.
+    """
+    for key in (
+            "schema_version", "digest_schema_version", "binary",
+            "binary_sha256", "config_path", "config_sha256",
+            "time_binary", "time_binary_sha256", "digest_context"):
+        if existing.get(key) != candidate.get(key):
+            return False
+    return True
+
+
+def result_identity(result: dict[str, Any]) -> tuple[str, str, int] | None:
+    try:
+        return (str(result["condition"]), str(result["dataset"]),
+                int(result["repetition"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def result_path_identity(path: Path) -> tuple[str, str, int] | None:
+    try:
+        repetition = path.parent.name
+        if not repetition.startswith("rep-"):
+            return None
+        return (path.parent.parent.parent.name,
+                path.parent.parent.name,
+                int(repetition.removeprefix("rep-")))
+    except (IndexError, ValueError):
+        return None
+
+
 def execute(command: list[str], stdout_path: Path, stderr_path: Path,
             timeout_seconds: float, environment: dict[str, str],
             cwd: Path | None = None) -> tuple[int | None, bool]:
@@ -273,13 +312,23 @@ def flatten_summary(result: dict[str, Any]) -> dict[str, Any]:
         "dd_iterations": internal.get("dd_iterations"),
         "cbp_peak": internal.get("cbp_peak"),
         "metrics_valid": result.get("metrics_validation", {}).get("valid"),
+        "command_sha256": result.get("command_sha256"),
+        "binary_sha256": result.get("binary_sha256"),
+        "config_sha256": result.get("config_sha256"),
+        "reference_sha256": result.get("reference_sha256"),
     }
 
 
-def write_summaries(output_dir: Path) -> None:
+def write_summaries(output_dir: Path,
+                    expected_keys: set[tuple[str, str, int]] | None = None) -> None:
     results = []
     for path in sorted((output_dir / "runs").glob("*/*/rep-*/result.json")):
-        results.append(json.loads(path.read_text(encoding="utf-8")))
+        if expected_keys is not None and result_path_identity(path) not in expected_keys:
+            continue
+        result = json.loads(path.read_text(encoding="utf-8"))
+        if expected_keys is not None and result_identity(result) not in expected_keys:
+            continue
+        results.append(result)
     with (output_dir / "summary.jsonl").open("w", encoding="utf-8") as stream:
         for result in results:
             stream.write(json.dumps(flatten_summary(result), sort_keys=True,
@@ -332,6 +381,9 @@ def main() -> int:
         raise FileNotFoundError(f"DAFS binary not found: {binary}")
     time_binary = resolve_time_binary(
         config.get("time_binary", os.environ.get("TIME_BINARY", "time")))
+    binary_sha256 = sha256_file(binary)
+    config_sha256 = sha256_file(config_path)
+    time_binary_sha256 = sha256_file(time_binary)
     sci_provenance = (None if sci_config is None else {
         "rnaalifold": str(sci_config.rnaalifold),
         "rnafold": str(sci_config.rnafold),
@@ -347,6 +399,21 @@ def main() -> int:
     environment.setdefault("OMP_NUM_THREADS", "1")
     environment.update({str(key): str(value)
                         for key, value in config.get("environment", {}).items()})
+    environment_provenance = {
+        key: environment[key]
+        for key in sorted(set(config.get("environment", {})) | {"OMP_NUM_THREADS"})
+    }
+    digest_context_base = {
+        "schema_version": DIGEST_SCHEMA_VERSION,
+        "binary": str(binary),
+        "binary_sha256": binary_sha256,
+        "config_path": str(config_path),
+        "config_sha256": config_sha256,
+        "time_binary": str(time_binary),
+        "time_binary_sha256": time_binary_sha256,
+        "environment": environment_provenance,
+        "sci": sci_provenance,
+    }
     datasets = list(config.get("datasets", []))
     for manifest_name in config.get("dataset_manifests", []):
         manifest_path = resolve_path(manifest_name, config_base)
@@ -374,28 +441,50 @@ def main() -> int:
             for dataset in datasets for condition in conditions
             for repetition in range(1, repetitions + 1)]
     random.Random(int(config.get("random_seed", 42))).shuffle(jobs)
+    expected_keys = {
+        (validate_id(str(condition["id"]), "condition"),
+         validate_id(str(dataset["id"]), "dataset"), repetition)
+        for dataset, condition, repetition in jobs
+    }
 
     if not args.dry_run:
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "runs").mkdir(exist_ok=True)
-        manifest = {
-            "schema_version": 1,
+        manifest_candidate = {
+            "schema_version": 2,
+            "digest_schema_version": DIGEST_SCHEMA_VERSION,
             "created_utc": datetime.now(timezone.utc).isoformat(),
             "config": config,
             "config_path": str(config_path),
-            "config_sha256": sha256_file(config_path),
+            "config_sha256": config_sha256,
             "binary": str(binary),
-            "binary_sha256": sha256_file(binary),
+            "binary_sha256": binary_sha256,
+            "time_binary": str(time_binary),
+            "time_binary_sha256": time_binary_sha256,
             "git_commit": git_value(repository, "rev-parse", "HEAD"),
             "git_status": git_value(repository, "status", "--short"),
             "platform": platform.platform(),
             "uname": list(platform.uname()),
             "python": sys.version,
-            "environment": {key: environment[key] for key in sorted(config.get("environment", {}))},
+            "environment": environment_provenance,
             "omp_num_threads": environment.get("OMP_NUM_THREADS"),
             "sci": sci_provenance,
+            "digest_context": digest_context_base,
         }
-        atomic_json(output_dir / "manifest.json", manifest)
+        manifest_path = output_dir / "manifest.json"
+        existing_manifest = None
+        if manifest_path.is_file():
+            try:
+                existing_manifest = json.loads(
+                    manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                existing_manifest = None
+        if (isinstance(existing_manifest, dict) and
+                manifest_is_compatible(existing_manifest, manifest_candidate)):
+            manifest = existing_manifest
+        else:
+            manifest = manifest_candidate
+            atomic_json(manifest_path, manifest)
 
     def run_job(job: tuple[dict[str, Any], dict[str, Any], int]) -> None:
         dataset, condition, repetition = job
@@ -416,8 +505,17 @@ def main() -> int:
         result_path = run_dir / "result.json"
         dafs_command = [str(binary), *map(str, condition.get("args", [])),
                         "--metrics-jsonl", str(metrics_path), str(input_path)]
-        digest = command_digest(dafs_command, sha256_file(input_path),
-                                sci_provenance)
+        input_sha256 = sha256_file(input_path)
+        reference_sha256 = (sha256_file(reference_path)
+                            if reference_path is not None else None)
+        digest_context = {
+            **digest_context_base,
+            "condition": condition_id,
+            "dataset": dataset_id,
+            "repetition": repetition,
+            "reference_sha256": reference_sha256,
+        }
+        digest = command_digest(dafs_command, input_sha256, digest_context)
         if result_path.exists() and not args.rerun:
             previous = json.loads(result_path.read_text(encoding="utf-8"))
             failed = previous.get("status") != "success"
@@ -452,7 +550,7 @@ def main() -> int:
             except Exception as error:  # retain failed scoring as benchmark evidence
                 score_error = f"{type(error).__name__}: {error}"
         result = {
-            "schema_version": 1,
+            "schema_version": 2,
             "method": "DAFS",
             "condition": condition_id,
             "ribosum": condition.get("ribosum_weight"),
@@ -465,9 +563,15 @@ def main() -> int:
             "harness_wall_seconds": harness_seconds,
             "command": dafs_command,
             "command_sha256": digest,
+            "digest_context": digest_context,
+            "binary": str(binary),
+            "binary_sha256": binary_sha256,
+            "config_path": str(config_path),
+            "config_sha256": config_sha256,
             "input": str(input_path),
-            "input_sha256": sha256_file(input_path),
+            "input_sha256": input_sha256,
             "reference": str(reference_path) if reference_path else None,
+            "reference_sha256": reference_sha256,
             "resource": load_resource(resource_path),
             "metrics_validation": metrics_validation,
             "quality": quality,
@@ -494,11 +598,15 @@ def main() -> int:
                 future.result()
 
     if not args.dry_run:
-        write_summaries(output_dir)
+        write_summaries(output_dir, expected_keys)
         print(f"Summary: {output_dir / 'summary.csv'}")
         failures = []
         for path in sorted((output_dir / "runs").glob("*/*/rep-*/result.json")):
+            if expected_keys is not None and result_path_identity(path) not in expected_keys:
+                continue
             result = json.loads(path.read_text(encoding="utf-8"))
+            if result_identity(result) not in expected_keys:
+                continue
             if result.get("status") != "success":
                 failures.append(f"{path}: status={result.get('status')}")
             elif not result.get("metrics_validation", {}).get("valid"):

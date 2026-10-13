@@ -1,0 +1,156 @@
+{
+  "binary": "../../build-arm64/src/dafs",
+  "output_dir": "../results-murlet-dataset1-profile-energy-comparison-arm64-v272",
+  "timeout_seconds": 1800,
+  "repetitions": 1,
+  "random_seed": 42,
+  "environment": {
+    "OMP_NUM_THREADS": "1"
+  },
+  "sci": {
+    "bin_dir": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "version": "2.7.2"
+  },
+  "dataset_manifests": [
+    "../data/murlet/manifest.json"
+  ],
+  "dataset_filter": {
+    "collections": [
+      "dataset1"
+    ]
+  },
+  "conditions": [
+    {
+      "id": "lpc_linear_legacy",
+      "label": "lpc x LinearAlign (legacy profile energy)",
+      "phase": "profile-energy",
+      "linear": true,
+      "ribosum_weight": 0.5,
+      "final_ribosum_weight": 0.01,
+      "args": [
+        "-a", "LinearAlign", "-s", "lpc", "--alifold",
+        "--dynamic-cbp", "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01", "--max-iter=80",
+        "--align-beam=100", "--align-dd-beam=100", "--linfold-beam=100",
+        "--fold-dd-beam=100", "--fold-final-beam=100",
+        "--align-th=0.02", "--linear-profile-energy=legacy"
+      ]
+    },
+    {
+      "id": "lpc_linear_rnaalifold",
+      "label": "lpc x LinearAlign (RNAalifold profile energy)",
+      "phase": "profile-energy",
+      "linear": true,
+      "ribosum_weight": 0.5,
+      "final_ribosum_weight": 0.01,
+      "args": [
+        "-a", "LinearAlign", "-s", "lpc", "--alifold",
+        "--dynamic-cbp", "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01", "--max-iter=80",
+        "--align-beam=100", "--align-dd-beam=100", "--linfold-beam=100",
+        "--fold-dd-beam=100", "--fold-final-beam=100",
+        "--align-th=0.02", "--linear-profile-energy=rnaalifold"
+      ]
+    },
+    {
+      "id": "lpc_contralign_legacy",
+      "label": "lpc x LinearCONTRAlign (legacy profile energy)",
+      "phase": "profile-energy",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.005,
+      "args": [
+        "-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--alifold",
+        "--dynamic-cbp", "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005", "--align-pct=0.5",
+        "--max-iter=80", "--align-beam=100", "--align-dd-beam=100",
+        "--linfold-beam=100", "--fold-dd-beam=100",
+        "--fold-final-beam=100", "--align-th=0.02",
+        "--linear-profile-energy=legacy"
+      ]
+    },
+    {
+      "id": "lpc_contralign_rnaalifold",
+      "label": "lpc x LinearCONTRAlign (RNAalifold profile energy)",
+      "phase": "profile-energy",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.005,
+      "args": [
+        "-a", "LinearAlign-CONTRAlign", "-s", "lpc", "--alifold",
+        "--dynamic-cbp", "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005", "--align-pct=0.5",
+        "--max-iter=80", "--align-beam=100", "--align-dd-beam=100",
+        "--linfold-beam=100", "--fold-dd-beam=100",
+        "--fold-final-beam=100", "--align-th=0.02",
+        "--linear-profile-energy=rnaalifold"
+      ]
+    },
+    {
+      "id": "lpv_linear_legacy",
+      "label": "lpv x LinearAlign (legacy profile energy)",
+      "phase": "profile-energy",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a", "LinearAlign", "-s", "lpv", "--alifold",
+        "--dynamic-cbp", "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0", "--align-pct=0.5",
+        "--max-iter=80", "--align-beam=100", "--align-dd-beam=100",
+        "--linfold-beam=100", "--fold-dd-beam=100",
+        "--fold-final-beam=100", "--fold-pct=0.5",
+        "--linear-profile-energy=legacy"
+      ]
+    },
+    {
+      "id": "lpv_linear_rnaalifold",
+      "label": "lpv x LinearAlign (RNAalifold profile energy)",
+      "phase": "profile-energy",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a", "LinearAlign", "-s", "lpv", "--alifold",
+        "--dynamic-cbp", "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0", "--align-pct=0.5",
+        "--max-iter=80", "--align-beam=100", "--align-dd-beam=100",
+        "--linfold-beam=100", "--fold-dd-beam=100",
+        "--fold-final-beam=100", "--fold-pct=0.5",
+        "--linear-profile-energy=rnaalifold"
+      ]
+    },
+    {
+      "id": "lpv_probcons_legacy",
+      "label": "lpv x LinearProbCons (legacy profile energy)",
+      "phase": "profile-energy",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a", "LinearAlign-ProbConsRNA", "-s", "lpv", "--alifold",
+        "--dynamic-cbp", "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0", "--weight=4", "--max-iter=80",
+        "--align-beam=100", "--align-dd-beam=100", "--linfold-beam=100",
+        "--fold-dd-beam=100", "--fold-final-beam=100",
+        "--fold-pct=0.5", "--linear-profile-energy=legacy"
+      ]
+    },
+    {
+      "id": "lpv_probcons_rnaalifold",
+      "label": "lpv x LinearProbCons (RNAalifold profile energy)",
+      "phase": "profile-energy",
+      "linear": true,
+      "ribosum_weight": 0.3,
+      "final_ribosum_weight": 0.0,
+      "args": [
+        "-a", "LinearAlign-ProbConsRNA", "-s", "lpv", "--alifold",
+        "--dynamic-cbp", "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0", "--weight=4", "--max-iter=80",
+        "--align-beam=100", "--align-dd-beam=100", "--linfold-beam=100",
+        "--fold-dd-beam=100", "--fold-final-beam=100",
+        "--fold-pct=0.5", "--linear-profile-energy=rnaalifold"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,237 @@
+{
+  "binary": "/tmp/dafs-linearalifold-repair-build/src/dafs",
+  "conditions": [
+    {
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01",
+        "--align-th=0.02",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ],
+      "final_ribosum_weight": 0.01,
+      "id": "cl_linear_ath02",
+      "label": "lpc x LinearAlign",
+      "linear": true,
+      "phase": "parameter",
+      "ribosum_weight": 0.5
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpc",
+        "--alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.5",
+        "--final-ribosum-weight=0.01",
+        "--align-th=0.02",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ],
+      "final_ribosum_weight": 0.01,
+      "id": "cl_linear_ath02_alifold",
+      "label": "lpc x LinearAlign (LinearAlifold)",
+      "linear": true,
+      "phase": "parameter",
+      "ribosum_weight": 0.5
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign-ProbConsRNA",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--weight=4",
+        "--fold-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ],
+      "final_ribosum_weight": 0.0,
+      "id": "lpv_probcons_fpct05",
+      "label": "lpv x LinearProbCons",
+      "linear": true,
+      "phase": "parameter",
+      "ribosum_weight": 0.3
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign-ProbConsRNA",
+        "-s",
+        "lpv",
+        "--alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--weight=4",
+        "--fold-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ],
+      "final_ribosum_weight": 0.0,
+      "id": "lpv_probcons_fpct05_alifold",
+      "label": "lpv x LinearProbCons (LinearAlifold)",
+      "linear": true,
+      "phase": "parameter",
+      "ribosum_weight": 0.3
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign-CONTRAlign",
+        "-s",
+        "lpc",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005",
+        "--align-pct=0.5",
+        "--align-th=0.02",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ],
+      "final_ribosum_weight": 0.005,
+      "id": "lpc_contralign_ath02",
+      "label": "lpc x LinearCONTRAlign",
+      "linear": true,
+      "phase": "parameter",
+      "ribosum_weight": 0.3
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign-CONTRAlign",
+        "-s",
+        "lpc",
+        "--alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0.005",
+        "--align-pct=0.5",
+        "--align-th=0.02",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ],
+      "final_ribosum_weight": 0.005,
+      "id": "lpc_contralign_ath02_alifold",
+      "label": "lpc x LinearCONTRAlign (LinearAlifold)",
+      "linear": true,
+      "phase": "parameter",
+      "ribosum_weight": 0.3
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpv",
+        "--no-alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--align-pct=0.5",
+        "--fold-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ],
+      "final_ribosum_weight": 0.0,
+      "id": "lpv_linear_fpct05",
+      "label": "lpv x LinearAlign",
+      "linear": true,
+      "phase": "parameter",
+      "ribosum_weight": 0.3
+    },
+    {
+      "args": [
+        "-a",
+        "LinearAlign",
+        "-s",
+        "lpv",
+        "--alifold",
+        "--dynamic-cbp",
+        "--ribosum-weight=0.3",
+        "--final-ribosum-weight=0",
+        "--align-pct=0.5",
+        "--fold-pct=0.5",
+        "--max-iter=100",
+        "--align-beam=100",
+        "--align-dd-beam=100",
+        "--linfold-beam=100",
+        "--fold-dd-beam=100",
+        "--fold-final-beam=100"
+      ],
+      "final_ribosum_weight": 0.0,
+      "id": "lpv_linear_fpct05_alifold",
+      "label": "lpv x LinearAlign (LinearAlifold)",
+      "linear": true,
+      "phase": "parameter",
+      "ribosum_weight": 0.3
+    }
+  ],
+  "dataset_filter": {
+    "collections": [
+      "dataset1"
+    ],
+    "ids": [
+      "murlet-dataset1-RF00031-0",
+      "murlet-dataset1-RF00003-0",
+      "murlet-dataset1-RF00017-0"
+    ]
+  },
+  "dataset_manifests": [
+    "../data/murlet/manifest.json"
+  ],
+  "environment": {
+    "OMP_NUM_THREADS": "1"
+  },
+  "evaluation_scope": "pilot",
+  "evaluation_source_config": "/home/sato-lab.org/satoken/ghq/github.com/satoken/dafs/benchmarks/configs/murlet-dataset1-linearalifold-pilot-iter100-beam100.json",
+  "output_dir": "../results-murlet-dataset1-linearalifold-repair-v2-pilot-iter100-beam100",
+  "random_seed": 42,
+  "repetitions": 1,
+  "sci": {
+    "bin_dir": "/home/sato-lab.org/satoken/.local/app/viennarna-2.7.2-arm64/bin",
+    "version": "2.7.2"
+  },
+  "timeout_seconds": 1800
+}
