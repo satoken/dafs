@@ -154,6 +154,12 @@ if(BUILD_TESTING)
   add_test(NAME dd_recovery_pipeline COMMAND ${Python3_EXECUTABLE}
       ${PROJECT_SOURCE_DIR}/tests/test_dd_recovery.py $<TARGET_FILE:dafs>)
 
+  add_executable(dafs_nussinov_test ../tests/dafs_nussinov_test.cpp nussinov.cpp)
+  target_include_directories(dafs_nussinov_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_features(dafs_nussinov_test PRIVATE cxx_std_17)
+  target_link_libraries(dafs_nussinov_test PRIVATE IPknot::decoder)
+  add_test(NAME dafs_nussinov COMMAND dafs_nussinov_test)
+
   add_executable(linear_nussinov_test
       ../tests/linear_nussinov_test.cpp nussinov.cpp)
   target_include_directories(linear_nussinov_test PRIVATE
@@ -284,6 +290,10 @@ if(BUILD_TESTING)
         -DINPUT=${PROJECT_SOURCE_DIR}/tests/data/tiny.fa
         -P ${PROJECT_SOURCE_DIR}/tests/linear_ipknot_pipeline.cmake)
   set_tests_properties(linear_ipknot_pipeline PROPERTIES TIMEOUT 60)
+
+  add_test(NAME nonlinear_ipknot_pipeline COMMAND ${Python3_EXECUTABLE}
+      ${PROJECT_SOURCE_DIR}/tests/test_nonlinear_ipknot.py $<TARGET_FILE:dafs>)
+  set_tests_properties(nonlinear_ipknot_pipeline PROPERTIES TIMEOUT 60)
 
   set(allow_isolated_test_args)
   if(DAFS_HAS_IP_BACKEND)

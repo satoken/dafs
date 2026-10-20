@@ -1,0 +1,38 @@
+{
+  "dafs_base_commit": "8b62396646aec07d4b7d065baad21a7de1a984e3",
+  "ipknot_commit": "fb0071d6629b06027d936130c8d724a740826e40",
+  "source_overlay": "/gs/bs/tga-satolab-gtex/satoken/repos/dafs-benchmark/build/dafs-ipknot-nussinov-default/source",
+  "native_source": "/gs/bs/tga-satolab-gtex/satoken/repos/dafs",
+  "source_sha256": {
+    "CMakeLists.txt": "db6ee4bb225c4d977e107522d182078aabef776b1785ec7267b2abb766a699c8",
+    "README.md": "baf557d5e3f373098d92dbb01fdfb6c3cbedc9aa0f8b9cae0e8e285d80cc6de4",
+    "THIRD_PARTY_NOTICES": "b2951e3ec781f4557ca2aa1b431686332cfe1355623f98b3ba0452bcd3453580",
+    "src/nussinov.cpp": "cca8aaf4e1b7ed8f88f6a7d151bf3843a65fe209a8687c4561da663f786c59db",
+    "src/nussinov.h": "c112455a3ae2de053c892c08efd4f45fc9f4eb04460fead9e6aaa0b430e46931",
+    "tests/linear_nussinov_test.cpp": "1753a5dca882283489133de47b13d2bec5fdad04044c20ac4f965c0b5fcebb11",
+    "tests/nussinov_parallel_test.cpp": "b9768d52611e69e81268b9de018f64577a39d96fdd7433287e7934d0ed128d69"
+  },
+  "vendor_manifest_sha256": "1f421fcaa811ca52fcf06b3ebef184b4961476863771e24874cf164ad14a1aef",
+  "binaries": {
+    "baseline": "32d551cd935c15c996d7d0e2636fa99c36452e6c1159987ff4a1a7bef628bf53",
+    "bundled": "3cc668ecba4ec9eb636a603b17ac620fbe9bca15ad44dfaee439b626135dc643",
+    "native": "3cc668ecba4ec9eb636a603b17ac620fbe9bca15ad44dfaee439b626135dc643"
+  },
+  "tests": {
+    "openmp": {
+      "passed": 30,
+      "skipped": 1,
+      "failed": 0
+    },
+    "no_openmp": {
+      "passed": 3,
+      "failed": 0
+    },
+    "ilp_glpk": {
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "job_id": 8997754,
+  "comparison": "/gs/bs/tga-satolab-gtex/satoken/repos/dafs-benchmark/build/dafs-ipknot-nussinov-default/comparison.json"
+}

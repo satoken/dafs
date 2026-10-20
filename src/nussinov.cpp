@@ -403,39 +403,6 @@ make_brackets(const VU& ss, std::string& str) const
 }
 
 namespace {
-struct LinearNussinovCell
-{
-  uint start;
-  double score;
-  uint pair_left;
-  uint inside_start;
-  bool paired;
-};
-
-struct LinearNussinovPairedCell
-{
-  double score;
-  uint inside_start;
-  bool stacked;
-};
-
-using LinearNussinovBeam = std::vector<LinearNussinovCell>;
-
-struct LinearNussinovRankedCell
-{
-  const LinearNussinovCell* cell;
-  double priority;
-};
-
-bool
-linear_nussinov_cell_is_better(const LinearNussinovRankedCell& lhs,
-                               const LinearNussinovRankedCell& rhs)
-{
-  return lhs.priority != rhs.priority
-      ? lhs.priority > rhs.priority
-      : lhs.cell->start < rhs.cell->start;
-}
-
 void
 radix_sort_linear_nussinov_starts(std::vector<uint>& values,
                                   std::vector<uint>& scratch)
@@ -462,17 +429,6 @@ radix_sort_linear_nussinov_starts(std::vector<uint>& values,
       scratch[counts[(value >> shift) & (radix_size - 1)]++] = value;
     values.swap(scratch);
   }
-}
-
-const LinearNussinovCell*
-find_linear_nussinov_cell(const LinearNussinovBeam& beam, uint start)
-{
-  const auto it = std::lower_bound(
-      beam.begin(), beam.end(), start,
-      [](const LinearNussinovCell& cell, uint value) {
-        return cell.start < value;
-      });
-  return it != beam.end() && it->start == start ? &*it : nullptr;
 }
 
 // A caller-supplied sparse support can contain span-two pairs.  The linear
@@ -679,6 +635,432 @@ prepare_linear_nussinov_certificate(
 }
 } // namespace
 
+// Restored from d7f4b07, before IPknot Nussinov-kernel integration.
+// Preserve float addition order, skip-left tie precedence, and the original
+// candidate-list recurrence; this is the default nonlinear CLI backend.
+namespace {
+template <typename PairScore>
+float decode_dafs_stacked_nussinov(uint length, PairScore pair_score, VU& ss)
+{
+  ss.assign(length, -1u);
+  if (length == 0)
+    return 0.0f;
+  const double missing = -std::numeric_limits<double>::infinity();
+  std::vector<std::vector<double>> complete(length, std::vector<double>(length));
+  std::vector<std::vector<double>> paired(length, std::vector<double>(length, missing));
+  VVU trace(length, VU(length, -1u));
+  std::vector<std::vector<bool>> extend(length, std::vector<bool>(length));
+  for (uint right = 0; right < length; ++right) {
+    std::vector<std::pair<uint, double>> blocks;
+    for (uint end = right + 1; end > 0; --end) {
+      const uint left = end - 1;
+      complete[left][right] = left < right ? complete[left][right-1] : 0.0;
+      if (left + 2 < right) {
+        const double local = pair_score(left, right);
+        if (std::isfinite(local)) {
+          const double inner_pair = paired[left+1][right-1];
+          extend[left][right] = inner_pair > complete[left+1][right-1];
+          paired[left][right] = local + std::max(
+              inner_pair, complete[left+1][right-1]);
+          const double block = local + inner_pair;
+          if (block > 0.0)
+            blocks.emplace_back(left, block);
+        }
+      }
+      for (const auto [start, block] : blocks) {
+        const double prefix = start > left ? complete[left][start-1] : 0.0;
+        if (prefix + block > complete[left][right]) {
+          complete[left][right] = prefix + block;
+          trace[left][right] = start;
+        }
+      }
+    }
+  }
+  std::vector<std::tuple<uint, uint, bool>> pending{{0, length-1, false}};
+  while (!pending.empty()) {
+    const auto [left, right, is_paired] = pending.back();
+    pending.pop_back();
+    if (is_paired) {
+      ss[left] = right;
+      pending.emplace_back(left+1, right-1, extend[left][right]);
+    } else if (trace[left][right] != -1u) {
+      const uint start = trace[left][right];
+      ss[start] = right;
+      if (left < start)
+        pending.emplace_back(left, start-1, false);
+      pending.emplace_back(start+1, right-1, true);
+    } else if (left < right) {
+      pending.emplace_back(left, right-1, false);
+    }
+  }
+  return static_cast<float>(complete[0][length-1]);
+}
+} // namespace
+
+DAFSNussinov::DAFSNussinov(float th, bool allow_isolated, int dp_threads)
+    : th_(th), allow_isolated_(allow_isolated)
+{
+  // Retain option validation, while the original DAFS kernel stays serial.
+  validate_dp_threads(dp_threads);
+}
+
+float
+DAFSNussinov::
+score(float w, const VVF& p, const VVF& q, const VU& ss)
+{
+  if (p.empty()) return 0.0f;
+  uint L=p.size();
+  assert(p[0].size()==L);
+  float score = 0.0;
+
+  for (uint i=0; i!=L; ++i)
+  {
+    if (ss[i] != -1u)
+    {
+      score += w * (p[i][ss[i]] - th_) - q[i][ss[i]];
+    }
+  }
+
+  return score;
+}
+
+float
+DAFSNussinov::
+decode(float w, const VVF& p, const VVF& q, VU& ss)
+{
+  if (p.empty()) { ss.clear(); return 0.0f; }
+  if (!allow_isolated_)
+    return decode_dafs_stacked_nussinov(p.size(), [&](uint i, uint j) {
+      return nussinov_pair_score(w, p[i][j], q[i][j], th_, false);
+    }, ss);
+  uint L=p.size();
+  assert(p[0].size()==L);
+
+  VVF dp(L, VF(L, 0.0));
+  BP bp(L);
+  VVU tr(L, VU(L, 0));
+  for (uint l=1; l<L; ++l)
+  {
+    for (uint i=0; i+l<L; ++i)
+    {
+      uint j=i+l;
+      float v=0.0;
+      int t=0;
+      if (i+1<j)
+      {
+        v=dp[i+1][j];
+        t=1;
+      }
+      if (i<j-1 && v<dp[i][j-1])
+      {
+        v=dp[i][j-1];
+        t=2;
+      }
+      if (i+1<j-1)
+      {
+        float s=w*(p[i][j]-th_)-q[i][j];
+        if (s>0.0)
+        {
+          bp[j].push_back(std::make_pair(i,dp[i+1][j-1]+s));
+          if (v<dp[i+1][j-1]+s)
+          {
+            v=dp[i+1][j-1]+s;
+            t=3;
+          }
+        }
+      }
+      for (SV::const_iterator x=bp[j].begin(); x!=bp[j].end(); ++x)
+      {
+        const uint k=x->first;
+        const float s=x->second;
+        if (i<k)
+        {
+          if (v<dp[i][k-1]+s)
+          {
+            v=dp[i][k-1]+s;
+            t=k-i+3;
+          }
+        }
+      }
+      dp[i][j]=v;
+      tr[i][j]=t;
+    }
+  }
+
+  // trace back
+  ss.resize(L);
+  std::fill(ss.begin(), ss.end(), -1u);
+  std::stack<std::pair<uint,uint> > st;
+  st.push(std::make_pair(0, L-1));
+  while (!st.empty())
+  {
+    const std::pair<uint,uint> p=st.top(); st.pop();
+    const int i=p.first, j=p.second;
+    switch (tr[i][j])
+    {
+      case 0:
+        break;
+      case 1:
+        st.push(std::make_pair(i+1, j));
+        break;
+      case 2:
+        st.push(std::make_pair(i, j-1));
+        break;
+      case 3:
+        ss[i]=j;
+        st.push(std::make_pair(i+1, j-1));
+        break;
+      default:
+        const int k=i+tr[i][j]-3;
+        st.push(std::make_pair(i, k-1));
+        ss[k]=j;
+        st.push(std::make_pair(k+1, j-1));
+        break;
+    }
+  }
+
+  return dp[0][L-1];
+}
+
+float
+DAFSNussinov::
+decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss)
+{
+  if (p.empty()) { ss.clear(); return 0.0f; }
+  if (!allow_isolated_)
+    return decode_dafs_stacked_nussinov(p.size(), [&](uint i, uint j) {
+      return nussinov_pair_score(w, p[i][j], q.get(i, j), th_, false);
+    }, ss);
+  uint L=p.size();
+  assert(p[0].size()==L);
+  assert(q.rows()==L && q.columns()==L);
+
+  VVF dp(L, VF(L, 0.0));
+  BP bp(L);
+  VVU tr(L, VU(L, 0));
+  std::vector<const SV*> multiplier_rows(L);
+  std::vector<size_t> multiplier_positions(L, 0);
+  for (uint i=0; i<L; ++i)
+    multiplier_rows[i] = &q.ordered_row(i);
+  for (uint l=1; l<L; ++l)
+  {
+    for (uint i=0; i+l<L; ++i)
+    {
+      uint j=i+l;
+      float v=0.0;
+      int t=0;
+      if (i+1<j)
+      {
+        v=dp[i+1][j];
+        t=1;
+      }
+      if (i<j-1 && v<dp[i][j-1])
+      {
+        v=dp[i][j-1];
+        t=2;
+      }
+      if (i+1<j-1)
+      {
+        // Multipliers can become nonzero only on a selected probability
+        // candidate or a CBP projection, both of which have p>0.  Avoid a
+        // multiplier lookup for the zero cells of a LinearFold matrix.
+        float multiplier = 0.0f;
+        if (p[i][j] > 0.0f)
+        {
+          const SV& row = *multiplier_rows[i];
+          size_t& pos = multiplier_positions[i];
+          while (pos < row.size() && row[pos].first < j) ++pos;
+          if (pos < row.size() && row[pos].first == j)
+            multiplier = row[pos].second;
+        }
+        float s=w*(p[i][j]-th_)-multiplier;
+        if (s>0.0)
+        {
+          bp[j].push_back(std::make_pair(i,dp[i+1][j-1]+s));
+          if (v<dp[i+1][j-1]+s)
+          {
+            v=dp[i+1][j-1]+s;
+            t=3;
+          }
+        }
+      }
+      for (SV::const_iterator x=bp[j].begin(); x!=bp[j].end(); ++x)
+      {
+        const uint k=x->first;
+        const float s=x->second;
+        if (i<k)
+        {
+          if (v<dp[i][k-1]+s)
+          {
+            v=dp[i][k-1]+s;
+            t=k-i+3;
+          }
+        }
+      }
+      dp[i][j]=v;
+      tr[i][j]=t;
+    }
+  }
+
+  ss.resize(L);
+  std::fill(ss.begin(), ss.end(), -1u);
+  std::stack<std::pair<uint,uint> > st;
+  st.push(std::make_pair(0, L-1));
+  while (!st.empty())
+  {
+    const std::pair<uint,uint> p=st.top(); st.pop();
+    const int i=p.first, j=p.second;
+    switch (tr[i][j])
+    {
+      case 0: break;
+      case 1: st.push(std::make_pair(i+1, j)); break;
+      case 2: st.push(std::make_pair(i, j-1)); break;
+      case 3:
+        ss[i]=j;
+        st.push(std::make_pair(i+1, j-1));
+        break;
+      default:
+        const int k=i+tr[i][j]-3;
+        st.push(std::make_pair(i, k-1));
+        ss[k]=j;
+        st.push(std::make_pair(k+1, j-1));
+        break;
+    }
+  }
+
+  return dp[0][L-1];
+}
+
+float
+DAFSNussinov::
+decode(const VVF& p, VU& ss, std::string& str)
+{
+  if (p.empty()) { ss.clear(); str.clear(); return 0.0f; }
+  if (!allow_isolated_) {
+    const float score = decode_dafs_stacked_nussinov(p.size(), [&](uint i, uint j) {
+      return nussinov_pair_score(1.0f, p[i][j], 0.0f, th_, false);
+    }, ss);
+    make_brackets(ss, str);
+    return score;
+  }
+  uint L=p.size();
+  assert(p[0].size()==L);
+
+  VVF dp(L, VF(L, 0.0));
+  BP bp(L);
+  VVU tr(L, VU(L, 0));
+  for (uint l=1; l<L; ++l)
+  {
+    for (uint i=0; i+l<L; ++i)
+    {
+      uint j=i+l;
+      float v=0.0;
+      int t=0;
+      if (i+1<j)
+      {
+        v=dp[i+1][j];
+        t=1;
+      }
+      if (i<j-1 && v<dp[i][j-1])
+      {
+        v=dp[i][j-1];
+        t=2;
+      }
+      if (i+1<j-1)
+      {
+        float s=p[i][j]-th_;
+        if (s>0.0)
+        {
+          bp[j].push_back(std::make_pair(i,dp[i+1][j-1]+s));
+          if (v<dp[i+1][j-1]+s)
+          {
+            v=dp[i+1][j-1]+s;
+            t=3;
+          }
+        }
+      }
+      for (SV::const_iterator x=bp[j].begin(); x!=bp[j].end(); ++x)
+      {
+        const uint k=x->first;
+        const float s=x->second;
+        if (i<k)
+        {
+          if (v<dp[i][k-1]+s)
+          {
+            v=dp[i][k-1]+s;
+            t=k-i+3;
+          }
+        }
+      }
+      dp[i][j]=v;
+      tr[i][j]=t;
+    }
+  }
+
+  // trace back
+  ss.resize(L);
+  std::fill(ss.begin(), ss.end(), -1u);
+  std::stack<std::pair<uint,uint> > st;
+  st.push(std::make_pair(0, L-1));
+  while (!st.empty())
+  {
+    const std::pair<uint,uint> p=st.top(); st.pop();
+    const int i=p.first, j=p.second;
+    switch (tr[i][j])
+    {
+      case 0:
+        break;
+      case 1:
+        st.push(std::make_pair(i+1, j));
+        break;
+      case 2:
+        st.push(std::make_pair(i, j-1));
+        break;
+      case 3:
+        ss[i]=j;
+        st.push(std::make_pair(i+1, j-1));
+        break;
+      default:
+        const int k=i+tr[i][j]-3;
+        st.push(std::make_pair(i, k-1));
+        ss[k]=j;
+        st.push(std::make_pair(k+1, j-1));
+        break;
+    }
+  }
+
+  make_brackets(ss, str);
+  return dp[0][L-1];
+}
+
+float
+DAFSNussinov::
+decode(const SparseFloatMatrix& p, const SparseFloatMatrix& pair_bonus,
+       VU& ss, std::string& str)
+{
+  assert(p.rows() == pair_bonus.rows() &&
+         p.columns() == pair_bonus.columns());
+  if (!allow_isolated_) {
+    const float score = decode_dafs_stacked_nussinov(p.rows(), [&](uint i, uint j) {
+      return nussinov_pair_score(1.0f, p.get(i, j), -pair_bonus.get(i, j), th_, false);
+    }, ss);
+    make_brackets(ss, str);
+    return score;
+  }
+  VVF adjusted = p.dense();
+  for (uint i = 0; i < pair_bonus.rows(); ++i)
+    for (const auto [j, value] : pair_bonus.ordered_row(i))
+      adjusted[i][j] += value;
+  return decode(adjusted, ss, str);
+}
+
+void
+DAFSNussinov::
+make_brackets(const VU& ss, std::string& str) const
+{
+  str=::make_brackets(ss);
+}
+
 struct SparseNussinov::Workspace
 {
   uint length = 0;
@@ -766,8 +1148,8 @@ float SparseNussinov::decode_impl(
     w.dense_chart = dense_chart;
     // Reuse the public exact oracle, including closed-candidate sparsification,
     // suffix dominance, signed stacking states and lazy traceback allocation.
-    // Closed-candidate pruning is unsafe for a finite beam whose replacement
-    // derivations might be pruned; LinearNussinov retains its certified beam.
+    // Finite-beam decoding below uses the same oracle with exact pruning
+    // disabled and a pruning observer for DAFS completion certificates.
     // Dense inputs use IPknot's compact interval chart. Sparse inputs use
     // its sparse exact chart, including long sequences with few candidates.
     // Both charts apply the same exact closed-candidate sparsification.
@@ -877,56 +1259,8 @@ void SparseNussinov::make_brackets(const VU& ss, std::string& str) const
   str = ::make_brackets(ss);
 }
 
-struct LinearNussinov::DafsWorkspace
-{
-  std::vector<LinearNussinovBeam> beams;
-  // Pair states and adjacent inner-pair indices are flat and reused while
-  // the support is unchanged, as in IPknot's oracle (no hash lookup in DP).
-  std::vector<LinearNussinovPairedCell> paired;
-  std::vector<std::vector<uint>> paired_support;
-  std::vector<size_t> inner_pairs;
-  std::vector<const LinearNussinovCell*> beam_roots;
-  std::vector<LinearNussinovCell> candidates;
-  std::vector<uint> candidate_generation;
-  std::vector<size_t> candidate_origins;
-  std::vector<uint> candidate_starts;
-  std::vector<uint> radix_scratch;
-  std::vector<uint> dominated_generation;
-  std::vector<uint> retained_generation;
-  std::vector<const LinearNussinovCell*> suffix_best;
-  std::vector<LinearNussinovRankedCell> selected;
-  std::vector<std::pair<uint, uint>> pending;
-  std::vector<float> pair_scores;
-  std::vector<size_t> pair_score_offsets;
-  struct LocalColumn {
-    explicit LocalColumn(uint length)
-        : cells(length), generation(length), origins(length) { starts.reserve(length); }
-    std::vector<LinearNussinovCell> cells;
-    std::vector<uint> generation, starts;
-    std::vector<size_t> origins;
-    void offer(uint token, uint start, double score, bool paired, uint left,
-               uint inside_start, size_t origin) {
-      // Static scheduling visits this worker's support indices in order;
-      // equal local proposals already have the earliest origin.
-      if (generation[start] != token) {
-        generation[start] = token;
-        starts.push_back(start);
-      } else if (!(score > cells[start].score)) return;
-      cells[start] = {start, score, left, inside_start, paired};
-      origins[start] = origin;
-    }
-  };
-  std::vector<LocalColumn> local_columns;
-  uint local_length = 0;
-  int used_workers = 1;
-  size_t parallel_steps = 0;
-  uint generation = 0;
-  LinearNussinovCertificate certificate;
-};
-
 struct LinearNussinov::Workspace
 {
-  std::unique_ptr<DafsWorkspace> dafs;
   bool used_ipknot = false;
   uint length = 0;
   std::vector<std::vector<uint>> support;
@@ -962,472 +1296,6 @@ bool LinearNussinov::used_ipknot_kernel() const { return workspace_->used_ipknot
 template <typename PairScore>
 LinearNussinovResult
 LinearNussinov::
-decode_dafs_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
-            PairScore pair_score, VU& ss, bool certify)
-{
-  DafsWorkspace& workspace = *workspace_->dafs;
-  workspace.used_workers = 1;
-  workspace.parallel_steps = 0;
-  ss.assign(L, -1u);
-  if (L == 0) return {};
-  LinearNussinovCertificate& certificate = workspace.certificate;
-  workspace.pair_score_offsets.resize(L + 1);
-  size_t score_count = 0;
-  for (uint right = 0; right < L; ++right) {
-    workspace.pair_score_offsets[right] = score_count;
-    score_count += pairs_by_right[right].size();
-  }
-  workspace.pair_score_offsets[L] = score_count;
-  const bool cache_scores = certify || dp_threads_ != 1;
-  if (cache_scores) {
-    workspace.pair_scores.assign(score_count, 0.0f);
-    for (uint right = 0; right < L; ++right) {
-      const size_t score_offset = workspace.pair_score_offsets[right];
-      for (size_t k = 0; k < pairs_by_right[right].size(); ++k) {
-        const uint left = pairs_by_right[right][k];
-        if (linear_nussinov_pair_is_usable(left, right, L))
-          workspace.pair_scores[score_offset + k] = pair_score(left, right);
-      }
-    }
-  }
-  if (certify)
-    prepare_linear_nussinov_certificate(
-        L, pairs_by_right, workspace.pair_scores,
-        workspace.pair_score_offsets, certificate);
-
-  constexpr size_t no_pair = std::numeric_limits<size_t>::max();
-  if (!allow_isolated_) {
-    if (workspace.paired_support != pairs_by_right) {
-      workspace.paired_support = pairs_by_right;
-      workspace.inner_pairs.assign(score_count, no_pair);
-      std::vector<size_t> last_index(L);
-      std::vector<uint> last_right(L, -1u);
-      for (uint right = 0; right < L; ++right) {
-        const auto& row = pairs_by_right[right];
-        const size_t offset = workspace.pair_score_offsets[right];
-        for (size_t k = 0; k < row.size(); ++k) {
-          const uint left = row[k];
-          if (linear_nussinov_pair_is_usable(left, right, L) &&
-              last_right[left+1] == right-1)
-            workspace.inner_pairs[offset+k] = last_index[left+1];
-        }
-        for (size_t k = 0; k < row.size(); ++k) {
-          const uint left = row[k];
-          if (linear_nussinov_pair_is_usable(left, right, L)) {
-            last_right[left] = right;
-            last_index[left] = offset+k;
-          }
-        }
-      }
-    }
-    workspace.paired.assign(score_count,
-        {-std::numeric_limits<double>::infinity(), -1u, false});
-  }
-  // D(i,j) is the best non-crossing matching on [i,j].  At each right
-  // endpoint retain only the most promising interval starts.  For a caller-
-  // supplied support with M entries, fixed beam b gives O(L + M*f(b)); the
-  // dense overloads intentionally materialize their L^2 support before this
-  // core is entered.
-  workspace.beams.resize(L);
-  for (auto& beam : workspace.beams) {
-    beam.clear();
-    beam.reserve(std::min<size_t>(std::max(1u, beam_size_), L));
-  }
-  workspace.beam_roots.resize(L);
-  workspace.candidates.resize(L);
-  workspace.candidate_generation.resize(L, 0);
-  workspace.candidate_origins.resize(L);
-  workspace.candidate_starts.reserve(L);
-  workspace.radix_scratch.reserve(L);
-  workspace.dominated_generation.resize(L, 0);
-  workspace.retained_generation.resize(L, 0);
-  workspace.selected.reserve(L);
-  workspace.suffix_best.reserve(std::min<size_t>(std::max(1u, beam_size_), L));
-  auto& beams = workspace.beams;
-  const uint beam_limit = std::max(1u, beam_size_);
-
-  auto& candidates = workspace.candidates;
-  auto& candidate_starts = workspace.candidate_starts;
-  // Keep the hot serial scatter free of parallel tie bookkeeping. Offers
-  // arrive in support order here, so equal scores already keep the winner.
-  const auto offer = [&](uint start, double score, bool paired, uint left,
-                         uint inside_start, size_t = 0) {
-    const uint generation = workspace.generation;
-    if (workspace.candidate_generation[start] != generation) {
-      workspace.candidate_generation[start] = generation;
-      candidates[start] = {start, score, left, inside_start, paired};
-      candidate_starts.push_back(start);
-    } else if (score > candidates[start].score) {
-      candidates[start] = {start, score, left, inside_start, paired};
-    }
-  };
-  const auto merge_offer = [&](const LinearNussinovCell& cell, size_t origin) {
-    const uint start = cell.start, generation = workspace.generation;
-    if (workspace.candidate_generation[start] != generation) {
-      workspace.candidate_generation[start] = generation;
-      candidate_starts.push_back(start);
-    } else if (!(cell.score > candidates[start].score ||
-                 (cell.score == candidates[start].score &&
-                  origin < workspace.candidate_origins[start]))) return;
-    candidates[start] = cell;
-    workspace.candidate_origins[start] = origin;
-  };
-
-  const auto prepare_column = [&](uint right) {
-    ++workspace.generation;
-    if (workspace.generation == 0) {
-      std::fill(workspace.candidate_generation.begin(),
-                workspace.candidate_generation.end(), 0);
-      std::fill(workspace.dominated_generation.begin(),
-                workspace.dominated_generation.end(), 0);
-      std::fill(workspace.retained_generation.begin(),
-                workspace.retained_generation.end(), 0);
-      workspace.generation = 1;
-    }
-    candidate_starts.clear();
-
-    if (right > 0) {
-      const auto& previous = beams[right-1];
-      auto& suffix_best = workspace.suffix_best;
-      suffix_best.resize(previous.size());
-      const LinearNussinovCell* best = nullptr;
-      for (size_t i = previous.size(); i-- > 0; ) {
-        const LinearNussinovCell* cell = &previous[i];
-        if (!best || cell->score > best->score ||
-            (cell->score == best->score && cell->start > best->start))
-          best = cell;
-        suffix_best[i] = best;
-      }
-    }
-
-    // Leave the new right endpoint unpaired, including the new singleton
-    // interval.  Offering these first makes ties deterministic.
-    offer(right, 0.0, false, -1u, -1u);
-    if (right > 0)
-      for (const auto& previous : beams[right-1])
-        offer(previous.start, previous.score, false, -1u, -1u);
-  };
-
-  const auto generate_pair = [&](uint right, size_t support_index, const auto& emit) {
-    const uint left = pairs_by_right[right][support_index];
-    if (!linear_nussinov_pair_is_usable(left, right, L))
-      return;
-    const double local_score = cache_scores
-        ? static_cast<double>(workspace.pair_scores[
-              workspace.pair_score_offsets[right] + support_index])
-        : pair_score(left, right);
-    if (allow_isolated_ ? !(local_score > 0.0) : !std::isfinite(local_score))
-      return;
-
-    // A structure whose first used base is later than left+1 is a valid
-    // inside structure with the skipped leading bases left unpaired.  This
-    // suffix dominance removes the O(length) family of equivalent empty or
-    // leading-unpaired states without losing an exact derivation.
-    const LinearNussinovCell* inside = nullptr;
-    if (right > 0) {
-      const auto& previous = beams[right-1];
-      const auto it = std::lower_bound(
-          previous.begin(), previous.end(), left + 1,
-          [](const LinearNussinovCell& cell, uint minimum_start) {
-            return cell.start < minimum_start;
-          });
-      if (it != previous.end())
-        inside = workspace.suffix_best[it - previous.begin()];
-    }
-    if (!allow_isolated_) {
-      // P may be negative and is kept on the sparse support independently
-      // of F's beam: an outer pair can make this helix profitable. A fully
-      // unpaired interior is always available, even with a narrow F beam.
-      LinearNussinovPairedCell paired{
-          local_score + (inside ? inside->score : 0.0),
-          inside ? inside->start : -1u, false};
-      const size_t id = workspace.pair_score_offsets[right] + support_index;
-      const size_t inner = workspace.inner_pairs[id];
-      if (inner != no_pair) {
-        const double block_score = local_score + workspace.paired[inner].score;
-        if (block_score > paired.score)
-          paired = {block_score, left+1, true};
-        // Q has an inner paired endpoint, so both boundary pairs have
-        // stack support. Only complete Q blocks enter the F beam.
-        if (block_score > 0.0) {
-          emit(left, block_score, true, left, left+1, support_index+1);
-          if (left > 0)
-            for (const auto& prefix : beams[left-1])
-              emit(prefix.start, prefix.score + block_score,
-                    true, left, left+1, support_index+1);
-        }
-      }
-      workspace.paired[id] = paired;
-      return;
-    }
-    if (!inside)
-      return;
-
-    // The pair can begin the interval (empty prefix), or follow any
-    // retained interval ending immediately before its left endpoint.
-    emit(left, inside->score + local_score, true, left, inside->start, support_index+1);
-    if (left > 0) {
-      for (const auto& prefix_interval : beams[left-1])
-        emit(prefix_interval.start,
-              prefix_interval.score + inside->score + local_score,
-              true, left, inside->start, support_index+1);
-    }
-  };
-
-  const auto finish_column = [&](uint right) {
-    const uint generation = workspace.generation;
-    // The same start set drives suffix dominance, selection, and certificate
-    // recording.  Certificate::record only accumulates a max and a count, so
-    // preserving the original offer order would be identity-only overhead.
-    constexpr size_t radix_cutoff = 128;
-    if (candidate_starts.size() < radix_cutoff)
-      std::sort(candidate_starts.begin(), candidate_starts.end());
-    else
-      radix_sort_linear_nussinov_starts(candidate_starts,
-                                        workspace.radix_scratch);
-
-    // If a later-starting state has at least the same score, an earlier state
-    // represents the same structure plus unused leading bases and is
-    // dominated for every future suffix query.  Root is retained because it
-    // is the reported prefix optimum, but a dominated state is not a lost
-    // derivation and therefore needs no pruning certificate.
-    double best_suffix_score = -std::numeric_limits<double>::infinity();
-    auto& selected = workspace.selected;
-    selected.clear();
-    selected.reserve(std::min<size_t>(beam_limit, candidate_starts.size()));
-    for (size_t position = candidate_starts.size(); position-- > 0; ) {
-      const uint start = candidate_starts[position];
-      const LinearNussinovCell& cell = candidates[start];
-      if (cell.start != 0 && cell.score <= best_suffix_score) {
-        workspace.dominated_generation[cell.start] = generation;
-        continue;
-      }
-      best_suffix_score = std::max(best_suffix_score, cell.score);
-
-      double priority = cell.score;
-      if (cell.start != 0) {
-        const LinearNussinovCell* prefix =
-            workspace.beam_roots[cell.start-1];
-        assert(prefix);
-        priority = prefix->score + cell.score;
-      }
-      const LinearNussinovRankedCell ranked{&cell, priority};
-      selected.push_back(ranked);
-    }
-
-    const bool pruned = selected.size() > beam_limit;
-    if (pruned) {
-      std::nth_element(selected.begin(), selected.begin()+beam_limit,
-                       selected.end(), linear_nussinov_cell_is_better);
-      selected.resize(beam_limit);
-      if (std::none_of(selected.begin(), selected.end(),
-                       [](const auto& ranked) { return ranked.cell->start == 0; })) {
-        // Root must survive even when its priority is below the beam cutoff.
-        *std::max_element(selected.begin(), selected.end(),
-                          linear_nussinov_cell_is_better) =
-            {&candidates[0], candidates[0].score};
-      }
-    }
-
-    LinearNussinovBeam& beam = beams[right];
-    beam.clear();
-    beam.reserve(selected.size());
-    for (const auto& ranked : selected)
-      beam.push_back(*ranked.cell);
-    if (certify) {
-      for (const auto& cell : beam)
-        workspace.retained_generation[cell.start] = generation;
-      for (const uint start : candidate_starts)
-        if (workspace.retained_generation[start] != generation &&
-            workspace.dominated_generation[start] != generation)
-          certificate.record(start, candidates[start].score, right, L);
-    }
-    // Without beam pruning, dominance already left starts in reverse order.
-    if (!pruned) std::reverse(beam.begin(), beam.end());
-    else std::sort(beam.begin(), beam.end(),
-              [](const LinearNussinovCell& lhs,
-                 const LinearNussinovCell& rhs) {
-                return lhs.start < rhs.start;
-              });
-    const auto final_root = std::find_if(
-        beam.begin(), beam.end(),
-        [](const LinearNussinovCell& cell) { return cell.start == 0; });
-    assert(final_root != beam.end());
-    workspace.beam_roots[right] = &*final_root;
-  };
-
-  // Like IPknot, amortize private scatters/merges only on sufficiently wide
-  // charts. Default and sparse work stays in the fused single-worker kernel.
-  int workers = dp_worker_limit(dp_threads_, L);
-  if (workers > 1) {
-    size_t work = 0;
-    for (uint right = 0; right < L; ++right)
-      for (size_t k = 0; k < pairs_by_right[right].size(); ++k) {
-        const uint left = pairs_by_right[right][k];
-        if (!linear_nussinov_pair_is_usable(left, right, L)) continue;
-        const float score = workspace.pair_scores[workspace.pair_score_offsets[right]+k];
-        if (allow_isolated_ ? score > 0 : std::isfinite(score))
-          work += std::min<size_t>(beam_limit, size_t(left)+1);
-      }
-    const size_t average = work / L;
-    workers = average < 8192 ? 1 : static_cast<int>(std::min<size_t>(workers, average/4096));
-  }
-  if (workers == 1) {
-    for (uint right = 0; right < L; ++right) {
-      prepare_column(right);
-      for (size_t k = 0; k < pairs_by_right[right].size(); ++k)
-        generate_pair(right, k, offer);
-      finish_column(right);
-    }
-  } else {
-    if (workspace.local_length != L || workspace.local_columns.size() != size_t(workers)) {
-      workspace.local_columns.clear();
-      workspace.local_columns.reserve(workers);
-      for (int k = 0; k < workers; ++k) workspace.local_columns.emplace_back(L);
-      workspace.local_length = L;
-    }
-    for (auto& local : workspace.local_columns)
-      std::fill(local.generation.begin(), local.generation.end(), 0);
-    std::exception_ptr error;
-#ifdef _OPENMP
-#pragma omp parallel num_threads(workers) shared(error)
-#endif
-    {
-      int worker = 0;
-#ifdef _OPENMP
-      worker = omp_get_thread_num();
-#pragma omp single
-      workspace.used_workers = omp_get_num_threads();
-#endif
-      auto& local = workspace.local_columns[worker];
-      for (uint right = 0; right < L; ++right) {
-#ifdef _OPENMP
-#pragma omp single
-#endif
-        {
-          try {
-            prepare_column(right);
-            for (uint start : candidate_starts) workspace.candidate_origins[start] = 0;
-          }
-          catch (...) { error = std::current_exception(); }
-        }
-        local.starts.clear();
-        const auto emit = [&](uint start, double score, bool paired, uint left,
-                              uint inside_start, size_t origin) {
-          local.offer(right+1, start, score, paired, left, inside_start, origin);
-        };
-#ifdef _OPENMP
-#pragma omp for schedule(static)
-#endif
-        for (size_t k = 0; k < pairs_by_right[right].size(); ++k)
-          if (!error) generate_pair(right, k, emit);
-#ifdef _OPENMP
-#pragma omp single
-#endif
-        {
-          if (!error) try {
-            // Original support order, rather than worker order, resolves ties.
-            for (int k = 0; k < workspace.used_workers; ++k)
-              for (uint start : workspace.local_columns[k].starts) {
-                const auto& column = workspace.local_columns[k];
-                const auto& cell = column.cells[start];
-                merge_offer(cell, column.origins[start]);
-              }
-            finish_column(right);
-            if (workspace.used_workers > 1) ++workspace.parallel_steps;
-          } catch (...) { error = std::current_exception(); }
-        }
-        if (error) break;
-      }
-    }
-    if (error) std::rethrow_exception(error);
-  }
-
-  if (!allow_isolated_) {
-    std::vector<std::tuple<uint, uint, bool>> pending{{0, L-1, false}};
-    while (!pending.empty()) {
-      const auto [start, right, is_paired] = pending.back();
-      pending.pop_back();
-      if (is_paired) {
-        const auto& row = pairs_by_right[right];
-        const auto position = std::find(row.begin(), row.end(), start);
-        assert(position != row.end());
-        const auto& pair = workspace.paired[
-            workspace.pair_score_offsets[right] + (position-row.begin())];
-        ss[start] = right;
-        if (pair.inside_start != -1u)
-          pending.emplace_back(pair.inside_start, right-1, pair.stacked);
-        continue;
-      }
-      const auto* cell = find_linear_nussinov_cell(beams[right], start);
-      assert(cell);
-      if (!cell->paired) {
-        if (start < right)
-          pending.emplace_back(start, right-1, false);
-      } else {
-        ss[cell->pair_left] = right;
-        if (start < cell->pair_left)
-          pending.emplace_back(start, cell->pair_left-1, false);
-        pending.emplace_back(cell->pair_left+1, right-1, true);
-      }
-    }
-  } else {
-    auto& pending = workspace.pending;
-    pending.clear();
-    pending.push_back({0, L-1});
-    while (!pending.empty()) {
-      const auto [start, right] = pending.back();
-      pending.pop_back();
-      if (start > right)
-        continue;
-      const LinearNussinovCell* cell =
-          find_linear_nussinov_cell(beams[right], start);
-      assert(cell);
-      if (!cell->paired) {
-        if (start < right)
-          pending.push_back({start, right-1});
-        continue;
-      }
-
-      const uint left = cell->pair_left;
-      ss[left] = right;
-      if (start < left)
-        pending.push_back({start, left-1});
-      if (cell->inside_start != -1u)
-        pending.push_back({cell->inside_start, right-1});
-    }
-  }
-
-  const LinearNussinovCell* root = workspace.beam_roots[L-1];
-  assert(root);
-  LinearNussinovResult result;
-  result.score = static_cast<float>(root->score);
-  if (!certify) {
-    result.upper_bound = result.score;
-    result.pruned_upper_bound = result.score;
-    result.additive_upper_bound = result.score;
-    return result;
-  }
-
-  const double pruned_upper_bound = std::max(
-      root->score, certificate.pruned_upper_bound);
-  const double upper_bound = std::min(
-      pruned_upper_bound, certificate.additive_upper_bound);
-  result.pruned_upper_bound =
-      std::max(result.score,
-               RelaxedBounds::round_up_to_float(pruned_upper_bound));
-  result.additive_upper_bound =
-      std::max(result.score, RelaxedBounds::round_up_to_float(
-                                 certificate.additive_upper_bound));
-  result.upper_bound = std::max(
-      result.score, RelaxedBounds::round_up_to_float(upper_bound));
-  result.pruned_states = certificate.pruned_states;
-  return result;
-}
-
-template <typename PairScore>
-LinearNussinovResult
-LinearNussinov::
 decode_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
             PairScore pair_score, VU& ss, bool certify)
 {
@@ -1441,18 +1309,8 @@ decode_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
     throw std::invalid_argument("LinearNussinov dimensions exceed the decoder limit");
 
   size_t score_count = 0;
-  if (L >= 256)
-    for (const auto& row : pairs_by_right) score_count += row.size();
-  // Measurements favor DAFS on short/sparse graphs and IPknot on wide,
-  // populated graphs. Keep that choice internal; both return identical
-  // support semantics, trace ties and DD completion certificates.
-  if (L < 256 || score_count < size_t(L)*16) {
-    if (!workspace.dafs) workspace.dafs = std::make_unique<DafsWorkspace>();
-    const auto result = decode_dafs_impl(L, pairs_by_right, pair_score, ss, certify);
-    workspace.used_workers = workspace.dafs->used_workers;
-    workspace.parallel_steps = workspace.dafs->parallel_steps;
-    return result;
-  }
+  for (const auto& row : pairs_by_right) score_count += row.size();
+  // Always use IPknot improved beam, including short and very sparse inputs.
   workspace.used_ipknot = true;
   ss.assign(L, -1u);
   workspace.pair_score_offsets.resize(L+1);
@@ -1477,12 +1335,12 @@ decode_impl(uint L, const std::vector<std::vector<uint>>& pairs_by_right,
     if (workspace.pairs.size() > static_cast<size_t>(std::numeric_limits<int>::max()))
       throw std::invalid_argument("Too many LinearNussinov pairs");
     // IPknot supplies the faster beam, signed stacking and traceback kernels.
-    // Its compatibility mode preserves DAFS's treatment of pruned interiors;
-    // the observer below retains DAFS's per-pruned-state completion bounds.
+    // Native improved beam may use an empty interior when all inside states
+    // were pruned. The observer retains DAFS completion certificates.
     if (decoder) decoder->reset_pairs();
     else decoder = std::make_unique<DDNussinov>(
         L, workspace.pairs, 0, std::max(1u, beam_size_), !allow_isolated_,
-        true, dp_threads_, false, true);
+        true, dp_threads_, false);
     workspace.decoder = std::move(decoder);
   }
   workspace.weights.resize(workspace.pairs.size());

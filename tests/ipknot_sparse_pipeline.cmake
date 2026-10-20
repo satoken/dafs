@@ -59,7 +59,7 @@ if(NOT exact_metric_text MATCHES "\"structure_decoder\":\"exact-coupled-IP\"")
   message(FATAL_ERROR "Exact coupled IP path was not reported: ${exact_metric_text}")
 endif()
 
-# A nonlinear probability model exercises the reusable ILP decoder, including
+# A nonlinear probability model exercises the reusable DD decoder, including
 # coexistence with DAFS's separate coupled-IP implementation in one executable.
 execute_process(
   COMMAND "${DAFS}" -a ProbCons -s CONTRAfold --no-alifold

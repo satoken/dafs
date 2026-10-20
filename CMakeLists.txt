@@ -17,9 +17,9 @@ option(STATIC_BUILD "Build statically for Linux" OFF)
 include_directories("spdlog/include")
 include_directories("cxxopts/include")
 
-# Use just the reusable decoder, without IPknot's CLI or probability engines.
+# The bundled snapshot needs no external IPknot checkout or probability engines.
 # An empty source path selects an installed IPknotDecoder package instead.
-set(IPKNOT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ipknot" CACHE PATH
+set(IPKNOT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ipknot" CACHE PATH
     "IPknot checkout containing decoder/ (empty: find installed IPknotDecoder)")
 if(IPKNOT_SOURCE_DIR)
   if(NOT EXISTS "${IPKNOT_SOURCE_DIR}/decoder/CMakeLists.txt")

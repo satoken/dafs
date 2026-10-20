@@ -207,8 +207,8 @@ void pruned_parallel_certificate()
 
 void kernel_selection()
 {
-  // Reuse one object across IPknot -> DAFS -> changed IPknot -> empty ->
-  // IPknot. This exercises both caches and same-length graph rebuilding.
+  // Reuse one IPknot oracle across dense, sparse, changed and empty graphs.
+  // This exercises same-length graph rebuilding and length changes.
   const uint n=sanitizer_smoke ? 256 : 320;
   const uint beam=sanitizer_smoke ? 8 : 64;
   for (bool allow : {true,false}) {
@@ -231,9 +231,9 @@ void kernel_selection()
       const auto expected=fresh.decode_certified(1,p,q,a);
       const auto actual=reused.decode_certified(1,p,q,b);
       same(expected,actual);
-      require(a==b,"switching beam kernels changed traceback");
-      require(reused.used_ipknot_kernel()==(phase==0 || phase==2 || phase==4),
-              "automatic beam kernel selection differs");
+      require(a==b,"reusing IPknot beam changed traceback");
+      require(reused.used_ipknot_kernel() == (length != 0),
+              "IPknot improved beam was not selected");
       require(DDRecovery::structure(b,allow),"invalid switched-kernel structure");
     }
   }
@@ -274,7 +274,7 @@ int main(int argc, char** argv)
     beam_parallel();
     std::cout << "Checking parallel pruning certificates" << std::endl;
     pruned_parallel_certificate();
-    std::cout << "Checking automatic beam kernel selection" << std::endl;
+    std::cout << "Checking IPknot beam across graph sizes" << std::endl;
     kernel_selection();
     std::cout << "Checking long sparse fallback" << std::endl;
     sparse_long();

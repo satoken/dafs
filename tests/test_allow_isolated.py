@@ -46,7 +46,7 @@ def main():
     args = parser.parse_args()
     binary = str(args.binary.resolve())
     cases = [("IPknot", model, []) for model in
-             ["lpc", "lpv"] + (["CONTRAfold"] if args.with_ilp else [])]
+             ["lpc", "lpv", "CONTRAfold"]]
     cases += [("Nussinov", model, []) for model in ["lpc", "lpv", "CONTRAfold"]]
     cases += [("Nussinov", "lpc", ["--bp-update1"]),
               ("Nussinov", "lpc", ["--dense-lagrangian"]),
@@ -87,6 +87,10 @@ def main():
                 start = next(event for event in events if event["event"] == "run_start")
                 summary = next(event for event in events if event["event"] == "run_summary")
                 scores[mode] = summary["progressive_score"]
+                expected_backend = ("none" if decoder == "IPknot" or "--max-iter=0" in extra
+                                    else "IPknot" if model in ("lpc", "lpv") else "DAFS")
+                if start["nussinov_backend"] != expected_backend:
+                    raise AssertionError(f"{label}/{mode}: incorrect Nussinov backend: {start}")
                 if start["allow_isolated"] != is_allowed:
                     raise AssertionError(f"{label}/{mode}: switch missing from metrics")
                 iterations = [event for event in events if event["event"] == "dd_iteration"]

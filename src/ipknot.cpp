@@ -81,7 +81,7 @@ IPknot::IPknot(ipknot::DecoderOptions options)
     throw std::invalid_argument("Too many IPknot levels for bracket output");
 }
 
-LinearIPknot::LinearIPknot(const VF& th, uint beam_size, bool allow_isolated, int dp_threads)
+DDIPknot::DDIPknot(const VF& th, uint beam_size, bool allow_isolated, int dp_threads)
   : IPknot(decoder_options(th, ipknot::Backend::DD, 1, allow_isolated, beam_size, dp_threads))
 {
 }

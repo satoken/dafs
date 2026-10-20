@@ -246,14 +246,16 @@ reference_linear_decode(const VVF& pair_score, const VVU& pairs_by_right,
         continue;
       const ReferenceLinearNussinovCell* inside =
           reference_find_suffix(beams[right-1], left+1);
-      if (!inside)
-        continue;
-      offer(left, inside->score + local_score, true, left, inside->start);
+      // IPknot improved beam can still form a standalone pair after every
+      // retained inside state has been pruned; the empty inside is feasible.
+      const double inside_score = inside ? inside->score : 0.0;
+      const uint inside_start = inside ? inside->start : -1u;
+      offer(left, inside_score + local_score, true, left, inside_start);
       if (left > 0) {
         for (const auto& prefix_interval : beams[left-1])
           offer(prefix_interval.start,
-                prefix_interval.score + inside->score + local_score,
-                true, left, inside->start);
+                prefix_interval.score + inside_score + local_score,
+                true, left, inside_start);
       }
     }
 
@@ -895,7 +897,7 @@ int main()
         return 1;
     }
   }
-  // Cross the automatic DAFS/IPknot boundary against the independent
+  // Check short and long IPknot charts against the independent
   // reference, including ties, missing interiors, duplicates and bad entries.
   for (uint n : {255u,256u}) {
     SparseFloatMatrix probability;

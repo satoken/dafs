@@ -34,8 +34,8 @@ struct LinearNussinovResult
   size_t pruned_states = 0;
 };
 
-// Independent dense reference implementation; the CLI uses the faster
-// IPknot-backed SparseNussinov for exact decoding.
+// Independent dense reference implementation; the CLI uses DAFSNussinov
+// for exact decoding and LinearNussinov for finite-beam decoding.
 class Nussinov : public Fold::Decoder
 {
 public:
@@ -57,6 +57,29 @@ private:
   size_t parallel_steps_ = 0;
 };
 
+// Default exact decoder: the original DAFS candidate-list float DP.
+// Sparse posterior adapters retain the historical dense interval chart.
+class DAFSNussinov : public Fold::Decoder
+{
+public:
+  using Fold::Decoder::decode;
+  DAFSNussinov(float th, bool allow_isolated = true, int dp_threads = 1);
+  float decode(float w, const VVF& p, const VVF& q, VU& ss) override;
+  float decode(float w, const VVF& p, const SparseFloatMatrix& q, VU& ss) override;
+  float score(float w, const VVF& p, const VVF& q, const VU& ss);
+  float decode(const VVF& p, VU& ss, std::string& str) override;
+  float decode(const SparseFloatMatrix& p, const SparseFloatMatrix& pair_bonus,
+               VU& ss, std::string& str) override;
+  void make_brackets(const VU& ss, std::string& str) const override;
+  int used_workers() const { return 1; }
+  size_t parallel_steps() const { return 0; }
+
+private:
+  float th_;
+  bool allow_isolated_;
+};
+
+// IPknot exact sparse adapter, retained as a direct test/reference API.
 class SparseNussinov : public Fold::Decoder
 {
 public:
@@ -93,7 +116,7 @@ private:
   std::unique_ptr<Workspace> workspace_;
 };
 
-// Chooses the measured faster beam kernel, preserving DAFS certificates.
+// IPknot improved-beam Nussinov, preserving DAFS support and certificates.
 class LinearNussinov : public Fold::Decoder
 {
 public:
@@ -132,17 +155,11 @@ public:
 
 private:
   struct Workspace;
-  struct DafsWorkspace;
 
   template <typename PairScore>
   LinearNussinovResult decode_impl(
       uint length,
       const std::vector<std::vector<uint>>& pairs_by_right,
-      PairScore pair_score, VU& ss, bool certify);
-
-  template <typename PairScore>
-  LinearNussinovResult decode_dafs_impl(
-      uint length, const std::vector<std::vector<uint>>& pairs_by_right,
       PairScore pair_score, VU& ss, bool certify);
 
   float th_;

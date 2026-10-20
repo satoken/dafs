@@ -5,8 +5,6 @@ Requirements
 ------------
 
 * [Vienna RNA package](http://www.tbi.univie.ac.at/~ivo/RNA/) (>= 2.7; also supplies nearest-neighbor energy primitives for linear profile folding)
-* [IPknot](https://github.com/satoken/ipknot/tree/dev) `dev` checkout with the
-  reusable `decoder/` library, or an installed `IPknotDecoder` CMake package
 * (optional)
   [GNU Linear Programming Kit](http://www.gnu.org/software/glpk/) (>=4.41)
   or [Gurobi Optimizer](http://www.gurobi.com/) (>=2.0)
@@ -21,8 +19,10 @@ Install
 	cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build . 
 	cmake --install . # optional
 
-CMake defaults to the IPknot checkout at `../ipknot` and builds only its
-reusable `IPknot::decoder` library. To use another checkout:
+CMake builds the bundled IPknot decoder in `vendor/ipknot` by default; no
+separate IPknot checkout, network download, or CMake path is required. The
+snapshot and per-file hashes are recorded in `vendor/ipknot/UPSTREAM.json`.
+To override the bundled snapshot with another checkout:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
@@ -35,26 +35,39 @@ For an installed decoder, set `-DIPKNOT_SOURCE_DIR=` and
 `-DCMAKE_PREFIX_PATH=/path/to/ipknot-decoder-install` instead. The decoder's
 public headers and exported CMake target are sufficient for this mode.
 
-The exact IPknot decoder and `--max-iter=0` require an IP solver. Solver
+Only the explicit exact coupled `--max-iter=0` path requires an IP solver.
+Nussinov and the layered IPknot DD decoder work without an IP solver for all
+probability models, including CONTRAfold. Solver
 selection uses `ENABLE_CPLEX`, `ENABLE_GUROBI`, `ENABLE_SCIP`, or `ENABLE_HIGHS`;
 otherwise GLPK is discovered automatically. These settings apply to both DAFS
 and the decoder built from source. An installed decoder retains its own
 build-time solver selection. Set `-DENABLE_ILP=OFF` for a solver-free source
-build; the linear IPknot path described below works without a solver.
+build; the IPknot DD path described below works without a solver.
 
-With `-s lpc` or `-s lpv` together with `--fold-decoder=IPknot` (or
-`--ipknot`), DAFS uses the reusable IPknot decoder's bounded beam dual
-decomposition backend. `--fold-dd-beam` and `--fold-final-beam` set its
+With `--fold-decoder=IPknot` (or `--ipknot`), DAFS uses the reusable
+IPknot decoder's bounded beam dual
+decomposition backend regardless of the probability model (`-s CONTRAfold`,
+`-s lpc`, `-s lpv`, etc.), including auxiliary BPP inputs. This changes decoding
+only; CONTRAfold still calculates the same base-pair probabilities.
+`--fold-dd-beam` and `--fold-final-beam` set its
 Nussinov beam for coupling and final prediction, respectively. Its other DD
 settings use upstream defaults: 50 inner iterations, crossing beam 100, and
 16 witnesses. These inner iterations are independent of DAFS's `--max-iter`,
 which controls the outer alignment/folding coupling iterations.
 `--max-iter=0` remains the explicit exact coupled integer-program path and is
 reported separately. The `--ipknot` option also requests a fixed number of
-constrained LinearPartition refolds for the final prediction.
+constrained refolds with the selected probability model for the final prediction.
 
-For nonlinear folding models, IPknot uses the same library's ILP backend.
-Both backends receive DAFS's objective `w * (posterior - threshold) - multiplier`,
+DD is an approximate pseudoknot decoder; its prediction can differ from the
+previous nonlinear ILP backend. DAFS uses relaxed upper bounds for the outer
+coupling problem and reports uncertified agreement as `beam_stationary`.
+For example, no additional decoder option or solver is required:
+
+```sh
+dafs -a CONTRAlign -s CONTRAfold --ipknot --refinement=0 input.fa
+```
+
+The adapter receives DAFS's objective `w * (posterior - threshold) - multiplier`,
 including pairs present only in the multiplier support. DAFS preserves summed
 level scores rather than IPknot's default level average. Returned symmetric
 partners and level assignments are converted to DAFS's one-sided structures
@@ -73,49 +86,47 @@ the sparse candidate support alongside its interval beam, preserving linear
 work and storage for fixed beams and sparse degrees. DD repair removes pairs
 that lose stack support on either aligned profile.
 
-For nonlinear folding models, `SparseNussinov` uses the public `DDNussinov`
-oracle from the current IPknot decoder, with beam pruning disabled. It reuses
-IPknot's closed-candidate sparsification, suffix dominance, and lazy traceback,
-adapting the decomposition criterion in
-[Gray, Will and Jabbari (2024)](https://doi.org/10.1186/s13015-024-00256-4)
-to DAFS's additive pair scores. The optimal subproblem score is preserved;
-tied structures and DD trajectories can differ. Negative paired states remain
-available to support profitable helices when isolated pairs are forbidden.
-DAFS's minimum pair span and posterior/multiplier support are preserved.
-Sparse inputs keep their endpoint support, including final profile bonuses.
-Sparse candidate graphs use its sparse exact chart. Dense inputs and graphs
-whose interval chart fits within 512 bytes per retained candidate use its
-compact interval (wavefront) chart.
-Both apply exact closed-candidate sparsification, and the decoder workspace
-is reused when the candidate graph and chart type are unchanged. Worst-case time
-remains cubic and chart/trace memory quadratic plus the pair support.
-Finite-beam `LinearNussinov` automatically selects a kernel using timings
-with the same support, beam, isolated-pair policy and worker count. Short or
-very sparse inputs use the optimized DAFS kernel; inputs with at least 256
-positions and 16 candidate entries per position on average use the public
-IPknot `DDNussinov` kernel. This measured heuristic avoids IPknot adapter
-costs on small PK inputs while using its faster kernel on populated charts.
-The independent dense DAFS `Nussinov` remains a test/reference API. No backend
-selection flag is needed; exact CLI decoding uses IPknot's oracle above.
-Both beam kernels preserve DAFS's minimum span, tie order, treatment of pruned
-inside states and completion bounds. IPknot's pruning observer reports discarded
-beam states to the existing bound calculation, preserving DD termination.
-Both reuse signed paired states, suffix dominance, lazy traceback and parallel
-candidate buffers; decomposable closed-component pruning is restricted to
-exact decoding. Weights and masks are refreshed on each solve. IPknot graphs
-reuse their indices while endpoints stay unchanged. When endpoints change at
-the same length, `reset_pairs()` rebuilds indices while retaining chart and
-traceback buffers. Adjacent stack indices use flat arrays, avoiding a hash-table
-rebuild for each DD support update.
+For nonlinear folding models, the default `DAFSNussinov` uses DAFS's original
+candidate-list dynamic program, restored from `d7f4b07` before IPknot kernel
+integration. Its interval scores, addition order and tie precedence retain the
+previous float-DP behavior. Only positive local scores enter the candidate
+lists when isolated pairs are allowed. Sparse posterior inputs use the
+historical dense interval chart, and sparse profile bonuses are added before
+the threshold is subtracted. The stacked-pair recurrence continues to enforce
+`--disallow-isolated`, including below-threshold helix partners. Both modes
+use the original serial DAFS kernel, with cubic worst-case time and quadratic
+chart memory. Run-start metrics identify this backend as `nussinov_backend=DAFS`.
+
+Finite-beam `LinearNussinov` always uses the bundled IPknot `DDNussinov`
+improved-beam kernel, including short and very sparse inputs. Suffix dominance
+runs before finite-beam selection; exact closed-component sparsification is
+restricted to unpruned decoding. DAFS's minimum pair span, candidate support,
+tie order and isolated-pair policy are preserved by the adapter. When all inside
+states have been pruned, native improved beam may still form a pair with an
+empty interior; finite-beam structures and the outer DD trajectory can differ.
+IPknot's pruning observer feeds DAFS's existing completion bounds, so the
+outer DD termination checks remain certified. Pair weights and masks are
+refreshed on each solve; `reset_pairs()` reuses the chart and traceback buffers
+when endpoints change at the same length. Run-start metrics identify the
+linear backend as
+`nussinov_backend=IPknot`. The independent dense `Nussinov` and the IPknot
+exact sparse adapter `SparseNussinov` remain direct test/reference APIs.
+
+These defaults use `--fold-decoder=Nussinov` (also the CLI default), with no
+extra runtime option or ILP solver needed. `--fold-decoder=IPknot` selects the
+separate layered pseudoknot decoder described above.
 These choices apply to decoding independently of BPP calculation.
 
 `--fold-dp-threads N` selects within-DP workers for progressive, recovery and
-final Nussinov decoding, and for beam IPknot. The default is 1; 0 uses the
+final LinearNussinov decoding, and for IPknot DD. The restored nonlinear
+DAFSNussinov kernel stays serial; `--dd-threads` can distribute its independent
+DD subproblems instead. The default thread request is 1; 0 uses the
 OpenMP runtime limit (for example, `OMP_NUM_THREADS=4`). Negative values are
 rejected. Builds without OpenMP accept only 0 and 1. The option does not change
-ILP solver threads or probability calculation. Exact interval charts parallelize
-by interval length; very sparse exact charts remain serial to avoid allocating
-quadratic interval storage. LinearNussinov keeps one team across endpoints,
+ILP solver threads or probability calculation. The direct IPknot exact
+reference API parallelizes interval charts by interval length; very sparse
+exact charts remain serial to avoid allocating quadratic interval storage.
+LinearNussinov keeps one team across endpoints,
 uses private candidate buffers and merges ties in original support order.
 Like IPknot, it falls back to serial execution below 8,192 estimated prefix
 offers per endpoint and caps workers at one per 4,096 offers. Small/sparse
@@ -139,11 +150,9 @@ it does not parallelize probability calculation, final folding or profile merges
 Pair-match variables are evaluated after dynamic CBP generation and pricing,
 which depend on the X/Y/Z solutions.
 
-The IPknot checkout/package must expose `DDNussinov::PruningObserver` and the
-constructor overload for retained-inside compatibility, and `reset_pairs()`.
-These extensions are
-included in the adjacent IPknot checkout used here. Rebuild installed decoder
-packages from that checkout before building DAFS with `-DIPKNOT_SOURCE_DIR=`.
+An external IPknot checkout/package must expose `DDNussinov::PruningObserver`,
+and `reset_pairs()`. The bundled snapshot already
+includes these interfaces.
 
 For IPknot, the isolated-pair setting applies to both DD and ILP. With
 `--disallow-isolated`, DD requires an immediately adjacent stacked pair on the

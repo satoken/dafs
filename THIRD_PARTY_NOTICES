@@ -39,3 +39,14 @@ STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
 OF SUCH DAMAGE.
+
+Bundled IPknot decoder
+======================
+
+The reusable IPknot decoder in vendor/ipknot is copied from
+https://github.com/satoken/ipknot, dev commit
+fb0071d6629b06027d936130c8d724a740826e40 (GPL-3.0-or-later).
+Original source notices are retained. See vendor/ipknot/COPYING for the
+license and vendor/ipknot/UPSTREAM.json for the upstream file hashes.
+Only the reusable decoder and its shared solver/DP dependencies are bundled;
+IPknot probability engines and the CLI are not included.

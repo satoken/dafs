@@ -56,11 +56,14 @@ private:
 
 // Bounded beam DD from the same IPknot library, independent of DAFS's outer
 // coupling-iteration budget and usable without an integer-programming solver.
-class LinearIPknot : public IPknot
+class DDIPknot : public IPknot
 {
 public:
-  LinearIPknot(const VF& th, uint beam_size, bool allow_isolated = true,
+  DDIPknot(const VF& th, uint beam_size, bool allow_isolated = true,
                int dp_threads = 1);
 };
+
+// Compatibility name for clients of the former linear-model-only adapter.
+using LinearIPknot = DDIPknot;
 
 #endif // __INC_IPKNOT_H__

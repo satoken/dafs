@@ -103,16 +103,17 @@ void fixtures()
   constexpr uint length = 10;
   VVF p(length, VF(length)), q = p;
   p[0][9] = 0.95f;
+  DAFSNussinov legacy(0.2f, false), allowed_legacy(0.2f, true);
   Nussinov exact(0.2f, false), allowed_exact(0.2f, true);
   SparseNussinov sparse(0.2f, false), allowed_sparse(0.2f, true);
   LinearNussinov linear(0.2f, length, false), allowed_linear(0.2f, length, true);
   VU ss;
   std::string brackets;
-  for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&exact, &sparse, &linear}) {
+  for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&legacy, &exact, &sparse, &linear}) {
     require(decoder->decode(p, ss, brackets) == 0.0f, "no-isolated decoder allows lone pair");
     require(brackets == "..........", "lone pair rendered by default");
   }
-  for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&allowed_exact, &allowed_sparse, &allowed_linear}) {
+  for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&allowed_legacy, &allowed_exact, &allowed_sparse, &allowed_linear}) {
     require(close(decoder->decode(p, ss, brackets), 0.75), "allow switch lost lone pair");
     require(brackets == "(........)", "allowed lone pair traceback");
   }
@@ -120,7 +121,7 @@ void fixtures()
   p[1][8] = 0.1f;
   SparseFloatMatrix ps, qs, bonus;
   ps = to_sparse(p); qs = to_sparse(q); bonus.assign(length, length);
-  for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&exact, &sparse, &linear}) {
+  for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&legacy, &exact, &sparse, &linear}) {
     require(close(decoder->decode(p, ss, brackets), 0.65), "negative-scoring stack lost");
     require(brackets == "((......))", "stacked helix traceback");
     require(close(decoder->decode(ps, bonus, ss, brackets), 0.65), "bonus overload lost stack");
@@ -132,7 +133,7 @@ void fixtures()
   require(close(sparse.decode(1.0f, p, qs, ss), 0.65), "sparse q-only pair lost");
   require(close(linear.decode(1.0f, ps, qs, ss), 0.65), "linear q-only pair lost");
   bonus.set(1, 8, 0.1f);
-  for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&exact, &sparse, &linear})
+  for (Fold::Decoder* decoder : std::initializer_list<Fold::Decoder*>{&legacy, &exact, &sparse, &linear})
     require(close(decoder->decode(ps, bonus, ss, brackets), 0.65), "bonus-only stack lost");
 
   // Reuse the paired-state workspace across empty, short, and longer inputs.
@@ -173,6 +174,11 @@ void randomized()
     const double best = oracle(span_two ? cached : normal, w, p, q, threshold);
     VU ss;
     if (!span_two) {
+      DAFSNussinov legacy(threshold, false);
+      require(close(legacy.decode(w, p, q, ss), best), "DAFS DP differs from enumeration");
+      validate(best, ss, w, p, q, threshold);
+      require(close(legacy.decode(w, p, qs, ss), best), "DAFS sparse multiplier DP differs");
+      validate(best, ss, w, p, q, threshold);
       Nussinov exact(threshold, false);
       SparseNussinov sparse(threshold, false);
       require(close(exact.decode(w, p, q, ss), best), "dense DP differs from enumeration");

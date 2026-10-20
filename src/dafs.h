@@ -197,7 +197,7 @@ private:
   bool use_sparse_structure_lagrangian_; // sparse q_x/q_y for LinearFold
   bool use_sparse_alignment_lagrangian_; // sparse q_z for LinearAlign
   bool use_linear_structure_decoder_;    // beam max decoder for folding
-  bool use_linear_ipknot_decoder_;      // fixed-beam layered IPknot decoder
+  bool use_ipknot_dd_decoder_;      // layered IPknot DD, independent of probability model
   bool allow_isolated_ = true;           // allow isolated pairs unless explicitly disabled
   bool use_linear_alignment_decoder_;    // beam max decoder for alignment
   bool use_dd_tight_alignment_;          // opt-in exact sparse monotone z bound

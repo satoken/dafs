@@ -33,6 +33,8 @@ with tempfile.TemporaryDirectory() as directory:
                 events = [json.loads(line) for line in metrics.read_text().splitlines()]
                 start = next(e for e in events if e['event'] == 'run_start')
                 assert start['folding_dp_threads'] == threads
+                assert start['nussinov_backend'] == {
+                    'exact': 'DAFS', 'beam': 'IPknot', 'ipknot': 'none'}[mode]
                 deterministic = (result.stdout, [
                     {k: e[k] for k in ('event', 'progressive_score', 'ub', 'lb',
                                        'gap', 'iterations', 'stop_reason') if k in e}

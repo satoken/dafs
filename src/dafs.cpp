@@ -179,7 +179,7 @@ DAFS::DAFS()
       use_sparse_structure_lagrangian_(false),
       use_sparse_alignment_lagrangian_(false),
       use_linear_structure_decoder_(false),
-      use_linear_ipknot_decoder_(false),
+      use_ipknot_dd_decoder_(false),
       use_linear_alignment_decoder_(false),
       use_dd_tight_alignment_(false),
       use_dd_projected_norm_(false),
@@ -1500,12 +1500,13 @@ float DAFS::
                      use_sparse_alignment_lagrangian_);
   gm.set_projected_norm(use_dd_projected_norm_ || use_dd_beam_projected_norm_);
   gm.initialize(L1, L2);
-  // Beam subgradients are useful for primal recovery but do not minimize the
+  // Approximate subgradients are useful for primal recovery but do not minimize the
   // certified matching relaxation.  Maintain an independent, always-sparse
   // dual track whose subproblems are the convex left/row relaxations.  A fixed
   // number of tracks preserves linear complexity.
   const bool use_certified_dual_track =
-      use_linear_structure_decoder_ || use_linear_alignment_decoder_;
+      use_linear_structure_decoder_ || use_ipknot_dd_decoder_ ||
+      use_linear_alignment_decoder_;
   std::unique_ptr<GradientManager> certified_gm;
   if (use_certified_dual_track) {
     certified_gm = std::make_unique<GradientManager>(
@@ -1697,7 +1698,7 @@ float DAFS::
       // and protects certification against implementation or rounding drift.
       certified_s += std::max(x_certified_bound, s_x) +
                      std::max(y_certified_bound, s_y);
-    } else if (use_linear_ipknot_decoder_) {
+    } else if (use_ipknot_dd_decoder_) {
       // The layered beam decoder is a feasible oracle, not an exact
       // maximizer.  Dropping crossing constraints and keeping only one pair
       // per left endpoint bounds the original coupled objective, whose
@@ -1756,9 +1757,9 @@ float DAFS::
       // The coupled IP objective permits all positive pair spans.  Linear
       // Nussinov starts at span two, while IPknot's coupled model can also
       // contain span-one pairs; include them in its capacity relaxation.
-      const uint minimum_bound_span = use_linear_ipknot_decoder_ ? 1u :
+      const uint minimum_bound_span = use_ipknot_dd_decoder_ ? 1u :
           LinearNussinov::cached_support_minimum_pair_span;
-      const float bound_threshold = use_linear_ipknot_decoder_ ?
+      const float bound_threshold = use_ipknot_dd_decoder_ ?
           min_th_s : th_s_[0];
       certified_track_accumulator = RelaxedBounds::structure_left_solution(
           p_x_support, L1, [&](uint i, uint j) {
@@ -2233,7 +2234,7 @@ float DAFS::
          {"certified_track_polyak_update", use_certified_dual_track
               ? json_number(certified_gm->get_last_update_size()) : "null"},
          {"x_beam", json_number(s_x)},
-         {"x_bound", (use_linear_structure_decoder_ || use_linear_ipknot_decoder_)
+         {"x_bound", (use_linear_structure_decoder_ || use_ipknot_dd_decoder_)
                          ? json_number(x_certified_bound) : "null"},
          {"x_bound_beam_certificate", use_linear_structure_decoder_
               ? json_number(x_linear_result.upper_bound) : "null"},
@@ -2251,7 +2252,7 @@ float DAFS::
          {"x_bound_top_k", "null"},
          {"x_bound_vertex_cover", "null"},
          {"y_beam", json_number(s_y)},
-         {"y_bound", (use_linear_structure_decoder_ || use_linear_ipknot_decoder_)
+         {"y_bound", (use_linear_structure_decoder_ || use_ipknot_dd_decoder_)
                          ? json_number(y_certified_bound) : "null"},
          {"y_bound_beam_certificate", use_linear_structure_decoder_
               ? json_number(y_linear_result.upper_bound) : "null"},
@@ -2375,7 +2376,7 @@ float DAFS::
       // oracle can only establish that its own feasible solutions agree; the
       // distinct reason prevents that stationary condition being reported as
       // a certified result when the relaxed UB still has a gap.
-      stop_reason = use_linear_structure_decoder_ ||
+      stop_reason = use_linear_structure_decoder_ || use_ipknot_dd_decoder_ ||
                     use_linear_alignment_decoder_
                   ? "beam_stationary" : "agreement";
       break;
@@ -2885,7 +2886,7 @@ parse_options(int& argc, char**& argv)
     ("fold-aux", "Load base-pairing probability matrices from FILENAME", cxxopts::value<std::string>(), "FILENAME")
     ("linfold-beam", "Beam size for LinearPartition probability calculation", cxxopts::value<int>()->default_value("100"), "SIZE")
     ("fold-dd-beam", "Beam size for the folding DD decoder (default: --linfold-beam)", cxxopts::value<int>(), "SIZE")
-    ("fold-dp-threads", "Nussinov/beam IPknot DP threads (0: OpenMP runtime)", cxxopts::value<int>()->default_value("1"), "N")
+    ("fold-dp-threads", "Folding DP threads where supported (0: OpenMP runtime)", cxxopts::value<int>()->default_value("1"), "N")
     ("fold-final-beam", "Beam size for final consensus folding (default: --linfold-beam)", cxxopts::value<int>(), "SIZE")
     ("linear-profile-energy", "Profile thermodynamic score for lpv/lpc: legacy or rnaalifold",
       cxxopts::value<std::string>()->default_value("rnaalifold"));
@@ -3190,24 +3191,19 @@ parse_options(int& argc, char**& argv)
         (fold_decoder != "Nussinov" || res["ipknot"].count()))
       throw std::invalid_argument(
           "--final-ribosum-weight is supported only by Nussinov decoding");
-    const bool linear_ipknot = !res["fold-aux"].count() && linear_folding &&
-                                (fold_decoder == "IPknot" ||
-                                 res["ipknot"].count());
     const bool ipknot_decoder = fold_decoder == "IPknot" || res["ipknot"].count();
     if (!ipknot_decoder && fold_decoder != "Nussinov")
       throw "Unknown folding decoder: " + res["fold-decoder"].as<std::string>();
-    use_linear_ipknot_decoder_ = linear_ipknot;
+    use_ipknot_dd_decoder_ = ipknot_decoder;
     use_linear_structure_decoder_ = !ipknot_decoder &&
                                     !res["fold-aux"].count() && linear_folding;
     const auto make_folding_decoder = [&](const VF& thresholds, uint beam)
         -> std::unique_ptr<Fold::Decoder> {
-      if (linear_ipknot)
-        return std::make_unique<LinearIPknot>(thresholds, beam, allow_isolated_, fold_dp_threads_);
       if (ipknot_decoder)
-        return std::make_unique<IPknot>(thresholds, 1, allow_isolated_);
+        return std::make_unique<DDIPknot>(thresholds, beam, allow_isolated_, fold_dp_threads_);
       if (use_linear_structure_decoder_)
         return std::make_unique<LinearNussinov>(thresholds[0], beam, allow_isolated_, fold_dp_threads_);
-      return std::make_unique<SparseNussinov>(thresholds[0], allow_isolated_, fold_dp_threads_);
+      return std::make_unique<DAFSNussinov>(thresholds[0], allow_isolated_, fold_dp_threads_);
     };
     s_decoder_ = make_folding_decoder(th_s_, fold_dd_beam);
     s_decoder_y_.reset();
@@ -3237,9 +3233,7 @@ parse_options(int& argc, char**& argv)
                                         use_linear_alignment_decoder_;
     spdlog::info("DAFS decoder: structure={}, alignment={}",
                  use_linear_structure_decoder_ ? "beam-max" :
-                   use_linear_ipknot_decoder_ ? "linear-IPknot" :
-                   (fold_decoder == "IPknot" || res["ipknot"].count()
-                    ? "MIP" : "exact-DP"),
+                   use_ipknot_dd_decoder_ ? "IPknot-DD" : "exact-DP",
                  use_linear_alignment_decoder_ ? "beam-max" : "exact-DP");
     spdlog::info("Lagrangian storage: structure={}, alignment={}",
                  use_sparse_structure_lagrangian_ ? "sparse" : "dense",
@@ -3372,9 +3366,13 @@ int DAFS::
        {"alignment_model", align_model_name_},
        {"alignment_score_model", align_score_model_name_},
        {"folding_model", fold_model_name_},
+       {"pseudoknot_backend", use_ipknot_dd_decoder_ ? "DD" : "none"},
+       {"nussinov_backend", t_max_ == 0 || use_ipknot_dd_decoder_ ? "none" :
+            (use_linear_structure_decoder_ ? "IPknot" : "DAFS")},
        {"structure_decoder", t_max_ == 0 ? "exact-coupled-IP" :
-            (use_linear_ipknot_decoder_
-            ? "linear-IPknot"
+            (use_ipknot_dd_decoder_
+            ? ((fold_model_name_ == "lpc" || fold_model_name_ == "lpv" ||
+                fold_model_name_ == "LinFold") ? "linear-IPknot" : "IPknot-DD")
             : (use_linear_structure_decoder_ ? "linear-Nussinov" : "exact"))}});
 
   // calculate base-pairing probabilities

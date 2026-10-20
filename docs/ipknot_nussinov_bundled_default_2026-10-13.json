@@ -1,0 +1,135 @@
+{
+  "dafs_base_commit": "8b62396646aec07d4b7d065baad21a7de1a984e3",
+  "ipknot_commit": "fb0071d6629b06027d936130c8d724a740826e40",
+  "job_id": 8997754,
+  "host": "r17n5",
+  "settings": "N0-13, N1-34, L0-13, L1-15; mafft-dafs; isolated allowed; max-iter=500; refinement=0; three timing measurements",
+  "before": "DAFS 8b62396 with external IPknot; linear size-dependent kernel selection",
+  "after": "same DAFS source, bundled IPknot, always native improved beam; nonlinear adapter unchanged",
+  "binary_sha256": {
+    "baseline": "32d551cd935c15c996d7d0e2636fa99c36452e6c1159987ff4a1a7bef628bf53",
+    "bundled": "3cc668ecba4ec9eb636a603b17ac620fbe9bca15ad44dfaee439b626135dc643"
+  },
+  "probe": {
+    "counts": {
+      "E": 1848,
+      "L": 264
+    },
+    "differences": {
+      "L": 28
+    },
+    "linear_score_changes": {
+      "equal": 239,
+      "better": 18,
+      "worse": 7
+    }
+  },
+  "audit": {
+    "replicate_prediction_matches": 1360,
+    "paired_tree_and_distance_matches": 1020,
+    "nonlinear_prediction_matches": 510
+  },
+  "summary": [
+    {
+      "group": "N0",
+      "setting": "N0-13-allow",
+      "inputs": 85,
+      "measurements_per_arm": 255,
+      "baseline_sci": 0.7696976512274832,
+      "baseline_sps": 0.7826124788036468,
+      "baseline_f1": 0.6836466393127869,
+      "baseline_seconds": 2.751137254901961,
+      "baseline_rss_mib": 21.0,
+      "bundled_sci": 0.7696976512274832,
+      "bundled_sps": 0.7826124788036468,
+      "bundled_f1": 0.6836466393127869,
+      "bundled_seconds": 2.7294117647058824,
+      "bundled_rss_mib": 21.0,
+      "prediction_changed_inputs": 0,
+      "delta_sci": 0.0,
+      "delta_sps": 0.0,
+      "delta_f1": 0.0,
+      "speedup": 1.0079597701149425,
+      "speedup_ci95": [
+        1.006922772277228,
+        1.009068425391591
+      ]
+    },
+    {
+      "group": "N1",
+      "setting": "N1-34-allow",
+      "inputs": 85,
+      "measurements_per_arm": 255,
+      "baseline_sci": 0.8181183820813406,
+      "baseline_sps": 0.7509256523114491,
+      "baseline_f1": 0.6720159474082188,
+      "baseline_seconds": 3.933686274509804,
+      "baseline_rss_mib": 24.0,
+      "bundled_sci": 0.8181183820813406,
+      "bundled_sps": 0.7509256523114491,
+      "bundled_f1": 0.6720159474082188,
+      "bundled_seconds": 3.9063529411764706,
+      "bundled_rss_mib": 24.0,
+      "prediction_changed_inputs": 0,
+      "delta_sci": 0.0,
+      "delta_sps": 0.0,
+      "delta_f1": 0.0,
+      "speedup": 1.006997148937879,
+      "speedup_ci95": [
+        1.0061528046036523,
+        1.0078348858601993
+      ]
+    },
+    {
+      "group": "L0",
+      "setting": "L0-13-allow",
+      "inputs": 85,
+      "measurements_per_arm": 255,
+      "baseline_sci": 0.7859070174945376,
+      "baseline_sps": 0.775591319335533,
+      "baseline_f1": 0.6808378283599317,
+      "baseline_seconds": 6.527176470588235,
+      "baseline_rss_mib": 33.0,
+      "bundled_sci": 0.7859070174945376,
+      "bundled_sps": 0.775591319335533,
+      "bundled_f1": 0.6808378283599317,
+      "bundled_seconds": 6.646627450980392,
+      "bundled_rss_mib": 33.0,
+      "prediction_changed_inputs": 0,
+      "delta_sci": 0.0,
+      "delta_sps": 0.0,
+      "delta_f1": 0.0,
+      "speedup": 0.98202833222215,
+      "speedup_ci95": [
+        0.9779278481185174,
+        0.9851694631845082
+      ]
+    },
+    {
+      "group": "L1",
+      "setting": "L1-15-allow",
+      "inputs": 85,
+      "measurements_per_arm": 255,
+      "baseline_sci": 0.8121157559736313,
+      "baseline_sps": 0.7689190925803469,
+      "baseline_f1": 0.6893188303798861,
+      "baseline_seconds": 10.159529411764705,
+      "baseline_rss_mib": 39.0,
+      "bundled_sci": 0.8121157559736313,
+      "bundled_sps": 0.7689190925803469,
+      "bundled_f1": 0.6893188303798861,
+      "bundled_seconds": 10.20686274509804,
+      "bundled_rss_mib": 39.0,
+      "prediction_changed_inputs": 0,
+      "delta_sci": 0.0,
+      "delta_sps": 0.0,
+      "delta_f1": 0.0,
+      "speedup": 0.9953625972529054,
+      "speedup_ci95": [
+        0.9921736821272349,
+        0.9980784302152091
+      ]
+    }
+  ],
+  "results_dir": "/gs/bs/tga-satolab-gtex/satoken/repos/dafs-benchmark/build/dafs-ipknot-nussinov-default/results"
+}

@@ -46,8 +46,7 @@ with tempfile.TemporaryDirectory(prefix='dafs-dd-threads-') as directory:
           '--dd-column-bound', '--dd-outward-lb', '--dd-unpruned-bound']),
         ('ipknot', 'lpc', 'LinearAlign', 'IPknot', []),
     ]
-    if ilp:
-        cases.append(('ipknot-ilp', 'CONTRAfold', 'CONTRAlign', 'IPknot', []))
+    cases.append(('ipknot-dd-contrafold', 'CONTRAfold', 'CONTRAlign', 'IPknot', []))
     for mode, model, align, decoder, extra in cases:
         print(f'Checking {mode}', flush=True)
         for isolated in ['--allow-isolated', '--disallow-isolated']:
